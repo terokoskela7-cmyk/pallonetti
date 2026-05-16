@@ -1,0 +1,15 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Cache — vain Functions kirjoittaa Admin SDK:lla (ohittaa Rules),
+    // kaikki saavat lukea
+    match /cache/{document=**} {
+      allow read: if true;
+      allow write: if false;
+    }
+    // Kaikki muu — ei sallita selaimesta
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

@@ -1,0 +1,7 @@
+lib/
+node_modules/
+.firebase/
+*.log
+.env
+serviceAccountKey.json
+runtimeconfig.json

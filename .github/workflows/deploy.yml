@@ -80,10 +80,10 @@ jobs:
           GCP_SA_KEY: ${{ secrets.GCP_SA_KEY }}
           PROJECT_ID: pallonetti-fi
 
-      - name: Set API environment config
+      - name: Set RapidAPI config
         uses: w9jds/firebase-action@master
         with:
-          args: functions:config:set rapidapi.key="${{ secrets.RAPIDAPI_KEY }}"
+          args: functions:config:set rapidapi.key="${{ secrets.RAPIDAPI_KEY }}" --project pallonetti-fi
         env:
-          GCP_SA_KEY: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
-          PROJECT_ID: ${{ secrets.FIREBASE_PROJECT_ID }}
+          GCP_SA_KEY: ${{ secrets.GCP_SA_KEY }}
+          PROJECT_ID: pallonetti-fi

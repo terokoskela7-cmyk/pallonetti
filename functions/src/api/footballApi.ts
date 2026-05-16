@@ -19,9 +19,12 @@ import {
   Position,
 } from '../types';
 
-// Veikkausliiga league ID in API-Football
+// API-Football league IDs (verified 2026-05-17 via /leagues?country=Finland)
 const VEIKKAUSLIIGA_ID = 244;
-const YKKOSLIIGA_ID = 245;
+const YKKOSLIIGA_ID = 1087;       // NOT 245 — 245 is Ykkönen
+const YKKONEN_ID = 245;           // NOT 246 — 246 is Suomen Cup
+const KANSALLINEN_LIIGA_ID = 640; // Naisten — käytetään Sprint 6+
+// Kakkonen jaettu kolmeen lohkoon: 247 (A), 248 (B), 249 (C)
 
 // Season configurations
 const SEASONS: Record<number, VeikkausliigaSeason> = {

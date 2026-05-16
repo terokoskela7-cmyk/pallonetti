@@ -316,10 +316,12 @@ app.get('/api/youth-stats/:season', async (req, res) => {
 app.get('/api/youth-stats/:season/all', async (req, res) => {
   try {
     const season = parseInt(req.params.season);
+    // League ID:t API-Footballin /leagues?country=Finland -endpointista (2026-05-17):
+    //   Veikkausliiga=244, Ykkösliiga=1087 (NOT 245), Ykkönen=245 (NOT 246)
     const [veikkausliiga, ykkosliiga, ykkonen] = await Promise.all([
       dataAggregator.getYouthStats(season, 244),
+      dataAggregator.getYouthStats(season, 1087),
       dataAggregator.getYouthStats(season, 245),
-      dataAggregator.getYouthStats(season, 246),
     ]);
     res.json({
       success: true,

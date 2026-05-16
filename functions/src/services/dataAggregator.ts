@@ -99,12 +99,14 @@ class DataAggregator {
     return result.data;
   }
 
-  /** Hae joukkueiden nuorten pelaajien tilastot */
-  async getYouthStats(season: number): Promise<YouthStats[]> {
-    const cacheKey = `youth_stats_${season}`;
+  /** Hae joukkueiden nuorten pelaajien tilastot — tukee useaa sarjaa */
+  async getYouthStats(season: number, league: number = 244): Promise<YouthStats[]> {
+    // Cache-avain sisältää liigan, joten 3 sarjaa cachetetaan erikseen.
+    // Avaimen muutos myös invalidoi vanhan tyhjän youth_stats_${season} -merkinnän.
+    const cacheKey = `youth_stats_${league}_${season}`;
     const result = await cacheService.getOrFetch(
       cacheKey,
-      () => footballApi.getYouthStats(season),
+      () => footballApi.getYouthStats(season, league),
       'api-football',
       'youth_stats'
     );

@@ -83,28 +83,59 @@ class FootballApiService {
     }
   }
 
-  /** Hae kaikki Veikkausliigan joukkueet kaudelta */
-  async getTeams(season: number): Promise<ApiFootballTeam[]> {
+  /**
+   * Apufunktio: paginoi /players ja muut sivutetut endpointit.
+   * Loop kunnes paging.current >= paging.total. API-Football jakaa
+   * /players -vastauksen 20 pelaajan eriin per sivu.
+   */
+  private async fetchAllPages<T>(endpoint: string, params: Record<string, unknown>): Promise<T[]> {
+    const all: T[] = [];
+    let currentPage = 1;
+    let totalPages = 1;
+
+    do {
+      try {
+        const response = await this.client.get<ApiFootballResponse<T[]>>(endpoint, {
+          params: { ...params, page: currentPage },
+        });
+        if (response.data.errors && Array.isArray(response.data.errors) && response.data.errors.length > 0) {
+          console.error(`API-Football error (${endpoint} page ${currentPage}): ${JSON.stringify(response.data.errors)}`);
+        }
+        const items = response.data.response || [];
+        all.push(...items);
+        totalPages = response.data.paging?.total || 1;
+        currentPage++;
+      } catch (error) {
+        console.error(`API-Football paginate error for ${endpoint} page ${currentPage}:`, error);
+        break;
+      }
+    } while (currentPage <= totalPages);
+
+    return all;
+  }
+
+  /** Hae sarjan joukkueet kaudelta */
+  async getTeams(season: number, league: number = VEIKKAUSLIIGA_ID): Promise<ApiFootballTeam[]> {
     return this.fetch<ApiFootballTeam[]>('/teams', {
-      league: VEIKKAUSLIIGA_ID,
+      league,
       season,
     });
   }
 
-  /** Hae Veikkausliigan joukkueiden pelaajat */
-  async getPlayers(season: number, teamId?: number): Promise<ApiFootballPlayer[]> {
+  /** Hae sarjan joukkueiden pelaajat (paginoitu) */
+  async getPlayers(season: number, teamId?: number, league: number = VEIKKAUSLIIGA_ID): Promise<ApiFootballPlayer[]> {
     const params: Record<string, unknown> = {
-      league: VEIKKAUSLIIGA_ID,
+      league,
       season,
     };
     if (teamId) params.team = teamId;
-    return this.fetch<ApiFootballPlayer[]>('/players', params);
+    return this.fetchAllPages<ApiFootballPlayer>('/players', params);
   }
 
   /** Hae sarjataulukko */
-  async getStandings(season: number): Promise<ApiFootballStanding[]> {
+  async getStandings(season: number, league: number = VEIKKAUSLIIGA_ID): Promise<ApiFootballStanding[]> {
     return this.fetch<ApiFootballStanding[]>('/standings', {
-      league: VEIKKAUSLIIGA_ID,
+      league,
       season,
     });
   }
@@ -253,17 +284,30 @@ class FootballApiService {
   }
 
   /** Laske nuorten pelaajien aggregeeratut tilastot joukkueittain */
-  async getYouthStats(season: number): Promise<YouthStats[]> {
-    const players = await this.getPlayers(season);
-    const standings = await this.getStandings(season);
+  async getYouthStats(season: number, league: number = VEIKKAUSLIIGA_ID): Promise<YouthStats[]> {
+    const players = await this.getPlayers(season, undefined, league);
     const teamMap = new Map<string, { name: string; logo: string }>();
 
-    // Kerää joukkueet
-    if (standings && standings[0]) {
-      const entries = standings[0].league.standings?.[0] || [];
-      entries.forEach((e) => {
-        teamMap.set(String(e.team.id), { name: e.team.name, logo: e.team.logo });
-      });
+    // Rakenna teamMap players-datasta (primary lähde — kattaa kaikki joukkueet
+    // joissa on edes yksi pelaaja datassa)
+    for (const p of players) {
+      const stats = p.statistics[0];
+      if (!stats || !stats.team) continue;
+      const teamId = String(stats.team.id);
+      if (!teamMap.has(teamId)) {
+        teamMap.set(teamId, { name: stats.team.name, logo: stats.team.logo });
+      }
+    }
+
+    // Fallback: jos players-data ei tarjonnut joukkueita, käytä standings:ia
+    if (teamMap.size === 0) {
+      const standings = await this.getStandings(season, league);
+      if (standings && standings[0]) {
+        const entries = standings[0].league.standings?.[0] || [];
+        entries.forEach((e) => {
+          teamMap.set(String(e.team.id), { name: e.team.name, logo: e.team.logo });
+        });
+      }
     }
 
     // Kerää pelaajat joukkueittain

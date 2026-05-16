@@ -308,6 +308,36 @@ app.get('/api/youth-stats/:season', async (req, res) => {
   }
 });
 
+/**
+ * GET /api/youth-stats/:season/all - Youth playing time for 3 leagues
+ * Palauttaa Veikkausliiga (244), Ykkösliiga (245), Ykkönen (246) yhtenä objektina.
+ * Cache: 3 erillistä cache-avainta (per liiga), TTL 6h.
+ */
+app.get('/api/youth-stats/:season/all', async (req, res) => {
+  try {
+    const season = parseInt(req.params.season);
+    const [veikkausliiga, ykkosliiga, ykkonen] = await Promise.all([
+      dataAggregator.getYouthStats(season, 244),
+      dataAggregator.getYouthStats(season, 245),
+      dataAggregator.getYouthStats(season, 246),
+    ]);
+    res.json({
+      success: true,
+      data: { veikkausliiga, ykkosliiga, ykkonen },
+      cached: false,
+      source: 'api-football',
+      timestamp: new Date().toISOString(),
+    });
+  } catch (error) {
+    console.error('Youth stats (all leagues) error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch youth stats for all leagues',
+      timestamp: new Date().toISOString(),
+    });
+  }
+});
+
 /** GET /api/youth-aggregation/:season - League-wide youth summary */
 app.get('/api/youth-aggregation/:season', async (req, res) => {
   try {

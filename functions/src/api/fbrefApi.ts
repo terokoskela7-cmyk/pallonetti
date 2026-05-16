@@ -235,7 +235,7 @@ class FbrefService {
     ga: number;
     gd: number;
     pts: number;
-  }>> | undefined> {
+  }> | undefined> {
     const url = this.getStandingsUrl(season);
     try {
       const response = await this.client.get(url);
@@ -273,7 +273,7 @@ class FbrefService {
     xGFor: number;
     xGAgainst: number;
     matches: number;
-  }>> | undefined> {
+  }> | undefined> {
     try {
       const response = await this.client.get('https://footystats.org/finland/veikkausliiga/xg');
       const $ = cheerio.load(response.data);

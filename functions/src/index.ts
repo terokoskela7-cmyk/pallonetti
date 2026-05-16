@@ -17,6 +17,16 @@ if (!admin.apps.length) {
   admin.initializeApp();
 }
 
+// Lue RapidAPI-avain joko process.env:stä tai functions.config():sta
+const RAPIDAPI_KEY =
+  process.env.RAPIDAPI_KEY ||
+  (functions.config().rapidapi && functions.config().rapidapi.key) ||
+  '';
+
+if (!RAPIDAPI_KEY) {
+  console.error('RAPIDAPI_KEY not set! API-Football will not work.');
+}
+
 // ============================================
 // Express API App
 // ============================================

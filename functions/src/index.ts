@@ -12,8 +12,10 @@ import { footballApi } from './api/footballApi';
 import { fbrefApi } from './api/fbrefApi';
 import { transfermarktApi } from './api/transfermarktApi';
 
-// Initialize Firebase Admin
-admin.initializeApp();
+// Initialize Firebase Admin (guard prevents double-init when container reuses module)
+if (!admin.apps.length) {
+  admin.initializeApp();
+}
 
 // ============================================
 // Express API App

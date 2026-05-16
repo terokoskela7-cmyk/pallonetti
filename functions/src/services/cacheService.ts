@@ -24,9 +24,7 @@ class CacheService {
   private db: admin.firestore.Firestore;
 
   constructor() {
-    if (!admin.apps.length) {
-      admin.initializeApp();
-    }
+    // initializeApp() kutsutaan vain index.ts:ssä — älä lisää tänne
     this.db = admin.firestore();
   }
 

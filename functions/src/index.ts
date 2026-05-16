@@ -4,8 +4,8 @@
 // ============================================
 import * as functions from 'firebase-functions';
 import * as admin from 'firebase-admin';
-import * as express from 'express';
-import * as cors from 'cors';
+import express from 'express';
+import cors from 'cors';
 import { dataAggregator } from './services/dataAggregator';
 import { cacheService } from './services/cacheService';
 import { footballApi } from './api/footballApi';

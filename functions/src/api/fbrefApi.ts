@@ -52,7 +52,7 @@ class FbrefService {
 
       let tableHtml = '';
       comments.each((_, comment) => {
-        const commentData = comment.data || '';
+        const commentData = (comment as { data?: string }).data || '';
         if (commentData.includes('div_stats_standard')) {
           tableHtml = commentData;
         }
@@ -133,7 +133,7 @@ class FbrefService {
 
       let tableHtml = '';
       comments.each((_, comment) => {
-        const commentData = comment.data || '';
+        const commentData = (comment as { data?: string }).data || '';
         if (commentData.includes('div_stats_standard')) {
           tableHtml = commentData;
         }

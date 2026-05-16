@@ -12,6 +12,9 @@ import { footballApi } from './api/footballApi';
 import { fbrefApi } from './api/fbrefApi';
 import { transfermarktApi } from './api/transfermarktApi';
 
+// Region: kaikki funktiot deployataan europe-west1:een (sama kuin TalentMaster-sisarprojekti)
+const REGION = 'europe-west1';
+
 // Initialize Firebase Admin (guard prevents double-init when container reuses module)
 if (!admin.apps.length) {
   admin.initializeApp();
@@ -604,10 +607,10 @@ app.post('/api/admin/cache-cleanup', async (_req, res) => {
 // ============================================
 
 /** Main API function - handles all /api/* routes */
-export const api = functions.https.onRequest(app);
+export const api = functions.region(REGION).https.onRequest(app);
 
 /** Scheduled: Refresh data every 2 hours during season */
-export const scheduledDataRefresh = functions.pubsub
+export const scheduledDataRefresh = functions.region(REGION).pubsub
   .schedule('0 */2 * * *') // Every 2 hours
   .timeZone('Europe/Helsinki')
   .onRun(async (context) => {
@@ -624,7 +627,7 @@ export const scheduledDataRefresh = functions.pubsub
   });
 
 /** Scheduled: Cache cleanup daily */
-export const scheduledCacheCleanup = functions.pubsub
+export const scheduledCacheCleanup = functions.region(REGION).pubsub
   .schedule('0 3 * * *') // Daily at 3 AM Helsinki
   .timeZone('Europe/Helsinki')
   .onRun(async () => {
@@ -638,7 +641,7 @@ export const scheduledCacheCleanup = functions.pubsub
   });
 
 /** HTTP: Manual trigger for data refresh */
-export const refreshData = functions.https.onRequest(async (req, res) => {
+export const refreshData = functions.region(REGION).https.onRequest(async (req, res) => {
   const season = parseInt(req.query.season as string) || 2026;
   try {
     console.log(`Manual refresh triggered for season ${season}`);

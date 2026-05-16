@@ -21,11 +21,15 @@ const CACHE_DURATIONS: Record<string, number> = {
 };
 
 class CacheService {
-  private db: admin.firestore.Firestore;
+  // Lazy: admin.firestore() kutsutaan vasta ensimmäisellä käytöllä.
+  // Konstruktori ajetaan module-load-aikana, mutta initializeApp() vasta
+  // index.ts:n body-koodissa — eager-init kaataisi adminin.
+  private get db(): admin.firestore.Firestore {
+    return admin.firestore();
+  }
 
   constructor() {
-    // initializeApp() kutsutaan vain index.ts:ssä — älä lisää tänne
-    this.db = admin.firestore();
+    // Ei mitään — db alustuu lazy:nä
   }
 
   /** Hae cache-merkintä */

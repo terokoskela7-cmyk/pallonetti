@@ -54,21 +54,27 @@ const SEASONS: Record<number, VeikkausliigaSeason> = {
 
 class FootballApiService {
   private client: AxiosInstance;
-  private apiKey: string;
 
   constructor() {
-    this.apiKey = process.env.RAPIDAPI_KEY || '';
-    if (!this.apiKey) {
-      console.warn('RAPIDAPI_KEY not set! API-Football will not work.');
-    }
-
     this.client = axios.create({
       baseURL: 'https://v3.football.api-sports.io',
       headers: {
-        'x-rapidapi-key': this.apiKey,
         'x-rapidapi-host': 'v3.football.api-sports.io',
       },
       timeout: 15000,
+    });
+
+    // Lazy: lue RAPIDAPI_KEY jokaisessa pyynnössä, ei konstruktorissa.
+    // Firebase Cloud Functions lataa .env-arvot ennen module-loadia, mutta
+    // sniffaus per-pyyntö suojaa myös tapaukset joissa env tulee myöhemmin
+    // (paikallinen kehitys, container-uudelleenkäyttö).
+    this.client.interceptors.request.use((config) => {
+      const apiKey = process.env.RAPIDAPI_KEY || '';
+      if (!apiKey) {
+        console.warn('RAPIDAPI_KEY not set at request time — API-Football call will fail.');
+      }
+      config.headers.set('x-rapidapi-key', apiKey);
+      return config;
     });
   }
 

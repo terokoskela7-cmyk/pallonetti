@@ -17,12 +17,10 @@ if (!admin.apps.length) {
   admin.initializeApp();
 }
 
-// Lue RapidAPI-avain process.env:stä (functions/.env ladataan automaattisesti Cloud Functionsissa)
-const RAPIDAPI_KEY = process.env.RAPIDAPI_KEY || '';
-
-if (!RAPIDAPI_KEY) {
-  console.error('RAPIDAPI_KEY not set! API-Football will not work.');
-}
+// API_VERSION: muuta tätä joka deployssa, jotta Firebase tunnistaa muutoksen.
+// RAPIDAPI_KEY-tarkistus on siirretty footballApi-luokan request-interceptoriin,
+// koska module-load-aikana process.env ei välttämättä ole vielä asetettu.
+const API_VERSION = '1.1.0'; // youth-stats pagination + 3 sarjaa
 
 // ============================================
 // Express API App
@@ -36,7 +34,7 @@ app.get('/health', (_req, res) => {
   res.json({
     status: 'ok',
     service: 'pallotalentti-api',
-    version: '1.0.0',
+    version: API_VERSION,
     timestamp: new Date().toISOString(),
   });
 });

@@ -79,7 +79,7 @@ jobs:
       - name: Deploy to Firebase
         uses: w9jds/firebase-action@master
         with:
-          args: deploy --only functions,firestore --project pallonetti-fi
+          args: deploy --only functions,firestore --project pallonetti-fi --force
         env:
           GCP_SA_KEY: ${{ secrets.GCP_SA_KEY }}
           PROJECT_ID: pallonetti-fi

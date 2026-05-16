@@ -17,11 +17,8 @@ if (!admin.apps.length) {
   admin.initializeApp();
 }
 
-// Lue RapidAPI-avain joko process.env:stä tai functions.config():sta
-const RAPIDAPI_KEY =
-  process.env.RAPIDAPI_KEY ||
-  (functions.config().rapidapi && functions.config().rapidapi.key) ||
-  '';
+// Lue RapidAPI-avain process.env:stä (functions/.env ladataan automaattisesti Cloud Functionsissa)
+const RAPIDAPI_KEY = process.env.RAPIDAPI_KEY || '';
 
 if (!RAPIDAPI_KEY) {
   console.error('RAPIDAPI_KEY not set! API-Football will not work.');

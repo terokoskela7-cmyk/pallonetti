@@ -72,13 +72,9 @@ jobs:
 
       # ----- DEPLOY -----
 
-      - name: Set RapidAPI config
-        uses: w9jds/firebase-action@master
-        with:
-          args: functions:config:set rapidapi.key="${{ secrets.RAPIDAPI_KEY }}" --project pallonetti-fi
-        env:
-          GCP_SA_KEY: ${{ secrets.GCP_SA_KEY }}
-          PROJECT_ID: pallonetti-fi
+      - name: Create functions/.env from secret
+        run: |
+          echo "RAPIDAPI_KEY=${{ secrets.RAPIDAPI_KEY }}" > functions/.env
 
       - name: Deploy to Firebase
         uses: w9jds/firebase-action@master

@@ -326,8 +326,30 @@ class FootballApiService {
       const stats = p.statistics[0];
       if (!stats) continue;
       const teamId = String(stats.team.id);
-      const birthYear = p.player.birth.date ? parseInt(p.player.birth.date.split('-')[0]) : 0;
-      const age = birthYear ? season - birthYear : p.player.age || 0;
+
+      // Iän laskenta — suosi birth.date:a (tarkempi), validoi tulos kohtuulliselle välille.
+      // API-Football palauttaa joskus rikkinäistä dataa (esim. p.player.age = 2025 jos
+      // vuosi on merkitty väärään kenttään). Skip pelaaja jos ikää ei voi luotettavasti
+      // määrittää — pelaajia joilla ei birth.date:a EI lasketa keski-ikään.
+      let age = 0;
+      let hasValidAge = false;
+
+      if (p.player.birth?.date) {
+        const birthYear = parseInt(p.player.birth.date.split('-')[0], 10);
+        if (!isNaN(birthYear) && birthYear >= 1960 && birthYear <= season) {
+          age = season - birthYear;
+          if (age >= 14 && age <= 50) hasValidAge = true;
+        }
+      }
+
+      if (!hasValidAge && typeof p.player.age === 'number'
+          && p.player.age >= 14 && p.player.age <= 50) {
+        age = p.player.age;
+        hasValidAge = true;
+      }
+
+      if (!hasValidAge) continue; // ohita pelaaja jolla ei kelvollista ikätietoa
+
       const teamData = teamPlayers.get(teamId) || [];
       teamData.push({ ...p, age });
       teamPlayers.set(teamId, teamData);

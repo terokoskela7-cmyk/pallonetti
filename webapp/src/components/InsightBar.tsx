@@ -39,7 +39,7 @@ function computeInsights(teams: YouthStats[]): Insight[] {
   return [
     {
       icon: Star,
-      label: 'Paras kehittäjä',
+      label: 'Eniten peliaikaa nuorille',
       title: topU23.teamName,
       body: `Antaa eniten peliaikaa nuorille — ${topU23.youthPercentageU23.toFixed(
         1,

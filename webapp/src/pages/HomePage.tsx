@@ -107,7 +107,13 @@ export default function HomePage() {
             trendLabel="vs 2025"
           />
         )}
-        <KPICard label="Sarjat seurannassa" value={3} accent="white" />
+        <KPICard
+          label="Sarjat seurannassa"
+          value={3}
+          accent="white"
+          sparkline={[1, 1, 1, 2, 3]}
+          neutralTrendText="Laajenee myöhemmin"
+        />
       </section>
 
       {/* 3. Ankkurinavigaatio sarjojen välillä */}

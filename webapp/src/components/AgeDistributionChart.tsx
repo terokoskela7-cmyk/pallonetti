@@ -92,8 +92,15 @@ export function AgeDistributionChart({ teams }: AgeDistributionChartProps) {
   return (
     <div>
       <div className="overflow-x-auto -mx-6 px-6 pb-2">
-        <div style={{ minWidth: Math.max(640, data.length * 60) }}>
-          <ResponsiveContainer width="100%" height={360}>
+        <div
+          style={{
+            minWidth: Math.max(640, data.length * 60),
+            height: '360px',
+          }}
+        >
+          {/* Recharts vaatii eksplisiittisen pixel-korkeuden wrapperilta —
+              Tailwind h-[...] -arvot eivät aina mittaudu oikein */}
+          <ResponsiveContainer width="100%" height="100%">
             <BarChart
               data={data}
               margin={{ top: 16, right: 8, bottom: 8, left: -16 }}

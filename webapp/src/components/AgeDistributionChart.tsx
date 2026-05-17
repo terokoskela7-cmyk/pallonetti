@@ -4,6 +4,7 @@ import {
   XAxis,
   YAxis,
   Tooltip,
+  ReferenceLine,
   ResponsiveContainer,
   CartesianGrid,
   type TooltipProps,
@@ -69,6 +70,7 @@ function CustomTooltip({ active, payload, label }: TooltipProps<ValueType, NameT
 }
 
 export function AgeDistributionChart({ teams }: AgeDistributionChartProps) {
+  // Joukkueet järjestyksessä U23-% mukaan, korkein vasemmalla
   const data = [...teams]
     .sort((a, b) => b.youthPercentageU23 - a.youthPercentageU23)
     .map((t) => ({
@@ -81,6 +83,11 @@ export function AgeDistributionChart({ teams }: AgeDistributionChartProps) {
       '21-23v': Math.max(0, t.youthPercentageU23 - t.youthPercentageU21),
       'Yli 23v': Math.max(0, 100 - t.youthPercentageU23),
     }));
+
+  // Liigan painotettu U23-keskiarvo viittausviivaa varten
+  const totalMin = teams.reduce((s, t) => s + t.totalMinutes, 0);
+  const u23Min = teams.reduce((s, t) => s + t.youthMinutesU23, 0);
+  const leagueAvg = totalMin > 0 ? (u23Min / totalMin) * 100 : 0;
 
   return (
     <div>
@@ -126,10 +133,31 @@ export function AgeDistributionChart({ teams }: AgeDistributionChartProps) {
                   radius={i === STACK_KEYS.length - 1 ? [4, 4, 0, 0] : 0}
                 />
               ))}
+              {leagueAvg > 0 && (
+                <ReferenceLine
+                  y={leagueAvg}
+                  stroke="#00D4FF"
+                  strokeDasharray="4 4"
+                  strokeWidth={1.5}
+                  label={{
+                    value: `Liigan keskiarvo ${leagueAvg.toFixed(1)} %`,
+                    position: 'insideTopRight',
+                    fill: '#00D4FF',
+                    fontSize: 11,
+                    fontWeight: 500,
+                  }}
+                />
+              )}
             </BarChart>
           </ResponsiveContainer>
         </div>
       </div>
+
+      {/* Selitelause */}
+      <p className="mt-4 text-sm text-white/60 leading-relaxed">
+        Mitä korkeampi vihreä palkki, sitä enemmän joukkue antaa peliaikaa alle
+        23-vuotiaille pelaajille.
+      </p>
 
       {/* Selitelegenda */}
       <div className="flex flex-wrap items-center gap-x-4 gap-y-2 mt-4 text-xs">

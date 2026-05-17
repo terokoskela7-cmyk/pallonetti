@@ -7,6 +7,7 @@ import {
   type LeagueId,
 } from '@/components/LeagueTabBar';
 import { AgeDistributionChart } from '@/components/AgeDistributionChart';
+import { InsightBar } from '@/components/InsightBar';
 import {
   PlayerMinutesTable,
   type AgeGroup,
@@ -153,6 +154,11 @@ export default function PelaikaPage() {
               </span>
             </div>
             <AgeDistributionChart teams={teams} />
+          </section>
+
+          {/* 3.5. Tarinankerronta — automaattiset nostot */}
+          <section>
+            <InsightBar teams={teams} />
           </section>
 
           {/* 4. Filtterit */}

@@ -34,6 +34,12 @@ function getPlayers(t: YouthStats, ag: AgeGroup): number {
   return 0;
 }
 
+function rowAccentClass(u23Pct: number): string {
+  if (u23Pct >= 25) return 'border-l-aurora';
+  if (u23Pct >= 15) return 'border-l-amber-400';
+  return 'border-l-red-400';
+}
+
 const headerLabels: Record<AgeGroup, string> = {
   u23: 'U23-%',
   u21: 'U21-%',
@@ -133,9 +139,11 @@ export function PlayerMinutesTable({ teams, ageGroup }: PlayerMinutesTableProps)
             return (
               <tr
                 key={team.teamId}
-                className="border-t border-navy-700 hover:bg-navy-700/30 transition-colors"
+                className={`border-t border-navy-700 hover:bg-navy-700/30 transition-colors border-l-[3px] ${rowAccentClass(
+                  team.youthPercentageU23,
+                )}`}
               >
-                <td className="py-3 pr-3 text-white/40 tabular">{i + 1}</td>
+                <td className="py-3 pr-3 pl-2 text-white/40 tabular">{i + 1}</td>
                 <td className="py-3 pr-3 font-medium text-white/90">
                   {team.teamName}
                 </td>
@@ -156,6 +164,31 @@ export function PlayerMinutesTable({ teams, ageGroup }: PlayerMinutesTableProps)
           })}
         </tbody>
       </table>
+
+      {/* Värikoodien selite */}
+      <div className="mt-4 flex flex-wrap items-center gap-x-5 gap-y-2 text-xs">
+        <div className="flex items-center gap-2">
+          <span className="w-1 h-4 bg-aurora rounded-sm" />
+          <span className="text-white/60">
+            <span className="text-white/80 font-medium">Vihreä</span> = yli 25 %
+            peliajasta nuorille (erinomainen)
+          </span>
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="w-1 h-4 bg-amber-400 rounded-sm" />
+          <span className="text-white/60">
+            <span className="text-white/80 font-medium">Keltainen</span> = 15–25 %
+            (liigan keskitaso)
+          </span>
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="w-1 h-4 bg-red-400 rounded-sm" />
+          <span className="text-white/60">
+            <span className="text-white/80 font-medium">Punainen</span> = alle 15 %
+            (kehitettävää)
+          </span>
+        </div>
+      </div>
     </div>
   );
 }

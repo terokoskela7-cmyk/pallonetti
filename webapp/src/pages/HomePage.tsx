@@ -1,11 +1,17 @@
 import { useApi } from '@/hooks/useApi';
 import { getYouthStatsAll, type YouthStats } from '@/services/api';
+import { Hero } from '@/components/Hero';
 import { WeeklyNarrative } from '@/components/WeeklyNarrative';
 import { KPICard } from '@/components/KPICard';
 import { LeagueSection } from '@/components/LeagueSection';
 import { TopPlayersCard } from '@/components/TopPlayersCard';
 
 const SEASON = 2026;
+
+// Hero-tausta. Vaihda URL halutessasi (Unsplash, Pexels, oma kuva).
+// Tällä hetkellä iltavalaistu jalkapallokenttä Unsplashista.
+const HERO_IMAGE =
+  'https://images.unsplash.com/photo-1574629810360-7efbbe195018?auto=format&fit=crop&w=1600&q=80';
 
 function calcU23Pct(teams: YouthStats[]): number {
   const totalMinutes = teams.reduce((s, t) => s + t.totalMinutes, 0);
@@ -47,6 +53,21 @@ export default function HomePage() {
 
   return (
     <div className="px-6 py-10 md:py-16 space-y-12">
+      {/* 0. Hero-kuva */}
+      <Hero
+        eyebrow={`Suomalaisen jalkapallon U23 · Kausi ${SEASON}`}
+        title={
+          <>
+            Nuorten peliaika{' '}
+            <span className="text-aurora font-medium">näkyväksi</span>
+          </>
+        }
+        subtitle="Pallonetti.fi seuraa kuinka paljon alle 23-vuotiaat suomalaispelaajat saavat minuutteja Veikkausliigassa, Ykkösliigassa ja Ykkösessä."
+        backgroundImage={HERO_IMAGE}
+        imageAlt="Jalkapallokenttä iltavalossa"
+        height="lg"
+      />
+
       {/* 1. Viikon narratiivi */}
       <section>
         <WeeklyNarrative veikkausliiga={veikkausliiga} ykkosliiga={ykkosliiga} />

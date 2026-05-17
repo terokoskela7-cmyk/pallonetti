@@ -1,11 +1,23 @@
 import { useApi } from '@/hooks/useApi';
-import { getYouthStatsAll } from '@/services/api';
+import { getYouthStatsAll, type YouthStats } from '@/services/api';
 import { WeeklyNarrative } from '@/components/WeeklyNarrative';
 import { KPICard } from '@/components/KPICard';
-import { TeamRankingBar } from '@/components/TeamRankingBar';
+import { LeagueSection } from '@/components/LeagueSection';
 import { TopPlayersCard } from '@/components/TopPlayersCard';
 
 const SEASON = 2026;
+
+function calcU23Pct(teams: YouthStats[]): number {
+  const totalMinutes = teams.reduce((s, t) => s + t.totalMinutes, 0);
+  const u23Minutes = teams.reduce((s, t) => s + t.youthMinutesU23, 0);
+  return totalMinutes > 0 ? (u23Minutes / totalMinutes) * 100 : 0;
+}
+
+const leagueLinks = [
+  { href: '#veikkausliiga', label: 'Veikkausliiga' },
+  { href: '#ykkosliiga', label: 'Ykkösliiga' },
+  { href: '#ykkonen', label: 'Ykkönen' },
+];
 
 export default function HomePage() {
   const { data, loading, error } = useApi(() => getYouthStatsAll(SEASON), [SEASON]);
@@ -28,55 +40,82 @@ export default function HomePage() {
     );
   }
 
-  const veikkausliiga = data.veikkausliiga;
-
-  const totalMinutes = veikkausliiga.reduce((s, t) => s + t.totalMinutes, 0);
-  const u23Minutes = veikkausliiga.reduce((s, t) => s + t.youthMinutesU23, 0);
-  const u23Pct = totalMinutes > 0 ? (u23Minutes / totalMinutes) * 100 : 0;
-  const u23Players = veikkausliiga.reduce((s, t) => s + t.youthPlayersU23, 0);
-  const teamsOver25 = veikkausliiga.filter(
-    (t) => t.youthPercentageU23 >= 25,
-  ).length;
+  const { veikkausliiga, ykkosliiga, ykkonen } = data;
+  const vPct = calcU23Pct(veikkausliiga);
+  const ylPct = calcU23Pct(ykkosliiga);
+  const yPct = calcU23Pct(ykkonen);
+  const totalTeams = veikkausliiga.length + ykkosliiga.length + ykkonen.length;
 
   return (
     <div className="px-6 py-10 md:py-16 space-y-12">
       {/* 1. Viikon narratiivi */}
       <section>
-        <WeeklyNarrative teams={veikkausliiga} />
+        <WeeklyNarrative veikkausliiga={veikkausliiga} ykkosliiga={ykkosliiga} />
       </section>
 
-      {/* 2. KPI-kortit */}
+      {/* 2. KPI-kortit — yksi per sarja + kokonaismäärä */}
       <section className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <KPICard
           label="Veikkausliiga U23"
-          value={u23Pct.toFixed(1)}
+          value={vPct.toFixed(1)}
           suffix="%"
           accent="aurora"
         />
-        <KPICard label="U23-pelaajia" value={u23Players} accent="ice" />
         <KPICard
-          label="Joukkueet ≥ 25 %"
-          value={teamsOver25}
-          suffix={`/ ${veikkausliiga.length}`}
+          label="Ykkösliiga U23"
+          value={ylPct.toFixed(1)}
+          suffix="%"
           accent="ice"
         />
         <KPICard
-          label="Sarjat seurannassa"
-          value={3}
+          label="Ykkönen U23"
+          value={yPct.toFixed(1)}
+          suffix="%"
+          accent="ice"
+        />
+        <KPICard
+          label="Joukkueita yhteensä"
+          value={totalTeams}
           accent="white"
         />
       </section>
 
-      {/* 3. Joukkueet U23-osuuden mukaan */}
-      <section>
-        <div className="flex items-baseline justify-between mb-5">
-          <h2 className="text-lg font-medium">Joukkueet — U23-osuus</h2>
-          <span className="text-xs text-white/40">Veikkausliiga · kausi {SEASON}</span>
-        </div>
-        <TeamRankingBar teams={veikkausliiga} />
-      </section>
+      {/* 3. Ankkurinavigaatio sarjojen välillä */}
+      <nav className="flex items-center gap-1 text-sm border-b border-navy-700 -mx-6 px-6 pb-3 overflow-x-auto">
+        {leagueLinks.map((link) => (
+          <a
+            key={link.href}
+            href={link.href}
+            className="px-3 py-1.5 rounded-md text-white/70 hover:text-ice hover:bg-navy-700/40 transition-colors whitespace-nowrap"
+          >
+            {link.label}
+          </a>
+        ))}
+      </nav>
 
-      {/* 4. Viikon top 5 pelaajaa */}
+      {/* 4. Sarjat — yksi LeagueSection per sarja */}
+      <LeagueSection
+        id="veikkausliiga"
+        title="Veikkausliiga"
+        season={SEASON}
+        teams={veikkausliiga}
+      />
+
+      <LeagueSection
+        id="ykkosliiga"
+        title="Ykkösliiga"
+        season={SEASON}
+        teams={ykkosliiga}
+      />
+
+      <LeagueSection
+        id="ykkonen"
+        title="Ykkönen"
+        season={SEASON}
+        teams={ykkonen}
+      />
+
+      {/* 5. Viikon top 5 pelaajaa */}
       <section className="max-w-2xl">
         <TopPlayersCard players={[]} />
       </section>

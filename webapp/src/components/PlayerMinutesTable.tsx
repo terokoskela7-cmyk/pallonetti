@@ -7,6 +7,8 @@ export type AgeGroup = 'u23' | 'u21' | 'u20' | 'u19';
 interface PlayerMinutesTableProps {
   teams: YouthStats[];
   ageGroup: AgeGroup;
+  /** Liigan painotettu keski-% kyseiselle ikäryhmälle — "Ero ka."-laskuun */
+  leagueAvg: number;
 }
 
 type SortKey = 'pct' | 'minutes' | 'players' | 'age' | 'name';
@@ -50,7 +52,11 @@ const headerLabels: Record<AgeGroup, string> = {
   u19: 'U19-%',
 };
 
-export function PlayerMinutesTable({ teams, ageGroup }: PlayerMinutesTableProps) {
+export function PlayerMinutesTable({
+  teams,
+  ageGroup,
+  leagueAvg,
+}: PlayerMinutesTableProps) {
   const [sortKey, setSortKey] = useState<SortKey>('pct');
   const [sortDir, setSortDir] = useState<SortDir>('desc');
 
@@ -117,6 +123,9 @@ export function PlayerMinutesTable({ teams, ageGroup }: PlayerMinutesTableProps)
               </button>
             </th>
             <th className="py-3 px-3 font-medium text-right">
+              Ero ka.
+            </th>
+            <th className="py-3 px-3 font-medium text-right">
               <button
                 onClick={() => handleSort('minutes')}
                 className="inline-flex items-center gap-1.5 hover:text-white/80 transition-colors"
@@ -155,6 +164,16 @@ export function PlayerMinutesTable({ teams, ageGroup }: PlayerMinutesTableProps)
                 </td>
                 <td className="py-3 px-3 tabular text-white/90">
                   {getPct(team, ageGroup).toFixed(1)} %
+                </td>
+                <td
+                  className={`py-3 px-3 text-right tabular ${
+                    getPct(team, ageGroup) - leagueAvg >= 0
+                      ? 'text-aurora'
+                      : 'text-red-400'
+                  }`}
+                >
+                  {getPct(team, ageGroup) - leagueAvg >= 0 ? '+' : ''}
+                  {(getPct(team, ageGroup) - leagueAvg).toFixed(1)} %
                 </td>
                 <td className="py-3 px-3 text-right tabular text-ice">
                   {getMinutes(team, ageGroup).toLocaleString('fi-FI')}

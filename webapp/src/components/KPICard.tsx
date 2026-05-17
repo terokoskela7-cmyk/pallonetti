@@ -41,7 +41,7 @@ export function KPICard({
       : undefined;
 
   return (
-    <div className="bg-navy-700/40 border border-navy-600 rounded-lg p-5">
+    <div className="bg-navy-700 border border-navy-600 rounded-lg p-5 transition-transform duration-200 hover:scale-[1.02] hover:border-navy-500">
       <div className="text-xs uppercase tracking-wider text-white/50 mb-3 font-medium">
         {label}
       </div>

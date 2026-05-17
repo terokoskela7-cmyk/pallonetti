@@ -9,7 +9,6 @@ const SEASON = 2026;
 function getInitials(teamName: string): string {
   const words = teamName.split(/\s+/).filter((w) => w.length > 0);
   if (words.length === 1) return words[0].slice(0, 3).toUpperCase();
-  // "HJK Helsinki" → "HJK" (jos ensimmäinen on lyhenne)
   if (
     words[0].length <= 4 &&
     words[0] === words[0].toUpperCase() &&
@@ -17,7 +16,6 @@ function getInitials(teamName: string): string {
   ) {
     return words[0];
   }
-  // "FC Inter" → "FCI", "IFK Mariehamn" → "IFKM"
   return words
     .slice(0, 3)
     .map((w) => w[0])
@@ -25,15 +23,8 @@ function getInitials(teamName: string): string {
     .toUpperCase();
 }
 
-function hashColor(name: string): string {
-  let hash = 0;
-  for (let i = 0; i < name.length; i++) {
-    hash = name.charCodeAt(i) + ((hash << 5) - hash);
-    hash = hash & hash; // pidetään 32-bittisenä
-  }
-  const hue = Math.abs(hash) % 360;
-  return `hsl(${hue}, 55%, 42%)`;
-}
+// Värisykli — joukkueet saavat värin järjestysindeksin mukaan
+const TEAM_COLORS = ['#00D4FF', '#00FF88', '#6366f1', '#f59e0b', '#ef4444'];
 
 function progressBarColor(pct: number): string {
   if (pct >= 25) return 'bg-[#00FF88]';
@@ -43,49 +34,55 @@ function progressBarColor(pct: number): string {
 
 interface TeamCardProps {
   team: YouthStats;
+  index: number;
 }
 
-function TeamCard({ team }: TeamCardProps) {
+function TeamCard({ team, index }: TeamCardProps) {
   const initials = getInitials(team.teamName);
-  const circleColor = hashColor(team.teamName);
+  const circleColor = TEAM_COLORS[index % TEAM_COLORS.length];
   const pct = team.youthPercentageU23;
   const barColor = progressBarColor(pct);
 
   return (
-    <div className="bg-navy-700/40 border border-navy-600 rounded-lg p-5 flex flex-col gap-4 hover:border-navy-500 transition-colors">
-      {/* Otsikko: initialiympyrä + nimi */}
+    <div className="bg-navy-700 border border-navy-600 rounded-lg p-5 flex flex-col gap-4 hover:border-navy-500 transition-colors">
+      {/* Otsikko: initialiympyrä + nimi + keski-ikä */}
       <div className="flex items-center gap-3">
         <div
-          className="w-12 h-12 rounded-full flex items-center justify-center font-medium text-sm shrink-0 text-white"
+          className="w-12 h-12 rounded-full flex items-center justify-center font-semibold text-sm shrink-0 text-navy-900"
           style={{ backgroundColor: circleColor }}
           aria-hidden="true"
         >
           {initials}
         </div>
         <div className="min-w-0">
-          <div className="font-medium text-white/90 truncate">
+          <div className="text-lg font-medium text-white/95 truncate leading-tight">
             {team.teamName}
           </div>
-          <div className="text-xs text-white/40">Veikkausliiga {SEASON}</div>
+          <div className="text-xs text-white/40 mt-0.5">
+            Keski-ikä{' '}
+            <span className="tabular text-white/60">
+              {team.averageAge > 0 ? team.averageAge.toFixed(1) : '—'}
+            </span>
+          </div>
         </div>
       </div>
 
-      {/* Tilastot 3 sarakkeessa */}
-      <div className="grid grid-cols-3 gap-2 text-center border-t border-navy-700 pt-3">
+      {/* Kolme tilastoa vierekkäin */}
+      <div className="grid grid-cols-3 gap-2 text-center border-t border-navy-600 pt-3">
         <div>
           <div className="text-[10px] uppercase tracking-wider text-white/40 mb-1">
-            Pelaajia
+            U23-pelaajia
           </div>
           <div className="tabular text-white/90 font-medium">
-            {team.totalPlayers}
+            {team.youthPlayersU23}
           </div>
         </div>
         <div>
           <div className="text-[10px] uppercase tracking-wider text-white/40 mb-1">
-            Keski-ikä
+            Minuutteja
           </div>
           <div className="tabular text-white/90 font-medium">
-            {team.averageAge > 0 ? team.averageAge.toFixed(1) : '—'}
+            {team.youthMinutesU23.toLocaleString('fi-FI')}
           </div>
         </div>
         <div>
@@ -98,9 +95,9 @@ function TeamCard({ team }: TeamCardProps) {
         </div>
       </div>
 
-      {/* Progress-baari */}
+      {/* Progress-baari 0-100% skaalalla */}
       <div>
-        <div className="h-1.5 bg-navy-700/70 rounded-full overflow-hidden">
+        <div className="h-1.5 bg-navy-600/70 rounded-full overflow-hidden">
           <div
             className={`h-full ${barColor} rounded-full transition-all duration-500`}
             style={{ width: `${Math.min(pct, 100)}%` }}
@@ -196,8 +193,8 @@ export default function JoukkueetPage() {
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-          {teams.map((team) => (
-            <TeamCard key={team.teamId} team={team} />
+          {teams.map((team, i) => (
+            <TeamCard key={team.teamId} team={team} index={i} />
           ))}
         </div>
       )}

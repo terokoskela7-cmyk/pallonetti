@@ -83,8 +83,8 @@ export default function HomePage() {
             value={vPct.toFixed(1)}
             suffix="%"
             accent="aurora"
-            sparkline={[15, 17, 18, 20, vPct]}
-            trendLabel="vs viime kausi"
+            sparkline={[15, 17, 19, 22, vPct]}
+            trendLabel="vs 2025"
           />
         )}
         {ykkosliiga.length > 0 && (
@@ -94,7 +94,7 @@ export default function HomePage() {
             suffix="%"
             accent="ice"
             sparkline={[12, 14, 15, 17, ylPct]}
-            trendLabel="vs viime kausi"
+            trendLabel="vs 2025"
           />
         )}
         {ykkonen.length > 0 && (
@@ -104,7 +104,7 @@ export default function HomePage() {
             suffix="%"
             accent="ice"
             sparkline={[13, 15, 17, 19, yPct]}
-            trendLabel="vs viime kausi"
+            trendLabel="vs 2025"
           />
         )}
         <KPICard label="Sarjat seurannassa" value={3} accent="white" />

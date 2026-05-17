@@ -21,7 +21,7 @@ const leagueLabels: Record<LeagueId, string> = {
   ykkonen: 'Ykkönen',
 };
 
-const ageGroupOptions: { value: AgeGroup; label: string }[] = [
+const ageGroupTabs: { value: AgeGroup; label: string }[] = [
   { value: 'u23', label: 'Kaikki U23' },
   { value: 'u21', label: 'U21' },
   { value: 'u20', label: 'U20' },
@@ -29,6 +29,18 @@ const ageGroupOptions: { value: AgeGroup; label: string }[] = [
 ];
 
 const minMinutesOptions = [0, 90, 180, 360];
+
+function calcLeagueAvg(teams: YouthStats[], ag: AgeGroup): number {
+  const totalMin = teams.reduce((s, t) => s + t.totalMinutes, 0);
+  if (totalMin <= 0) return 0;
+  const youthMin = teams.reduce((s, t) => {
+    if (ag === 'u23') return s + t.youthMinutesU23;
+    if (ag === 'u21') return s + t.youthMinutesU21;
+    if (ag === 'u20') return s + t.youthMinutesU20;
+    return s + t.youthMinutesU19;
+  }, 0);
+  return (youthMin / totalMin) * 100;
+}
 
 function LoadingSkeleton() {
   return (
@@ -109,6 +121,10 @@ export default function PelaikaPage() {
   // Minimi minuutit -filtteri: rajaa joukkueet joiden totalMinutes ylittää rajan
   const teams = allTeams.filter((t) => t.totalMinutes >= minMinutes);
 
+  // Liigan painotettu keskiarvo nykyisen ikäryhmän mukaan
+  // (lasketaan kaikista joukkueista, ei suodatetuista)
+  const leagueAvg = calcLeagueAvg(allTeams, ageGroup);
+
   const totalU23Players = teams.reduce(
     (sum, t) => sum + t.youthPlayersU23,
     0,
@@ -165,14 +181,8 @@ export default function PelaikaPage() {
             <InsightBar teams={teams} />
           </section>
 
-          {/* 4. Filtterit */}
+          {/* 4. Filtterit (ilman ikäryhmää — se on tab-bar:issa alla) */}
           <section className="space-y-4 border-y border-navy-700 py-5">
-            <FilterRow
-              label="Ikäryhmä"
-              value={ageGroup}
-              options={ageGroupOptions}
-              onChange={(v) => setAgeGroup(v as AgeGroup)}
-            />
             <FilterRow
               label="Minimi minuutit"
               value={String(minMinutes)}
@@ -191,9 +201,36 @@ export default function PelaikaPage() {
             />
           </section>
 
-          {/* 5. Joukkuetason taulukko */}
-          <section>
-            <PlayerMinutesTable teams={teams} ageGroup={ageGroup} />
+          {/* 5. Ikäryhmä-tabit + joukkuetason taulukko */}
+          <section className="space-y-4">
+            <nav className="border-b border-navy-600">
+              <div className="flex gap-1 overflow-x-auto">
+                {ageGroupTabs.map((tab) => {
+                  const isActive = tab.value === ageGroup;
+                  return (
+                    <button
+                      key={tab.value}
+                      onClick={() => setAgeGroup(tab.value)}
+                      className={`relative px-4 py-3 text-sm font-medium whitespace-nowrap transition-colors ${
+                        isActive
+                          ? 'text-ice'
+                          : 'text-white/60 hover:text-white/90'
+                      }`}
+                    >
+                      {tab.label}
+                      {isActive && (
+                        <span className="absolute left-0 right-0 bottom-[-1px] h-0.5 bg-ice" />
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            </nav>
+            <PlayerMinutesTable
+              teams={teams}
+              ageGroup={ageGroup}
+              leagueAvg={leagueAvg}
+            />
           </section>
 
           {/* 6. Yhteenveto */}

@@ -44,7 +44,6 @@ export default function HomePage() {
   const vPct = calcU23Pct(veikkausliiga);
   const ylPct = calcU23Pct(ykkosliiga);
   const yPct = calcU23Pct(ykkonen);
-  const totalTeams = veikkausliiga.length + ykkosliiga.length + ykkonen.length;
 
   return (
     <div className="px-6 py-10 md:py-16 space-y-12">
@@ -53,31 +52,33 @@ export default function HomePage() {
         <WeeklyNarrative veikkausliiga={veikkausliiga} ykkosliiga={ykkosliiga} />
       </section>
 
-      {/* 2. KPI-kortit — yksi per sarja + kokonaismäärä */}
+      {/* 2. KPI-kortit — vain sarjoille joista on pelaajadataa */}
       <section className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <KPICard
-          label="Veikkausliiga U23"
-          value={vPct.toFixed(1)}
-          suffix="%"
-          accent="aurora"
-        />
-        <KPICard
-          label="Ykkösliiga U23"
-          value={ylPct.toFixed(1)}
-          suffix="%"
-          accent="ice"
-        />
-        <KPICard
-          label="Ykkönen U23"
-          value={yPct.toFixed(1)}
-          suffix="%"
-          accent="ice"
-        />
-        <KPICard
-          label="Joukkueita yhteensä"
-          value={totalTeams}
-          accent="white"
-        />
+        {veikkausliiga.length > 0 && (
+          <KPICard
+            label="Veikkausliiga U23"
+            value={vPct.toFixed(1)}
+            suffix="%"
+            accent="aurora"
+          />
+        )}
+        {ykkosliiga.length > 0 && (
+          <KPICard
+            label="Ykkösliiga U23"
+            value={ylPct.toFixed(1)}
+            suffix="%"
+            accent="ice"
+          />
+        )}
+        {ykkonen.length > 0 && (
+          <KPICard
+            label="Ykkönen U23"
+            value={yPct.toFixed(1)}
+            suffix="%"
+            accent="ice"
+          />
+        )}
+        <KPICard label="Sarjat seurannassa" value={3} accent="white" />
       </section>
 
       {/* 3. Ankkurinavigaatio sarjojen välillä */}

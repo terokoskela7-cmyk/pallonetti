@@ -61,7 +61,7 @@ function TeamCard({ team, index }: TeamCardProps) {
           <div className="text-xs text-white/40 mt-0.5">
             Keski-ikä{' '}
             <span className="tabular text-white/60">
-              {team.averageAge > 0 ? team.averageAge.toFixed(1) : '—'}
+              {team.averageAge != null ? team.averageAge.toFixed(1) : '—'}
             </span>
           </div>
         </div>

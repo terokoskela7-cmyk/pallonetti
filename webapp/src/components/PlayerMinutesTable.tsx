@@ -87,7 +87,8 @@ export function PlayerMinutesTable({
       diff = getMinutes(a, ageGroup) - getMinutes(b, ageGroup);
     else if (sortKey === 'players')
       diff = getPlayers(a, ageGroup) - getPlayers(b, ageGroup);
-    else if (sortKey === 'age') diff = a.averageAge - b.averageAge;
+    else if (sortKey === 'age')
+      diff = (a.averageAge ?? -1) - (b.averageAge ?? -1);
     else if (sortKey === 'name') diff = a.teamName.localeCompare(b.teamName);
     return sortDir === 'desc' ? -diff : diff;
   });
@@ -147,7 +148,13 @@ export function PlayerMinutesTable({
           {sorted.map((team, i) => {
             const age = team.averageAge;
             const ageClass =
-              age < 23 ? 'text-aurora' : age < 26 ? 'text-ice' : 'text-white/70';
+              age == null
+                ? 'text-white/40'
+                : age < 23
+                  ? 'text-aurora'
+                  : age < 26
+                    ? 'text-ice'
+                    : 'text-white/70';
             return (
               <tr
                 key={team.teamId}
@@ -160,7 +167,7 @@ export function PlayerMinutesTable({
                   {team.teamName}
                 </td>
                 <td className={`py-3 px-3 tabular ${ageClass}`}>
-                  {age.toFixed(1)}
+                  {age != null ? age.toFixed(1) : '—'}
                 </td>
                 <td className="py-3 px-3 tabular text-white/90">
                   {getPct(team, ageGroup).toFixed(1)} %

@@ -101,7 +101,15 @@ export default function PelaikaPage() {
 
   // Väliaikainen debug — poistetaan kun /peliaika toimii vakaasti
   // eslint-disable-next-line no-console
-  console.log('[PelaikaPage] state:', { loading, error, hasData: !!data, dataKeys: data ? Object.keys(data) : null });
+  console.log('[PelaikaPage] state:', {
+    loading,
+    error,
+    hasData: !!data,
+    veikkausliigaCount: data?.veikkausliiga?.length ?? null,
+    ykkosliigaCount: data?.ykkosliiga?.length ?? null,
+    ykkonenCount: data?.ykkonen?.length ?? null,
+    activeLeague,
+  });
 
   if (loading) return <LoadingSkeleton />;
   if (error || !data) {

@@ -110,15 +110,15 @@ class DataAggregator {
       'api-football',
       'youth_stats'
     );
-    // Sanitoi vanhasta cachesta tai API-Footballin virheellisestä datasta tulevat
-    // järjenvastaiset keski-iät (esim. VPS 130.5 syntyi pelaajan api.age=2025
-    // arvosta). Validi pelaaja-ikä on 14–50; keski-iän pitäisi olla 18–35 välillä.
+    // Sanitoi: null jos järjenvastainen keski-ikä (esim. VPS 130.5 syntyi
+    // pelaajan api.age=2025 arvosta). Käsittelee sekä vanhaa cachea että
+    // toimii defense-in-depth-tasolla footballApi.ts:n sanitoinnin kanssa.
     return result.data.map((team) => ({
       ...team,
       averageAge:
-        team.averageAge > 50 || team.averageAge < 10
-          ? 0
-          : team.averageAge,
+        team.averageAge != null && team.averageAge > 15 && team.averageAge < 50
+          ? team.averageAge
+          : null,
     }));
   }
 

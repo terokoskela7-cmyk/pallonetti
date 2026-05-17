@@ -422,7 +422,13 @@ class FootballApiService {
         youthPlayersU23,
         youthPlayersU21,
         youthPlayersU20,
-        averageAge: totalPlayers > 0 ? Math.round((ageSum / totalPlayers) * 10) / 10 : 0,
+        // Sanitoi: null jos järjenvastainen (15–50v vältetyt poikkeavat dataarvot).
+        // Estää 130.5-tyyppiset arvot tallentumasta cacheen vrt. dataAggregator.ts.
+        averageAge: (() => {
+          if (totalPlayers <= 0) return null;
+          const avg = Math.round((ageSum / totalPlayers) * 10) / 10;
+          return avg >= 15 && avg <= 50 ? avg : null;
+        })(),
         averageAgeStarters: 0, // Vaatisi kokoonpanodataa
         updatedAt: new Date().toISOString(),
       });

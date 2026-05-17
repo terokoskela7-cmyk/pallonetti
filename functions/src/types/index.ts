@@ -192,7 +192,8 @@ export interface YouthStats {
   youthPlayersU23: number;
   youthPlayersU21: number;
   youthPlayersU20: number;
-  averageAge: number;
+  // null = ei luotettavaa keski-ikätietoa (esim. virheellistä API-Football-dataa)
+  averageAge: number | null;
   averageAgeStarters: number;
   updatedAt: string;
 }

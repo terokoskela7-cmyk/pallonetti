@@ -16,6 +16,9 @@ interface ApiResponse<T> {
 /** Base API client */
 async function fetchApi<T>(endpoint: string, options?: RequestInit): Promise<T> {
   const url = `${API_BASE_URL}${endpoint}`;
+  // Väliaikainen debug — auttaa diagnosoimaan URL-bugeja
+  // eslint-disable-next-line no-console
+  console.log('[fetchApi] GET', url);
   const response = await fetch(url, {
     ...options,
     headers: {
@@ -23,6 +26,8 @@ async function fetchApi<T>(endpoint: string, options?: RequestInit): Promise<T> 
       ...options?.headers,
     },
   });
+  // eslint-disable-next-line no-console
+  console.log('[fetchApi]', url, '→', response.status, response.ok ? 'OK' : 'FAIL');
 
   if (!response.ok) {
     const error = await response.json().catch(() => ({}));
@@ -200,7 +205,8 @@ export interface YouthStats {
   youthPlayersU23: number;
   youthPlayersU21: number;
   youthPlayersU20: number;
-  averageAge: number;
+  // null = ei luotettavaa keski-ikätietoa (esim. virheellistä API-Football-dataa)
+  averageAge: number | null;
   averageAgeStarters: number;
   updatedAt: string;
 }

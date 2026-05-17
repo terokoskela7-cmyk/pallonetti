@@ -35,9 +35,12 @@ function getPlayers(t: YouthStats, ag: AgeGroup): number {
 }
 
 function rowAccentClass(u23Pct: number): string {
-  if (u23Pct >= 25) return 'border-l-aurora';
-  if (u23Pct >= 15) return 'border-l-amber-400';
-  return 'border-l-red-400';
+  // Arbitrary-value-luokat varmistavat että Tailwind generoi oikeat värit
+  // riippumatta palette-konfiguraatiosta (flat-värit kuten 'aurora'
+  // eivät aina tue directional variantteja kuten border-l-aurora).
+  if (u23Pct >= 25) return 'border-l-[#00FF88]';
+  if (u23Pct >= 15) return 'border-l-[#F59E0B]';
+  return 'border-l-[#EF4444]';
 }
 
 const headerLabels: Record<AgeGroup, string> = {

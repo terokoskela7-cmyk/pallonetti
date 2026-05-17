@@ -4,6 +4,7 @@ import { Hero } from '@/components/Hero';
 import { WeeklyNarrative } from '@/components/WeeklyNarrative';
 import { KPICard } from '@/components/KPICard';
 import { LeagueSection } from '@/components/LeagueSection';
+import { WhyMattersSection } from '@/components/WhyMattersSection';
 import { TopPlayersCard } from '@/components/TopPlayersCard';
 
 const SEASON = 2026;
@@ -151,7 +152,10 @@ export default function HomePage() {
         teams={ykkonen}
       />
 
-      {/* 5. Viikon top 5 pelaajaa */}
+      {/* 5. Miksi tämä on tärkeää — tutkimusdataan pohjautuva motivaatio */}
+      <WhyMattersSection />
+
+      {/* 6. Viikon top 5 pelaajaa */}
       <section className="max-w-2xl">
         <TopPlayersCard players={[]} />
       </section>

@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { Info, RefreshCw, ChevronRight } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useApi } from '@/hooks/useApi';
@@ -38,22 +39,37 @@ interface TeamCardProps {
 }
 
 function TeamCard({ team, index }: TeamCardProps) {
+  const [logoFailed, setLogoFailed] = useState(false);
   const initials = getInitials(team.teamName);
   const circleColor = TEAM_COLORS[index % TEAM_COLORS.length];
   const pct = team.youthPercentageU23;
   const barColor = progressBarColor(pct);
+  // API-Football CDN: logo per teamId. Jos kuva ei löydy → fallback initiaaliympyrään.
+  const logoUrl = `https://media.api-sports.io/football/teams/${team.teamId}.png`;
 
   return (
     <div className="bg-navy-700 border border-navy-600 rounded-lg p-5 flex flex-col gap-4 hover:border-navy-500 transition-colors">
-      {/* Otsikko: initialiympyrä + nimi + keski-ikä */}
+      {/* Otsikko: logo TAI initialiympyrä + nimi + keski-ikä */}
       <div className="flex items-center gap-3">
-        <div
-          className="w-12 h-12 rounded-full flex items-center justify-center font-semibold text-sm shrink-0 text-navy-900"
-          style={{ backgroundColor: circleColor }}
-          aria-hidden="true"
-        >
-          {initials}
-        </div>
+        {!logoFailed ? (
+          <div className="w-12 h-12 rounded-full bg-white/5 flex items-center justify-center shrink-0">
+            <img
+              src={logoUrl}
+              alt={`${team.teamName} logo`}
+              className="w-10 h-10 object-contain"
+              onError={() => setLogoFailed(true)}
+              loading="lazy"
+            />
+          </div>
+        ) : (
+          <div
+            className="w-12 h-12 rounded-full flex items-center justify-center font-semibold text-sm shrink-0 text-navy-900"
+            style={{ backgroundColor: circleColor }}
+            aria-hidden="true"
+          >
+            {initials}
+          </div>
+        )}
         <div className="min-w-0">
           <div className="text-lg font-medium text-white/95 truncate leading-tight">
             {team.teamName}

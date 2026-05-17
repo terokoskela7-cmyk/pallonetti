@@ -229,6 +229,16 @@ export const getYouthStats = (
   return fetchApi(`/youth-stats/${season}${params}`);
 };
 
+/** Kaikki 3 sarjaa yhdellä kutsulla — käytä etusivulla */
+export interface YouthStatsAll {
+  veikkausliiga: YouthStats[];
+  ykkosliiga: YouthStats[];
+  ykkonen: YouthStats[];
+}
+
+export const getYouthStatsAll = (season: number): Promise<YouthStatsAll> =>
+  fetchApi(`/youth-stats/${season}/all`);
+
 export const getYouthAggregation = (season: number): Promise<YouthAggregation> =>
   fetchApi(`/youth-aggregation/${season}`);
 

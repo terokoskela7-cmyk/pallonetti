@@ -1,5 +1,6 @@
 import { Routes, Route } from 'react-router-dom';
 import { Layout } from '@/components/Layout';
+import HomePage from '@/pages/HomePage';
 
 function Placeholder({ title }: { title: string }) {
   return (
@@ -8,10 +9,6 @@ function Placeholder({ title }: { title: string }) {
       <p className="text-white/60 text-lg">Tulossa pian.</p>
     </section>
   );
-}
-
-function HomePage() {
-  return <Placeholder title="Etusivu" />;
 }
 
 function PelaikaPage() {

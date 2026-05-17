@@ -1,6 +1,7 @@
 import { Routes, Route } from 'react-router-dom';
 import { Layout } from '@/components/Layout';
 import HomePage from '@/pages/HomePage';
+import PelaikaPage from '@/pages/PelaikaPage';
 
 function Placeholder({ title }: { title: string }) {
   return (
@@ -9,10 +10,6 @@ function Placeholder({ title }: { title: string }) {
       <p className="text-white/60 text-lg">Tulossa pian.</p>
     </section>
   );
-}
-
-function PelaikaPage() {
-  return <Placeholder title="Peliaika" />;
 }
 
 function JoukkueetPage() {

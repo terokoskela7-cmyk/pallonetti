@@ -110,7 +110,16 @@ class DataAggregator {
       'api-football',
       'youth_stats'
     );
-    return result.data;
+    // Sanitoi vanhasta cachesta tai API-Footballin virheellisestä datasta tulevat
+    // järjenvastaiset keski-iät (esim. VPS 130.5 syntyi pelaajan api.age=2025
+    // arvosta). Validi pelaaja-ikä on 14–50; keski-iän pitäisi olla 18–35 välillä.
+    return result.data.map((team) => ({
+      ...team,
+      averageAge:
+        team.averageAge > 50 || team.averageAge < 10
+          ? 0
+          : team.averageAge,
+    }));
   }
 
   /** Hae nuorten pelaajien aggregaatio koko liigalle */

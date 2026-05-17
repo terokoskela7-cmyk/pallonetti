@@ -87,6 +87,10 @@ export default function PelaikaPage() {
   const [ageGroup, setAgeGroup] = useState<AgeGroup>('u23');
   const [minMinutes, setMinMinutes] = useState<number>(0);
 
+  // Väliaikainen debug — poistetaan kun /peliaika toimii vakaasti
+  // eslint-disable-next-line no-console
+  console.log('[PelaikaPage] state:', { loading, error, hasData: !!data, dataKeys: data ? Object.keys(data) : null });
+
   if (loading) return <LoadingSkeleton />;
   if (error || !data) {
     return (

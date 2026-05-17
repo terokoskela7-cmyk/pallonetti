@@ -67,8 +67,9 @@ jobs:
         if: steps.webapp_check.outputs.exists == 'true'
         working-directory: ./webapp
         run: npm run build
-        env:
-          VITE_API_BASE_URL: ${{ secrets.FIREBASE_API_URL }}
+        # VITE_API_BASE_URL EI ASETETA — api.ts käyttää relatiivista '/api',
+        # joka reititetään Firebase Hosting rewrite:n kautta Cloud Function 'api':lle.
+        # Sama koodi toimii niin pallonetti-fi.web.app:ssä kuin custom domainissa.
 
       # ----- DEPLOY -----
 

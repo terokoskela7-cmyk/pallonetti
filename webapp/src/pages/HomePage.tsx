@@ -74,13 +74,17 @@ export default function HomePage() {
       </section>
 
       {/* 2. KPI-kortit — vain sarjoille joista on pelaajadataa */}
-      <section className="grid grid-cols-2 md:grid-cols-4 gap-3">
+      {/* HUOM: Sparkline-arvot 2022-2025 ovat placeholderia kunnes TASO-data
+          tarjoaa historian. Viimeinen arvo on tämän hetken laskettu prosentti. */}
+      <section className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
         {veikkausliiga.length > 0 && (
           <KPICard
             label="Veikkausliiga U23"
             value={vPct.toFixed(1)}
             suffix="%"
             accent="aurora"
+            sparkline={[15, 17, 18, 20, vPct]}
+            trendLabel="vs viime kausi"
           />
         )}
         {ykkosliiga.length > 0 && (
@@ -89,6 +93,8 @@ export default function HomePage() {
             value={ylPct.toFixed(1)}
             suffix="%"
             accent="ice"
+            sparkline={[12, 14, 15, 17, ylPct]}
+            trendLabel="vs viime kausi"
           />
         )}
         {ykkonen.length > 0 && (
@@ -97,6 +103,8 @@ export default function HomePage() {
             value={yPct.toFixed(1)}
             suffix="%"
             accent="ice"
+            sparkline={[13, 15, 17, 19, yPct]}
+            trendLabel="vs viime kausi"
           />
         )}
         <KPICard label="Sarjat seurannassa" value={3} accent="white" />

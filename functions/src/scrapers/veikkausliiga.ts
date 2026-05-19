@@ -82,21 +82,6 @@ function toInt(raw: string | undefined): number {
   return isNaN(n) ? 0 : n;
 }
 
-/** Etsi HTML:stä taulukko jossa on pelaajatilastot.
- *  Tunnistetaan: tbody-rivissä on vähintään 14 td-solua (16 saraketta - vara). */
-function findPlayerTable($: cheerio.CheerioAPI) {
-  let result: ReturnType<typeof $> | null = null;
-  $('table').each((_, table) => {
-    const $table = $(table);
-    if ($table.find('tbody tr').first().find('td').length >= 14) {
-      result = $table;
-      return false; // break each
-    }
-    return;
-  });
-  return result;
-}
-
 /** Scrapeta Veikkausliiga.com:n pelaajatilastot annetulta kaudelta. */
 export async function scrapeVeikkausliigaPlayers(
   year: number,
@@ -115,8 +100,13 @@ export async function scrapeVeikkausliigaPlayers(
   });
 
   const $ = cheerio.load(response.data);
-  const table = findPlayerTable($);
-  if (!table) {
+
+  // Etsi pelaajataulukko: ensimmäinen <table>, jonka tbody-rivissä on ≥14 td-solua.
+  const table = $('table')
+    .filter((_, t) => $(t).find('tbody tr').first().find('td').length >= 14)
+    .first();
+
+  if (table.length === 0) {
     throw new Error('Pelaajataulukkoa ei löytynyt — sivun rakenne on muuttunut');
   }
 

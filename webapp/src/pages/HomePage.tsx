@@ -7,6 +7,8 @@ import {
 import { Hero } from '@/components/Hero';
 import { WeeklyNarrative } from '@/components/WeeklyNarrative';
 import { KPICard } from '@/components/KPICard';
+import { AgeDistributionChart } from '@/components/AgeDistributionChart';
+import { InsightBar } from '@/components/InsightBar';
 import { LeagueSection } from '@/components/LeagueSection';
 import { WhyMattersSection } from '@/components/WhyMattersSection';
 import { TopPlayersCard } from '@/components/TopPlayersCard';
@@ -130,7 +132,23 @@ export default function HomePage() {
         />
       </section>
 
-      {/* 3. Ankkurinavigaatio sarjojen välillä */}
+      {/* 3a. Ikäjakauma-kaavio — Veikkausliiga */}
+      {veikkausliiga.length > 0 && (
+        <section>
+          <div style={{ width: '100%', height: '320px' }}>
+            <AgeDistributionChart teams={veikkausliiga} />
+          </div>
+        </section>
+      )}
+
+      {/* 3b. InsightBar — narratiiviset löydökset Veikkausliigasta */}
+      {veikkausliiga.length > 0 && (
+        <section>
+          <InsightBar teams={veikkausliiga} />
+        </section>
+      )}
+
+      {/* 4. Ankkurinavigaatio sarjojen välillä */}
       <nav className="flex items-center gap-1 text-sm border-b border-navy-700 -mx-6 px-6 pb-3 overflow-x-auto">
         {leagueLinks.map((link) => (
           <a

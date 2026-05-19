@@ -11,7 +11,7 @@
 | Frontend | ✅ https://pallonetti-fi.web.app |
 | Backend | ✅ https://europe-west1-pallonetti-fi.cloudfunctions.net/api |
 | Versio | API v1.1.0 |
-| `main` & `origin/main` | `fa3bacca` (synkassa) |
+| `main` & `origin/main` | `eedb231` (synkassa) |
 | Uncommitted muutoksia | Ei |
 
 ---
@@ -47,7 +47,11 @@
 22. Peliaika-skeleton + averageAge sanitointi (toinen kierros)
 23. **Parannettu navbar**
 24. KPI tasapainoon + palkki-tyyli + Recharts korkeus
-25. **Joukkueiden logot** + **WhyMattersSection** tutkimusdatalla ← `fa3bacca`, nykyinen HEAD
+25. **Joukkueiden logot** + **WhyMattersSection** tutkimusdatalla ← `fa3bacca`
+
+### Sprint 4 — Dokumentaatio ja siivous (19.5.)
+26. **CLAUDE.md briefing + SESSION.md tilannekuva** repon juureen ← `37c9d1c`
+27. **Kuollut `youthPlayersU21`-laskenta poistettu** `dataAggregator.ts`:stä (5 riviä) ← `eedb231`, nykyinen HEAD
 
 ---
 
@@ -61,11 +65,9 @@
 
 ### Tekninen velka
 - [ ] `rateLimiter.ts` — in-memory ei toimi Cloud Functionsissa. Joko poista tai korvaa Firestore-pohjaisella
-- [ ] `dataAggregator.ts` `youthPlayersU21`-laskenta: korjaa käyttämään `youthStats.reduce((s, t) => s + t.youthPlayersU21, 0)`
 
 ### Selvitettävää
-- [ ] Onko Firebase Hosting -deploy ajan tasalla `fa3bacca`:n kanssa? (CI/CD on `.github/workflows/deploy.yml`:ssa, mutta vahvistus puuttuu)
-- [ ] Onnistuvatko smoke-testit (`/health`, `/youth-stats/2026/all`) tällä hetkellä?
+- [ ] Onnistuvatko smoke-testit (`/health`, `/youth-stats/2026/all`) tällä hetkellä `eedb231`-deploylla?
 
 ---
 

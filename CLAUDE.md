@@ -27,7 +27,7 @@
 | **Firebase-projekti** | `pallonetti-fi` |
 | **API-Football-tilaus** | Pro (tukee 2026-kauden dataa) |
 | **RAPIDAPI_KEY** | `functions/.env` (CI-step luo secretistä), luetaan axios-interceptorissa per pyyntö |
-| **Viimeisin commit (`main` & `origin/main`)** | `fa3bacca` — *feat: joukkueiden logot + miksi-osio tutkimusdatalla* |
+| **Viimeisin commit (`main` & `origin/main`)** | `eedb231` — *refactor: poista kuollut youthPlayersU21-laskenta dataAggregatorista* |
 | **GitHub-repo** | https://github.com/terokoskela7-cmyk/pallonetti |
 | **Paikallinen koodikanta** | `C:\Users\TeroKoskela\OneDrive - Suomen Palloliitto\Tiedostot\GitHub\pallonetti\` |
 
@@ -133,9 +133,6 @@ pallonetti/
 
 ### `rateLimiter.ts` on in-memory
 Cloud Functions on stateless → Map-pohjainen rate limiter nollautuu jokaisen kutsun välillä. MVP:ssä riittää että API-Football-rate-limit hoidetaan Firestore-cachella, mutta tiedosto on tällä hetkellä turha. Joko poistettava tai korvattava Firestore-pohjaisella.
-
-### `youthPlayersU21`-laskenta dataAggregator.ts:ssä
-Aggregointifunktiossa on yhä rivi joka filtteröi pelkän `minutesPlayed > 0`:n eikä todellista U21-ikää. Käytä `youthStats.reduce((s, t) => s + t.youthPlayersU21, 0)` — se on jo oikein laskettu joukkuetasolla.
 
 ---
 
@@ -300,7 +297,7 @@ Projekti: Suomalaisen jalkapallon U23-peliaika-alusta (bolldata.se-malli)
 Live: https://pallonetti-fi.web.app
 Backend: https://europe-west1-pallonetti-fi.cloudfunctions.net/api
 Repo: C:\Users\TeroKoskela\OneDrive - Suomen Palloliitto\Tiedostot\GitHub\pallonetti\
-Viimeisin commit: fa3bacca (feat: joukkueiden logot + miksi-osio tutkimusdatalla)
+Viimeisin commit: eedb231 (refactor: poista kuollut youthPlayersU21-laskenta dataAggregatorista)
 
 Avoimet asiat: ks. SESSION.md.
 Tämän päivän tehtävä: [kerro mitä haluat tehdä]

@@ -7,6 +7,11 @@ service cloud.firestore {
       allow read: if true;
       allow write: if false;
     }
+    // Veikkausliiga.com -scraped pelaajatilastot — sama periaate
+    match /veikkausliiga_players/{document=**} {
+      allow read: if true;
+      allow write: if false;
+    }
     // Kaikki muu — ei sallita selaimesta
     match /{document=**} {
       allow read, write: if false;

@@ -76,6 +76,7 @@ jobs:
       - name: Create functions/.env from secret
         run: |
           echo "RAPIDAPI_KEY=${{ secrets.RAPIDAPI_KEY }}" > functions/.env
+          echo "ADMIN_KEY=${{ secrets.ADMIN_KEY }}" >> functions/.env
 
       - name: Deploy to Firebase
         uses: w9jds/firebase-action@master

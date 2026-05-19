@@ -4,13 +4,18 @@
 // ============================================
 import * as functions from 'firebase-functions';
 import * as admin from 'firebase-admin';
-import express from 'express';
+import express, { Request, Response, NextFunction } from 'express';
 import cors from 'cors';
 import { dataAggregator } from './services/dataAggregator';
 import { cacheService } from './services/cacheService';
 import { footballApi } from './api/footballApi';
 import { fbrefApi } from './api/fbrefApi';
 import { transfermarktApi } from './api/transfermarktApi';
+import {
+  scrapeVeikkausliigaPlayers,
+  saveVeikkausliigaPlayers,
+  getOfficialStats,
+} from './scrapers/veikkausliiga';
 
 // Region: kaikki funktiot deployataan europe-west1:een (sama kuin TalentMaster-sisarprojekti)
 const REGION = 'europe-west1';
@@ -579,6 +584,77 @@ app.get('/api/admin/cache-stats', async (_req, res) => {
       error: 'Failed to get cache stats',
       timestamp: new Date().toISOString(),
     });
+  }
+});
+
+// ============================================
+// VEIKKAUSLIIGA.COM SCRAPER
+// ============================================
+
+/** Admin-key middleware. Vaadi process.env.ADMIN_KEY ja x-admin-key -header. */
+function requireAdminKey(
+  req: Request,
+  res: Response,
+  next: NextFunction,
+): void {
+  const expected = process.env.ADMIN_KEY;
+  if (!expected) {
+    console.warn('[admin] ADMIN_KEY ei ole konfiguroitu — admin-endpointit pois käytöstä');
+    res.status(503).json({
+      success: false,
+      error: 'Admin-endpoint ei ole konfiguroitu palvelimelle',
+    });
+    return;
+  }
+  const provided = req.header('x-admin-key');
+  if (provided !== expected) {
+    res.status(401).json({ success: false, error: 'Virheellinen tai puuttuva x-admin-key' });
+    return;
+  }
+  next();
+}
+
+/** GET /api/scrape/veikkausliiga?year=2026 - Käynnistä scrape, tallenna Firestoreen */
+app.get('/api/scrape/veikkausliiga', requireAdminKey, async (req, res) => {
+  try {
+    const year = parseInt(String(req.query.year ?? ''), 10);
+    if (isNaN(year) || year < 2000 || year > 2100) {
+      res.status(400).json({ success: false, error: 'year-parametri puuttuu tai on virheellinen' });
+      return;
+    }
+    const players = await scrapeVeikkausliigaPlayers(year);
+    const result = await saveVeikkausliigaPlayers(year, players);
+    res.json({
+      success: true,
+      count: result.count,
+      updatedAt: result.updatedAt,
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Tuntematon virhe';
+    console.error('[scrape/veikkausliiga] failed:', message);
+    res.status(500).json({ success: false, error: message });
+  }
+});
+
+/** GET /api/official-stats/:year - Julkinen: Veikkausliiga.com:n tallennetut tilastot */
+app.get('/api/official-stats/:year', async (req, res) => {
+  try {
+    const year = parseInt(req.params.year, 10);
+    if (isNaN(year)) {
+      res.status(400).json({ success: false, error: 'year-parametri on virheellinen' });
+      return;
+    }
+    const { players, meta } = await getOfficialStats(year);
+    res.json({
+      success: true,
+      data: players,
+      meta,
+      timestamp: new Date().toISOString(),
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Tuntematon virhe';
+    console.error('[official-stats] failed:', message);
+    res.status(500).json({ success: false, error: message });
   }
 });
 

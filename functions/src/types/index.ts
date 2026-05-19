@@ -72,6 +72,8 @@ export interface PlayerStats {
   npxG?: number;
   xGChain?: number;
   xGBuildup?: number;
+  /** Ikä kauden alussa. Asetetaan vain getYouthAggregation:n topYouthPlayers-listalle. */
+  age?: number;
 }
 
 /** Sarjataulukon joukkue */

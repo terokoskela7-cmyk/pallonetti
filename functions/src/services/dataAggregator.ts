@@ -155,7 +155,7 @@ class DataAggregator {
         const age = birthYear ? season - birthYear : apiPlayer.player.age || 99;
 
         if (age <= 23) {
-          youthPlayerStats.push({ ...ps });
+          youthPlayerStats.push({ ...ps, age });
         }
       }
     }

@@ -156,6 +156,8 @@ export interface PlayerStats {
   xA?: number;
   npg?: number;
   npxG?: number;
+  /** Ikä kauden alussa. Asetetaan vain getYouthAggregation:n topYouthPlayers-listalle. */
+  age?: number;
 }
 
 export interface PlayerFilters {

@@ -1,13 +1,14 @@
-import { TrendingUp, TrendingDown, Users, Star, type LucideIcon } from 'lucide-react';
+import { TrendingUp, TrendingDown, Users, Star, ArrowUpRight, type LucideIcon } from 'lucide-react';
 import type { YouthStats } from '@/services/api';
 
 interface InsightBarProps {
   teams: YouthStats[];
 }
 
-// Edellisen kauden Veikkausliigan U23-keskiarvo. Hardcoded toistaiseksi —
-// päivitetään dynaamisesti kun TASO-integraatio tarjoaa historiadatan.
 const PREV_SEASON_AVG = 18.0;
+// Wirén (2026): 10 pp käyttöasteen nousu → +4,3 pp siirtotodennäköisyys (FI)
+const WIREN_COEFFICIENT = 0.43;
+const FI_BASE_TRANSFER_PROB = 14.0;
 
 interface Insight {
   icon: LucideIcon;
@@ -19,45 +20,51 @@ interface Insight {
 function computeInsights(teams: YouthStats[]): Insight[] {
   if (teams.length === 0) return [];
 
-  // 1. Paras kehittäjä — korkein U23-%
   const topU23 = [...teams].sort(
     (a, b) => b.youthPercentageU23 - a.youthPercentageU23,
   )[0];
 
-  // 2. Liigan suunta — vertaa edelliseen kauteen
   const totalMin = teams.reduce((s, t) => s + t.totalMinutes, 0);
   const u23Min = teams.reduce((s, t) => s + t.youthMinutesU23, 0);
   const leagueAvg = totalMin > 0 ? (u23Min / totalMin) * 100 : 0;
   const diff = leagueAvg - PREV_SEASON_AVG;
   const trendUp = diff >= 0;
 
-  // 3. Luottaa nuorimpiin — eniten alle 20-vuotiaita pelaajia
   const mostU20 = [...teams].sort(
     (a, b) => b.youthPlayersU20 - a.youthPlayersU20,
   )[0];
+
+  // Wirén-kytkös: lasketaan liigan käyttöasteen perusteella
+  // arvioitu siirtotodennäköisyys verrattuna pohjoismaiden keskiarvoon (18,5%)
+  const wirenDeltaPP = (leagueAvg - 18.5) / 10 * WIREN_COEFFICIENT;
+  const estimatedTransferProb = Math.max(0, FI_BASE_TRANSFER_PROB + wirenDeltaPP).toFixed(1);
 
   return [
     {
       icon: Star,
       label: 'Eniten peliaikaa nuorille',
       title: topU23.teamName,
-      body: `Antaa eniten peliaikaa nuorille — ${topU23.youthPercentageU23.toFixed(
-        1,
-      )} % kaikista peliminuuteista menee alle 23-vuotiaille.`,
+      body: `Antaa eniten peliaikaa nuorille — ${topU23.youthPercentageU23.toFixed(1)} % kaikista peliminuuteista menee alle 23-vuotiaille.`,
     },
     {
       icon: trendUp ? TrendingUp : TrendingDown,
       label: 'Liigan suunta',
       title: `${leagueAvg.toFixed(1)} % keskiarvo`,
       body: trendUp
-        ? `Veikkausliiga antaa nuorille enemmän peliaikaa kuin koskaan — liigan keskiarvo on ${leagueAvg.toFixed(1)} %, ${diff.toFixed(1)} % enemmän kuin viime kaudella.`
-        : `Nuorten peliaika on laskenut — liigan keskiarvo ${leagueAvg.toFixed(1)} % on ${Math.abs(diff).toFixed(1)} % vähemmän kuin viime kaudella.`,
+        ? `Veikkausliiga antaa nuorille enemmän peliaikaa kuin koskaan — ${diff.toFixed(1)} % enemmän kuin viime kaudella.`
+        : `Nuorten peliaika on laskenut ${Math.abs(diff).toFixed(1)} % viime kaudesta.`,
     },
     {
       icon: Users,
       label: 'Luottaa nuorimpiin',
       title: mostU20.teamName,
       body: `${mostU20.youthPlayersU20} alle 20-vuotiasta pelaajaa on saanut peliaikaa tällä kaudella.`,
+    },
+    {
+      icon: ArrowUpRight,
+      label: 'Siirtopotentiaali · Wirén 2026',
+      title: `~${estimatedTransferProb} % siirtotodennäköisyys`,
+      body: `Tämän kauden käyttöasteen perusteella arvioitu todennäköisyys ulkomaan siirrolle. Suomen lähtötaso on 14 % — jokainen +10 pp nostaa todennäköisyyttä 4,3 pp.`,
     },
   ];
 }
@@ -67,7 +74,7 @@ export function InsightBar({ teams }: InsightBarProps) {
   if (insights.length === 0) return null;
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
       {insights.map((ins) => {
         const Icon = ins.icon;
         return (

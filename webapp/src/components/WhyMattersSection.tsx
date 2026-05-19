@@ -1,7 +1,8 @@
-import { TrendingUp, Calendar, Globe, type LucideIcon } from 'lucide-react';
+import { TrendingUp, ArrowUpRight, Globe, type LucideIcon } from 'lucide-react';
 
 interface InsightCard {
   icon: LucideIcon;
+  stat: string;
   title: string;
   body: string;
   source: string;
@@ -10,21 +11,24 @@ interface InsightCard {
 const cards: InsightCard[] = [
   {
     icon: TrendingUp,
-    title: 'Akatemiakasvatus = korkeampi arvo',
-    body: 'Tutkimus 13 akatemiasta osoittaa: laadukas nuorisokasvatus kasvattaa pelaajan markkina-arvoa tilastollisesti merkitsevästi. Seura, joka antaa peliaikaa nuorille, kasvattaa omaisuuttaan.',
-    source: 'Balliauw et al., 2022 — Sport, Business & Management',
+    stat: '14 % → 23 %',
+    title: 'Suomi jää pohjoismaisesta kärjestä',
+    body: 'Veikkausliigan pelaajalla on vain 14 % todennäköisyys siirtyä ulkomaille — Tanskassa luku on 23 %. Peliaika kotiliigassa on suurin yksittäinen selittäjä.',
+    source: 'Wirén, 2026 — Aalto-yliopisto / Suomen Palloliitto',
   },
   {
-    icon: Calendar,
-    title: '22–27v on markkina-arvon huippu',
-    body: 'Pelaajan arvo huipentuu 22–27 vuoden iässä. Tähän huippuun pääseminen vaatii varhaiset peliminuutit — polku alkaa jo 18–20-vuotiaana Veikkausliigassa.',
-    source: 'Transfermarkt-data, 2024',
+    icon: ArrowUpRight,
+    stat: '+4,3 pp / 10 pp',
+    title: 'Jokainen peliminuutti kasvattaa siirtotodennäköisyyttä',
+    body: '10 prosenttiyksikön nousu käyttöasteessa kasvattaa siirtotodennäköisyyttä jopa 4,3 prosenttiyksikköä. Valmentajan päätös pelata nuori mies on konkreettisesti mitattava investointi.',
+    source: 'Wirén, 2026 — 58 886 pelaaja-kausi-havaintoa 2010–2024',
   },
   {
     icon: Globe,
-    title: 'Suomi voi kasvaa pelaajatehtaaksi',
-    body: 'Portugal, Hollanti ja Tanska ovat rakentaneet kansainvälisen maineen kasvattamalla ja myymällä nuoria pelaajia. Veikkausliigan seurat, jotka antavat nuorille peliaikaa nyt, voivat olla huomisen siirtotoimiston arvokkaimpia kohteita.',
-    source: 'Pallonetti.fi-analyysi, 2026',
+    stat: '13,7 % arvokkaampi seura',
+    title: 'Peliaika ohjaa parempiin seuroihin',
+    body: 'Kun käyttöaste nousee 10 pp, pelaaja päätyy siirron jälkeen seuraan jonka arvo on 13,7 % korkeampi. Vaikutus kasvaa ajan myötä — Y4–5:ssä jo 15,5 %.',
+    source: 'Wirén, 2026 — Transfermarkt + UEFA data',
   },
 ];
 
@@ -33,10 +37,10 @@ export function WhyMattersSection() {
     <section>
       <div className="mb-6">
         <h2 className="text-xl md:text-2xl font-medium">
-          Miksi tämä on tärkeää?
+          Miksi peliaika ratkaisee?
         </h2>
         <p className="text-sm text-white/50 mt-1">
-          Tiede ja data puhuvat selvästi
+          Wirén (2026) — tutkimus pohjoismaisista siirtokaupoista 2010–2024
         </p>
       </div>
       <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
@@ -47,8 +51,8 @@ export function WhyMattersSection() {
               key={card.title}
               className="bg-navy-700 border border-white/10 border-l-2 border-l-ice rounded-r-md p-5 flex flex-col"
             >
-              <div className="w-9 h-9 rounded-md bg-ice/10 flex items-center justify-center mb-4">
-                <Icon className="w-4 h-4 text-ice" />
+              <div className="text-2xl font-bold text-ice mb-1 font-mono tracking-tight">
+                {card.stat}
               </div>
               <h3 className="font-medium text-white/95 mb-2 leading-tight">
                 {card.title}
@@ -56,7 +60,8 @@ export function WhyMattersSection() {
               <p className="text-sm text-white/60 leading-relaxed mb-5">
                 {card.body}
               </p>
-              <div className="mt-auto pt-3 border-t border-white/5 text-xs text-white/30">
+              <div className="mt-auto pt-3 border-t border-white/5 text-xs text-white/30 flex items-center gap-1">
+                <Icon className="w-3 h-3 text-ice/50 shrink-0" />
                 {card.source}
               </div>
             </article>

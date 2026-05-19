@@ -14,6 +14,7 @@ import { transfermarktApi } from './api/transfermarktApi';
 import {
   scrapeVeikkausliigaPlayers,
   saveVeikkausliigaPlayers,
+  scrapeAndSave,
   getOfficialStats,
 } from './scrapers/veikkausliiga';
 
@@ -713,6 +714,24 @@ export const scheduledCacheCleanup = functions.region(REGION).pubsub
       console.log(`Cache cleanup completed: ${deleted} entries removed`);
     } catch (error) {
       console.error('Cache cleanup failed:', error);
+    }
+  });
+
+/** Scheduled: Ajaa kerran päivässä yöllä — virallinen Veikkausliiga.com data */
+export const scheduledVeikkausliigaScrape = functions
+  .region(REGION)
+  .pubsub.schedule('0 1 * * *') // klo 01:00 Helsingin aikaa (timeZone alla muuntaa)
+  .timeZone('Europe/Helsinki')
+  .onRun(async () => {
+    const year = new Date().getFullYear();
+    console.log(`[scheduledVeikkausliigaScrape] starting for year=${year}`);
+    try {
+      const result = await scrapeAndSave(year);
+      console.log(
+        `[scheduledVeikkausliigaScrape] saved ${result.count} players @ ${result.updatedAt}`,
+      );
+    } catch (error) {
+      console.error('[scheduledVeikkausliigaScrape] failed:', error);
     }
   });
 

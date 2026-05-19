@@ -201,6 +201,15 @@ export async function saveVeikkausliigaPlayers(
   return { count: players.length, updatedAt };
 }
 
+/** Scrape + tallennus yhdessä — käytetään cron-job:ssa ja
+ *  /api/scrape/veikkausliiga -endpointissa. */
+export async function scrapeAndSave(
+  year: number,
+): Promise<{ count: number; updatedAt: string }> {
+  const players = await scrapeVeikkausliigaPlayers(year);
+  return saveVeikkausliigaPlayers(year, players);
+}
+
 /** Hae tallennetut pelaajat Firestoresta. Käytetään julkisessa endpointissa. */
 export async function getOfficialStats(
   year: number,

@@ -136,11 +136,6 @@ class DataAggregator {
 
     // Calculate league-wide aggregates
     const totalPlayersAnalyzed = playerStats.length;
-    const youthPlayersU21 = playerStats.filter((p) => {
-      const birthYear = p.playerName ? undefined : 0; // Would need birthdate
-      return p.minutesPlayed > 0;
-    }).length;
-
     const totalMinutes = youthStats.reduce((sum, t) => sum + t.totalMinutes, 0);
     const youthMinutesU21 = youthStats.reduce((sum, t) => sum + t.youthMinutesU21, 0);
     const youthMinutesU23 = youthStats.reduce((sum, t) => sum + t.youthMinutesU23, 0);

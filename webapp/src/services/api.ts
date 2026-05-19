@@ -266,6 +266,8 @@ export interface OfficialPlayer {
   redCards: number;
   season: number;
   source: string;
+  /** Ei vielä scrapessa, varauduttu tulevaisuuden rikastukseen (esim. API-Football join). */
+  age?: number;
 }
 
 export interface OfficialStatsResponse {

@@ -7,10 +7,12 @@ interface LayoutProps {
   children: ReactNode;
 }
 
-const navLinks = [
+const navLinks: Array<{ to: string; label: string; end?: boolean }> = [
+  { to: '/', label: 'etusivu', end: true },
+  { to: '/nuoret', label: 'nuoret' },
+  { to: '/pelaajat', label: 'pelaajat' },
   { to: '/peliaika', label: 'peliaika' },
   { to: '/joukkueet', label: 'joukkueet' },
-  { to: '/pelaajat', label: 'pelaajat' },
   { to: '/about', label: 'about' },
 ];
 
@@ -53,7 +55,12 @@ export function Layout({ children }: LayoutProps) {
           {/* Desktop nav */}
           <nav className="hidden md:flex items-center gap-1 text-sm">
             {navLinks.map((link) => (
-              <NavLink key={link.to} to={link.to} className={desktopLinkClass}>
+              <NavLink
+                key={link.to}
+                to={link.to}
+                end={link.end}
+                className={desktopLinkClass}
+              >
                 {link.label}
               </NavLink>
             ))}
@@ -119,6 +126,7 @@ export function Layout({ children }: LayoutProps) {
             <NavLink
               key={link.to}
               to={link.to}
+              end={link.end}
               onClick={closeMobile}
               className={mobileLinkClass}
             >

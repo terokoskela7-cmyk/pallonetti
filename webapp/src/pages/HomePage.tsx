@@ -1,7 +1,7 @@
 import { useApi } from '@/hooks/useApi';
 import {
   getYouthStatsAll,
-  getYouthAggregation,
+  getOfficialStats,
   type YouthStats,
 } from '@/services/api';
 import { Hero } from '@/components/Hero';
@@ -34,8 +34,9 @@ const leagueLinks = [
 
 export default function HomePage() {
   const { data, loading, error } = useApi(() => getYouthStatsAll(SEASON), [SEASON]);
-  // Top-pelaajat ladataan erikseen — sivu ei jää odottamaan tätä.
-  const { data: aggData } = useApi(() => getYouthAggregation(SEASON), [SEASON]);
+  // Virallinen Veikkausliiga.com-data top-listalle — ladataan rinnakkain,
+  // sivu ei jää odottamaan tätä.
+  const { data: officialData } = useApi(() => getOfficialStats(SEASON), [SEASON]);
 
   if (loading) {
     return (
@@ -59,13 +60,6 @@ export default function HomePage() {
   const vPct = calcU23Pct(veikkausliiga);
   const ylPct = calcU23Pct(ykkosliiga);
   const yPct = calcU23Pct(ykkonen);
-
-  const topPlayers = (aggData?.topYouthPlayers ?? []).slice(0, 5).map((p) => ({
-    name: p.playerName,
-    team: p.teamName,
-    minutes: p.minutesPlayed,
-    age: p.age,
-  }));
 
   return (
     <div className="px-6 py-10 md:py-16 space-y-12">
@@ -186,9 +180,9 @@ export default function HomePage() {
       {/* 5. Miksi tämä on tärkeää — tutkimusdataan pohjautuva motivaatio */}
       <WhyMattersSection />
 
-      {/* 6. Top 5 pelaajaa — eniten peliaikaa U23-pelaajille */}
+      {/* 6. Top 5 pelaajaa — Veikkausliiga.com viralliset tilastot */}
       <section className="max-w-2xl">
-        <TopPlayersCard players={topPlayers} />
+        <TopPlayersCard players={officialData?.data ?? []} />
       </section>
     </div>
   );

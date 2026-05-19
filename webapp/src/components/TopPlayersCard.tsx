@@ -1,94 +1,101 @@
-interface TopPlayer {
-  name: string;
-  team: string;
-  minutes: number;
-  age?: number;
-}
+import { useState } from 'react';
+import type { OfficialPlayer } from '@/services/api';
 
 interface TopPlayersCardProps {
-  players: TopPlayer[];
+  players: OfficialPlayer[];
 }
 
-// Sama värisykli kuin JoukkueetPage:ssa — pelaajat saavat värin sijoitusindeksin mukaan.
-const AVATAR_COLORS = ['#00D4FF', '#00FF88', '#6366f1', '#f59e0b', '#ef4444'];
+type Metric = 'minutes' | 'goals' | 'assists';
 
-function getPlayerInitials(name: string): string {
-  const parts = name.trim().split(/\s+/).filter(Boolean);
-  if (parts.length === 0) return '?';
-  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
-  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
-}
-
-function ageStyles(age?: number): { badge: string; border: string } {
-  if (age === undefined) {
-    return { badge: 'bg-white/10 text-white/60', border: 'border-l-white/40' };
-  }
-  if (age < 20) {
-    return { badge: 'bg-aurora/15 text-aurora', border: 'border-l-aurora' };
-  }
-  if (age <= 21) {
-    return { badge: 'bg-ice/15 text-ice', border: 'border-l-ice' };
-  }
-  return { badge: 'bg-white/10 text-white/60', border: 'border-l-white/40' };
-}
+const TABS: Array<{ id: Metric; label: string; unit: string }> = [
+  { id: 'minutes', label: 'Minuutit', unit: 'min' },
+  { id: 'goals', label: 'Maalit', unit: 'M' },
+  { id: 'assists', label: 'Syötöt', unit: 'S' },
+];
 
 export function TopPlayersCard({ players }: TopPlayersCardProps) {
+  const [metric, setMetric] = useState<Metric>('minutes');
+
+  // Top 5 valitun metriikan mukaan, suurin ensin
+  const top5 = [...players]
+    .sort((a, b) => b[metric] - a[metric])
+    .slice(0, 5);
+
+  const maxValue = top5[0]?.[metric] ?? 1;
+  const unitLabel = TABS.find((t) => t.id === metric)?.unit ?? '';
+
   return (
     <div className="bg-navy-700/40 border border-navy-600 rounded-lg p-6">
       <div className="flex items-baseline justify-between mb-4">
         <h3 className="text-sm uppercase tracking-wider text-white/50 font-medium">
-          Eniten pelanneet U23
+          Veikkausliiga — Top 5
         </h3>
-        <span className="text-xs text-white/30">Top 5</span>
+        <span className="text-xs text-white/30">
+          {top5.length > 0 ? `${players.length} pelaajaa` : ''}
+        </span>
       </div>
 
-      {players.length === 0 ? (
-        <div className="py-8 text-center">
-          <div className="text-white/50 text-sm">
-            Pelaajatason data tulossa — kierros 8+
-          </div>
+      {/* Välilehdet */}
+      <div className="flex gap-1 mb-4">
+        {TABS.map((tab) => {
+          const active = metric === tab.id;
+          return (
+            <button
+              key={tab.id}
+              onClick={() => setMetric(tab.id)}
+              className={`px-3 py-1.5 text-xs rounded-md transition-colors ${
+                active
+                  ? 'bg-ice/15 text-ice font-medium'
+                  : 'text-white/50 hover:text-white/80 hover:bg-white/5'
+              }`}
+            >
+              {tab.label}
+            </button>
+          );
+        })}
+      </div>
+
+      {top5.length === 0 ? (
+        <div className="py-8 text-center text-white/50 text-sm">
+          Pelaajatason data tulossa — kierros 8+
         </div>
       ) : (
-        <ol className="space-y-1">
-          {players.map((player, i) => {
-            const initials = getPlayerInitials(player.name);
-            const avatarColor = AVATAR_COLORS[i % AVATAR_COLORS.length];
-            const { badge, border } = ageStyles(player.age);
+        <ol className="space-y-2">
+          {top5.map((player, i) => {
+            const value = player[metric];
+            const widthPct = maxValue > 0 ? (value / maxValue) * 100 : 0;
             return (
               <li
-                key={`${player.name}-${i}`}
-                className={`flex items-center gap-3 py-2.5 pl-3 pr-2 rounded border-l-2 ${border} hover:bg-white/5 transition-colors`}
+                key={`${player.name}-${player.team}-${i}`}
+                className="bg-navy-700 border border-navy-600 border-l-2 border-l-ice rounded-r-md p-3"
               >
-                <div
-                  className="w-10 h-10 rounded-full flex items-center justify-center font-semibold text-sm shrink-0 text-navy-900"
-                  style={{ backgroundColor: avatarColor }}
-                  aria-hidden="true"
-                >
-                  {initials}
-                </div>
-
-                <div className="flex-1 min-w-0">
-                  <div className="font-medium text-white/95 truncate">
-                    {player.name}
-                  </div>
-                  <div className="text-xs text-white/60 truncate">
-                    {player.team}
-                  </div>
-                </div>
-
-                {player.age !== undefined && (
-                  <span
-                    className={`text-[10px] uppercase tracking-wider px-2 py-0.5 rounded-full font-medium shrink-0 ${badge}`}
-                  >
-                    {player.age} v
+                <div className="flex items-center gap-3">
+                  <span className="text-2xl font-bold text-ice font-mono tracking-tight w-7 text-center shrink-0">
+                    {i + 1}
                   </span>
-                )}
-
-                <div className="text-right shrink-0 leading-none pl-1">
-                  <span className="text-lg font-bold text-ice font-mono tracking-tight">
-                    {player.minutes}
-                  </span>
-                  <span className="text-[10px] text-white/40 ml-1">min</span>
+                  <div className="flex-1 min-w-0">
+                    <div className="font-medium text-white/95 truncate">
+                      {player.name}
+                    </div>
+                    <div className="text-xs text-white/50 truncate">
+                      {player.team}
+                    </div>
+                  </div>
+                  <div className="text-right shrink-0 leading-none">
+                    <div className="text-xl font-bold text-ice font-mono tracking-tight">
+                      {value}
+                    </div>
+                    <div className="text-[10px] text-white/40 uppercase tracking-wider mt-1">
+                      {unitLabel}
+                    </div>
+                  </div>
+                </div>
+                {/* Progress bar: skaalautuu listan #1 -arvoon (100 %) */}
+                <div className="mt-2 h-1 bg-navy-600/70 rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-ice rounded-full transition-all duration-500"
+                    style={{ width: `${widthPct}%` }}
+                  />
                 </div>
               </li>
             );

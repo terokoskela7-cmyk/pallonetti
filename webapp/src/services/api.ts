@@ -251,6 +251,51 @@ export const getYouthAggregation = (season: number): Promise<YouthAggregation> =
   fetchApi(`/youth-aggregation/${season}`);
 
 // ============================================
+// OFFICIAL STATS (Veikkausliiga.com scrape)
+// ============================================
+export interface OfficialPlayer {
+  rank: number;
+  name: string;           // "Etunimi Sukunimi" (jo muunnettu scraperissa)
+  team: string;
+  appearances: number;
+  minutes: number;
+  goals: number;
+  assists: number;
+  starts: number;
+  yellowCards: number;
+  redCards: number;
+  season: number;
+  source: string;
+}
+
+export interface OfficialStatsResponse {
+  data: OfficialPlayer[];
+  meta: { count: number; updatedAt: string; season: number } | null;
+}
+
+/** Vastaus on rakenteeltaan { success, data, meta, timestamp } — meta jää
+ *  fetchApi-helperilta huomiotta, joten käytetään tässä omaa fetcheriä. */
+export async function getOfficialStats(year: number): Promise<OfficialStatsResponse> {
+  const url = `${API_BASE_URL}/official-stats/${year}`;
+  // eslint-disable-next-line no-console
+  console.log('[getOfficialStats] GET', url);
+  const response = await fetch(url, {
+    headers: { 'Content-Type': 'application/json' },
+  });
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({}));
+    throw new Error(error.error || `API error: ${response.status}`);
+  }
+  const result = (await response.json()) as {
+    success: boolean;
+    data: OfficialPlayer[];
+    meta: OfficialStatsResponse['meta'];
+  };
+  if (!result.success) throw new Error('API returned unsuccessful response');
+  return { data: result.data, meta: result.meta };
+}
+
+// ============================================
 // MATCHES
 // ============================================
 export type MatchStatus = 'SCHEDULED' | 'LIVE' | 'IN_PLAY' | 'FINISHED' | 'POSTPONED';

@@ -11,8 +11,15 @@
 import axios from 'axios';
 import * as cheerio from 'cheerio';
 import * as admin from 'firebase-admin';
+import * as https from 'https';
 
 const BASE_URL = 'https://www.veikkausliiga.com';
+
+// veikkausliiga.com tarjoaa epätäydellisen TLS-sertifikaattiketjun
+// (selaimet täydentävät sen automaattisesti, Node.js ei). Sallitaan
+// validoinnin ohitus tälle scraperille — pyyntö lähtee Cloud Functions
+// -ympäristöstä, ja kohde palauttaa julkista tilastoa.
+const httpsAgent = new https.Agent({ rejectUnauthorized: false });
 
 /** Yhden pelaajan rivi taulukosta */
 export interface VeikkausliigaPlayer {
@@ -91,6 +98,7 @@ export async function scrapeVeikkausliigaPlayers(
 
   const response = await axios.get<string>(url, {
     timeout: 30000,
+    httpsAgent,
     headers: {
       'User-Agent':
         'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 ' +

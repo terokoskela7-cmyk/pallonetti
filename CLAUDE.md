@@ -90,7 +90,7 @@ pallonetti/
 └── .github/workflows/deploy.yml  ← CI/CD
 ```
 
-### Frontend-komponentit (14)
+### Frontend-komponentit (13)
 
 | Komponentti | Käyttötarkoitus |
 |---|---|
@@ -98,7 +98,6 @@ pallonetti/
 | `WeeklyNarrative` | "Viime kierroksen tarina" — automaattinen narratiivi |
 | `KPICard` | KPI-kortti sparkline-trendillä |
 | `InsightBar` | Kaavioiden selittävä yläpalkki |
-| `LeagueSection` | Yksi sarja (Veikkausliiga / Ykkösliiga / Ykkönen) |
 | `LeagueTabBar` | Sarja-välilehdet alasivuilla |
 | `TeamRankingBar` | Joukkuelistan palkki |
 | `AgeDistributionChart` | StackedBar U18–U23 per joukkue (Recharts) |
@@ -113,7 +112,7 @@ pallonetti/
 
 | Sivu | Status |
 |---|---|
-| `/` HomePage | ✅ Hero + WeeklyNarrative + 4 KPI-korttia + 3 LeagueSectionia + WhyMattersSection + TopPlayersCard |
+| `/` HomePage | ✅ Hero + WeeklyNarrative + KPI-kortit + TopPlayersCard + WhyMattersSection + CTA-linkit |
 | `/peliaika` PelaikaPage | ✅ Ikäjakauma + sortable taulukko + filtterit |
 | `/joukkueet` JoukkueetPage | ✅ Joukkuekortit, U23-%, keski-ikä, logot |
 | `/pelaajat` | ❌ Ei toteutettu |

@@ -8,6 +8,7 @@ import {
   type YouthStats,
 } from '@/services/api';
 import { Hero } from '@/components/Hero';
+import { TeamRankingBar } from '@/components/TeamRankingBar';
 
 const SEASON = 2026;
 
@@ -213,11 +214,29 @@ export default function JoukkueetPage() {
           </p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-          {teams.map((team, i) => (
-            <TeamCard key={team.teamId} team={team} index={i} />
-          ))}
-        </div>
+        <>
+          {/* Sarja-vertailu yhdellä silmäyksellä */}
+          <section className="space-y-4">
+            <div className="flex items-baseline justify-between flex-wrap gap-2">
+              <h2 className="text-lg font-medium">U23-käyttöaste joukkueittain</h2>
+              <span className="text-xs text-white/40">
+                <span className="text-white/70 tabular">{teams.length}</span>{' '}
+                joukkuetta · % peliminuuteista
+              </span>
+            </div>
+            <TeamRankingBar teams={teams} />
+          </section>
+
+          {/* Joukkuekortit syvempää tarkastelua varten */}
+          <section className="space-y-4">
+            <h2 className="text-lg font-medium">Joukkueet</h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+              {teams.map((team, i) => (
+                <TeamCard key={team.teamId} team={team} index={i} />
+              ))}
+            </div>
+          </section>
+        </>
       )}
     </div>
   );

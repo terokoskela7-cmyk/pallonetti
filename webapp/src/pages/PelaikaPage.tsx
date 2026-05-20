@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Info, RefreshCw } from 'lucide-react';
+import { Info, RefreshCw, TrendingUp } from 'lucide-react';
 import { useApi } from '@/hooks/useApi';
 import {
   getYouthStatsAll,
@@ -194,6 +194,21 @@ export default function PelaikaPage() {
               </span>
             </div>
             <AgeDistributionChart teams={teams} />
+          </section>
+
+          {/* 3.2. Liigan U23%-trendi kauden aikana (placeholder — kierroskohtainen
+              data ei vielä saatavilla. Vaatii matches/lineups-pohjaisen aggregoinnin
+              joka rakennetaan seuraavalla sprintillä.) */}
+          <section className="rounded-xl border border-dashed border-navy-600 bg-navy-700/30 p-8 text-center space-y-2">
+            <TrendingUp className="w-6 h-6 text-white/30 mx-auto" />
+            <div className="text-sm font-medium text-white/70">
+              Liigan U23-% kauden aikana — tulossa
+            </div>
+            <div className="text-xs text-white/40 max-w-md mx-auto leading-relaxed">
+              Kierroskohtainen trendi näyttää onko nuorten käyttöaste nousussa vai
+              laskussa kauden edetessä. Vaatii ottelukohtaisen aggregoinnin —
+              rakennetaan seuraavalla sprintillä.
+            </div>
           </section>
 
           {/* 3.5. Tarinankerronta — automaattiset nostot */}

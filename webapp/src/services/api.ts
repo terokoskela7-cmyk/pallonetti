@@ -237,6 +237,19 @@ export const getYouthStats = (
   return fetchApi(`/youth-stats/${season}${params}`);
 };
 
+/**
+ * Datavajeen kynnysarvo. Joukkueet joilla totalMinutes alle tämän pudotetaan
+ * kaikista U23-laskelmista — pieni otos ei ole luotettava.
+ * Peruste: Veikkausliigan tasaiseen otteluohjelmaan kuuluu n. 990 min/joukkue
+ * yhden täysottelun jälkeen kaikille pelaajille — alle 1000 min koko joukkueella
+ * tarkoittaa siis API-Footballin datavajetta, ei oikeaa peliaikatilannetta.
+ */
+export const LOW_DATA_TOTAL_MINUTES = 1000;
+
+export function filterReliableTeams(teams: YouthStats[]): YouthStats[] {
+  return teams.filter((t) => t.totalMinutes >= LOW_DATA_TOTAL_MINUTES);
+}
+
 /** Kaikki 3 sarjaa yhdellä kutsulla — käytä etusivulla */
 export interface YouthStatsAll {
   veikkausliiga: YouthStats[];

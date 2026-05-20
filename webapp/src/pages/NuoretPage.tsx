@@ -6,7 +6,15 @@ import {
   type OfficialPlayer,
 } from '@/services/api';
 import { Hero } from '@/components/Hero';
-import { Clock, Target, Sparkles, Info, type LucideIcon } from 'lucide-react';
+import {
+  Clock,
+  Target,
+  Sparkles,
+  Info,
+  ArrowUpRight,
+  Users,
+  type LucideIcon,
+} from 'lucide-react';
 
 const SEASON = 2026;
 const MAX_PLAYERS = 30;
@@ -273,6 +281,22 @@ export default function NuoretPage() {
         subtitle={`Alle 23-vuotiaat · ${players.length} pelaajaa seurannassa`}
         height="sm"
       />
+
+      {/* Konteksti: miksi näiden pelaajien minuutit ovat tärkeitä */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+        <HighlightCard
+          icon={ArrowUpRight}
+          label="Wirén 2026 · Pohjoismainen vertailu"
+          title="Suomi 14 % → Pohjoismaat 23 %"
+          body="Pohjoismaisten vertailujen mukaan suomalaisen U23-pelaajan todennäköisyys ulkomaan siirrolle on noin 14 %, kun pohjoismaiden keskiarvo on 23 %. Käyttöaste seuroissa on suorin tapa kuroa eroa kiinni."
+        />
+        <HighlightCard
+          icon={Users}
+          label={`Kauden ${SEASON} U23-runko`}
+          title={`${players.length} pelaajaa rakentaa tulevaisuutta`}
+          body="Jokainen minuutti pääsarjassa lisää siirtoarvoa ja kehityspotentiaalia. Alla listatut pelaajat ovat tämän kauden eniten peliaikaa saaneet U23-pelaajat — heidän kehityksensä kertoo Suomen jalkapallon suunnan."
+        />
+      </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
         <HighlightCard

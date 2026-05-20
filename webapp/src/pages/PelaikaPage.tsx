@@ -1,7 +1,11 @@
 import { useState } from 'react';
 import { Info, RefreshCw } from 'lucide-react';
 import { useApi } from '@/hooks/useApi';
-import { getYouthStatsAll, type YouthStats } from '@/services/api';
+import {
+  getYouthStatsAll,
+  filterReliableTeams,
+  type YouthStats,
+} from '@/services/api';
 import {
   LeagueTabBar,
   type LeagueId,
@@ -118,19 +122,27 @@ export default function PelaikaPage() {
     );
   }
 
-  const hasData: Record<LeagueId, boolean> = {
-    veikkausliiga: data.veikkausliiga.length > 0,
-    ykkosliiga: data.ykkosliiga.length > 0,
-    ykkonen: data.ykkonen.length > 0,
+  // Suodata pois joukkueet joilla totalMinutes < 1000 (datavaje) ennen
+  // mitään muuta laskentaa. Tämä koskee KAIKKIA kolmea sarjaa.
+  const reliable: Record<LeagueId, YouthStats[]> = {
+    veikkausliiga: filterReliableTeams(data.veikkausliiga),
+    ykkosliiga: filterReliableTeams(data.ykkosliiga),
+    ykkonen: filterReliableTeams(data.ykkonen),
   };
 
-  const allTeams: YouthStats[] = data[activeLeague];
+  const hasData: Record<LeagueId, boolean> = {
+    veikkausliiga: reliable.veikkausliiga.length > 0,
+    ykkosliiga: reliable.ykkosliiga.length > 0,
+    ykkonen: reliable.ykkonen.length > 0,
+  };
+
+  const allTeams: YouthStats[] = reliable[activeLeague];
 
   // Minimi minuutit -filtteri: rajaa joukkueet joiden totalMinutes ylittää rajan
   const teams = allTeams.filter((t) => t.totalMinutes >= minMinutes);
 
   // Liigan painotettu keskiarvo nykyisen ikäryhmän mukaan
-  // (lasketaan kaikista joukkueista, ei suodatetuista)
+  // (lasketaan kaikista luotettavista joukkueista, ei minMinutes-suodatetuista)
   const leagueAvg = calcLeagueAvg(allTeams, ageGroup);
 
   const totalU23Players = teams.reduce(

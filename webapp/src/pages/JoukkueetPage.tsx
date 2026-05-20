@@ -2,7 +2,11 @@ import { useState } from 'react';
 import { Info, RefreshCw, ChevronRight } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useApi } from '@/hooks/useApi';
-import { getYouthStatsAll, type YouthStats } from '@/services/api';
+import {
+  getYouthStatsAll,
+  filterReliableTeams,
+  type YouthStats,
+} from '@/services/api';
 import { Hero } from '@/components/Hero';
 
 const SEASON = 2026;
@@ -181,7 +185,8 @@ export default function JoukkueetPage() {
     );
   }
 
-  const teams = [...data.veikkausliiga].sort(
+  // Suodata pois joukkueet joilla totalMinutes < 1000 (datavaje).
+  const teams = filterReliableTeams(data.veikkausliiga).sort(
     (a, b) => b.youthPercentageU23 - a.youthPercentageU23,
   );
 

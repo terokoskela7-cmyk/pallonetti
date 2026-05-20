@@ -5,6 +5,7 @@ import PelaikaPage from '@/pages/PelaikaPage';
 import JoukkueetPage from '@/pages/JoukkueetPage';
 import NuoretPage from '@/pages/NuoretPage';
 import PelaajatPage from '@/pages/PelaajatPage';
+import PelaajaPage from '@/pages/PelaajaPage';
 
 function Placeholder({ title }: { title: string }) {
   return (
@@ -13,10 +14,6 @@ function Placeholder({ title }: { title: string }) {
       <p className="text-white/60 text-lg">Tulossa pian.</p>
     </section>
   );
-}
-
-function PelaajaPage() {
-  return <Placeholder title="Pelaaja" />;
 }
 
 function AboutPage() {
@@ -32,7 +29,7 @@ export default function App() {
         <Route path="/pelaajat" element={<PelaajatPage />} />
         <Route path="/peliaika" element={<PelaikaPage />} />
         <Route path="/joukkueet" element={<JoukkueetPage />} />
-        <Route path="/pelaaja/:id" element={<PelaajaPage />} />
+        <Route path="/pelaaja/:slug" element={<PelaajaPage />} />
         <Route path="/about" element={<AboutPage />} />
       </Routes>
     </Layout>

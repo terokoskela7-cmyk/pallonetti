@@ -5,8 +5,6 @@ interface WeeklyNarrativeProps {
   ykkosliiga: YouthStats[];
 }
 
-const LEADER_MIN_TOTAL_MINUTES = 1000;
-
 function calcAvgU23(teams: YouthStats[]): number {
   const totalMinutes = teams.reduce((s, t) => s + t.totalMinutes, 0);
   const u23Minutes = teams.reduce((s, t) => s + t.youthMinutesU23, 0);
@@ -14,8 +12,7 @@ function calcAvgU23(teams: YouthStats[]): number {
 }
 
 function findLeader(teams: YouthStats[]): YouthStats | undefined {
-  const reliable = teams.filter((t) => t.totalMinutes >= LEADER_MIN_TOTAL_MINUTES);
-  return [...reliable].sort(
+  return [...teams].sort(
     (a, b) => b.youthPercentageU23 - a.youthPercentageU23,
   )[0];
 }

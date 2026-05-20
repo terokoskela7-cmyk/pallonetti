@@ -2,6 +2,7 @@ import { useApi } from '@/hooks/useApi';
 import {
   getYouthStatsAll,
   getOfficialStats,
+  filterReliableTeams,
   type YouthStats,
 } from '@/services/api';
 import { Hero } from '@/components/Hero';
@@ -56,7 +57,11 @@ export default function HomePage() {
     );
   }
 
-  const { veikkausliiga, ykkosliiga, ykkonen } = data;
+  // Suodata pois joukkueet joilla on datavaje (totalMinutes < 1000) ennen
+  // mitään laskentaa — luvut eivät ole luotettavia pienestä otoksesta.
+  const veikkausliiga = filterReliableTeams(data.veikkausliiga);
+  const ykkosliiga = filterReliableTeams(data.ykkosliiga);
+  const ykkonen = filterReliableTeams(data.ykkonen);
   const vPct = calcU23Pct(veikkausliiga);
   const ylPct = calcU23Pct(ykkosliiga);
   const yPct = calcU23Pct(ykkonen);

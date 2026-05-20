@@ -341,8 +341,10 @@ export default function PelaajaPage() {
   const detail = detailArray && detailArray.length > 0 ? detailArray[0] : null;
   const stats = pickVeikkausliigaStats(detail);
 
-  // Virallinen scraper-match (täysi suomalainen nimi + tarkat luvut)
-  const officialMatch = findOfficial(youthMatch, base.official);
+  // Virallinen scraper-match (täysi suomalainen nimi + tarkat luvut).
+  // base on tässä vaiheessa käytännössä non-null (youthMatch johdettiin siitä),
+  // mutta TS ei kapene narrowing:lla — käytetään defensive optional chainingia.
+  const officialMatch = findOfficial(youthMatch, base?.official ?? []);
 
   // Yhdistetyt arvot — virallinen voittaa kun saatavilla
   const displayName = officialMatch?.name ?? youthMatch.playerName;

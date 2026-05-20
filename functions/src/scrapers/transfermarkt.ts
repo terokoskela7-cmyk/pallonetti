@@ -216,7 +216,6 @@ export async function scrapePlayerProfile(
   const marketValue = marketValueRaw ? parseMarketValue(marketValueRaw) : null;
 
   // Päädata label/value-pareista
-  const birthAge = pickByLabel($, ['Date of birth/Age:', 'Date of birth:']);
   const birthPlace = pickByLabel($, ['Place of birth:']);
   const height = pickByLabel($, ['Height:']);
   const foot = pickByLabel($, ['Foot:'])?.toLowerCase() ?? null;
@@ -236,9 +235,6 @@ export async function scrapePlayerProfile(
 
   const now = new Date();
   const expiresAt = new Date(now.getTime() + CACHE_TTL_DAYS * 24 * 60 * 60 * 1000);
-
-  // birthAge formaatti on yleensä "Jan 1, 2000 (25)" — TODO: erotella jos halutaan
-  const _birthAgeUnused = birthAge; // talletetaan vain raakana toistaiseksi
 
   return {
     tmId,

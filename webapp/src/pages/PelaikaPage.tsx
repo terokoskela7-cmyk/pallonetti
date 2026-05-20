@@ -419,6 +419,15 @@ export default function PelaikaPage() {
     (t) => t.youthPercentageU23 >= 25,
   ).length;
 
+  // U23-pelaajamäärä KPI-korttiin: ensisijaisesti YouthStats team-breakdown
+  // (oikea ei-katkaistu luku, ei rajoitu topYouthPlayers:n 20:n cap:iin).
+  // Jos joskus official-datasta saadaan ikä, käytetään sitä tarkennuksena.
+  const u23Count = veikkausliiga.reduce((s, t) => s + t.youthPlayersU23, 0);
+  const officialU23 =
+    officialData?.data?.filter((p) => p.age !== undefined && p.age <= 23) ?? [];
+  const u23CountDisplay = officialU23.length > 0 ? officialU23.length : u23Count;
+  const totalPlayers = officialData?.data?.length ?? 0;
+
   return (
     <div className="px-6 py-10 md:py-14 space-y-8">
       {/* Hero */}
@@ -450,7 +459,7 @@ export default function PelaikaPage() {
         />
         <KpiCard
           label="U23 pelaajia"
-          value={String(u23Players.length)}
+          value={`${u23CountDisplay} / ${totalPlayers}`}
           hint="Veikkausliigassa"
           accent="ice"
         />

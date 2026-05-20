@@ -3,7 +3,7 @@ import { ArrowRight } from 'lucide-react';
 import { useApi } from '@/hooks/useApi';
 import {
   getYouthStatsAll,
-  getOfficialStats,
+  getYouthAggregation,
   filterReliableTeams,
   type YouthStats,
 } from '@/services/api';
@@ -43,8 +43,9 @@ function CtaLink({ to, label }: CtaLinkProps) {
 
 export default function HomePage() {
   const { data, loading, error } = useApi(() => getYouthStatsAll(SEASON), [SEASON]);
-  // Virallinen Veikkausliiga.com-data top-listalle — ladataan rinnakkain.
-  const { data: officialData } = useApi(() => getOfficialStats(SEASON), [SEASON]);
+  // U23-pelaajat (valmiiksi ikäfiltteröity backendissä) top-listalle — ladataan
+  // rinnakkain, etusivu ei jää odottamaan tätä.
+  const { data: youthAgg } = useApi(() => getYouthAggregation(SEASON), [SEASON]);
 
   if (loading) {
     return (
@@ -140,10 +141,9 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* Viikon tähdet */}
-      <section className="space-y-3 max-w-2xl">
-        <TopPlayersCard players={officialData?.data ?? []} />
-        <CtaLink to="/nuoret" label="Katso kaikki U23-pelaajat" />
+      {/* Viikon U23-tähdet — sisäinen "Katso kaikki nuoret" -linkki kortissa */}
+      <section className="max-w-2xl">
+        <TopPlayersCard players={youthAgg?.topYouthPlayers ?? []} />
       </section>
 
       {/* Konteksti — miksi tämä on tärkeää */}

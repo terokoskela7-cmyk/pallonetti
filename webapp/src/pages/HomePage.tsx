@@ -4,6 +4,7 @@ import { useApi } from '@/hooks/useApi';
 import {
   getYouthStatsAll,
   getYouthAggregation,
+  getOfficialStats,
   filterReliableTeams,
   type YouthStats,
 } from '@/services/api';
@@ -46,6 +47,9 @@ export default function HomePage() {
   // U23-pelaajat (valmiiksi ikäfiltteröity backendissä) top-listalle — ladataan
   // rinnakkain, etusivu ei jää odottamaan tätä.
   const { data: youthAgg } = useApi(() => getYouthAggregation(SEASON), [SEASON]);
+  // Veikkausliiga.com viralliset tilastot — käytetään ENSISIJAISESTI minuutit,
+  // koska virallinen lähde on tarkempi kuin API-Football.
+  const { data: officialStats } = useApi(() => getOfficialStats(SEASON), [SEASON]);
 
   if (loading) {
     return (
@@ -72,6 +76,20 @@ export default function HomePage() {
   const vPct = calcU23Pct(veikkausliiga);
   const ylPct = calcU23Pct(ykkosliiga);
   const yPct = calcU23Pct(ykkonen);
+
+  // Rikasta topYouthPlayers Veikkausliiga.com:n virallisilla minuuteilla.
+  // Match: API-Footballin "E. Sukunimi" → sukunimi (viimeinen "." :n jälkeen)
+  // → etsi virallisesta listasta jonka name sisältää sukunimen.
+  const enrichedPlayers = (youthAgg?.topYouthPlayers ?? []).map((p) => {
+    const lastName = p.playerName.split('.').pop()?.trim().toLowerCase() ?? '';
+    const official = officialStats?.data?.find((o) =>
+      o.name.toLowerCase().includes(lastName),
+    );
+    return {
+      ...p,
+      minutesPlayed: official?.minutes ?? p.minutesPlayed,
+    };
+  });
 
   return (
     <div className="px-6 py-10 md:py-16 space-y-12">
@@ -141,9 +159,12 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* Viikon U23-tähdet — sisäinen "Katso kaikki nuoret" -linkki kortissa */}
+      {/* Viikon U23-tähdet — sisäinen "Katso kaikki nuoret" -linkki kortissa.
+          Minuutit rikastetaan Veikkausliiga.com:n virallisesta datasta
+          sukunimi-matchilla; jos vastinetta ei löydy käytetään API-Footballin
+          minutesPlayed:tä. */}
       <section className="max-w-2xl">
-        <TopPlayersCard players={youthAgg?.topYouthPlayers ?? []} />
+        <TopPlayersCard players={enrichedPlayers} />
       </section>
 
       {/* Konteksti — miksi tämä on tärkeää */}

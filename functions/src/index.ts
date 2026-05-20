@@ -905,25 +905,9 @@ export const scheduledVeikkausliigaScrape = functions
     }
   });
 
-/** Scheduled: Transfermarkt U23-batch viikoittain (maanantai 02:00 Helsinki).
- *  Käy läpi youthAggregation.topYouthPlayers (max 20) ja päivittää profiilit
- *  + name-indeksin. */
-export const scheduledTransfermarktU23 = functions
-  .region(REGION)
-  .pubsub.schedule('0 2 * * 1')
-  .timeZone('Europe/Helsinki')
-  .onRun(async () => {
-    const season = new Date().getFullYear();
-    console.log(`[scheduledTransfermarktU23] starting season=${season}`);
-    try {
-      const result = await scrapeAllU23Players(season);
-      console.log(
-        `[scheduledTransfermarktU23] stored ${result.length} U23 players`,
-      );
-    } catch (error) {
-      console.error('[scheduledTransfermarktU23] failed:', error);
-    }
-  });
+// Transfermarkt-cron poistettu — ajetaan manuaalisesti admin-endpointilla
+// POST /api/transfermarkt/refresh (x-admin-key). Cron palautetaan kun Cloud
+// Scheduler -oikeudet on konfiguroitu Firebase Consolessa.
 
 /** HTTP: Manual trigger for data refresh */
 export const refreshData = functions.region(REGION).https.onRequest(async (req, res) => {

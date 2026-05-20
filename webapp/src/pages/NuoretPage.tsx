@@ -2,8 +2,8 @@ import { useApi } from '@/hooks/useApi';
 import {
   getYouthAggregation,
   getOfficialStats,
-  type PlayerStats,
-  type OfficialPlayer,
+  buildU23Players,
+  type U23Player,
 } from '@/services/api';
 import { Hero } from '@/components/Hero';
 import {
@@ -28,64 +28,6 @@ function getInitials(name: string): string {
   return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
 }
 
-function getSurnameKey(name: string): string {
-  const parts = name.trim().split(/\s+/).filter(Boolean);
-  if (parts.length === 0) return '';
-  return parts[parts.length - 1].toLowerCase();
-}
-
-interface NuoriPlayer {
-  name: string;
-  team: string;
-  age: number;
-  minutes: number;
-  goals: number;
-  assists: number;
-  tp: number;
-}
-
-function mergePlayers(
-  topYouth: PlayerStats[],
-  official: OfficialPlayer[],
-): NuoriPlayer[] {
-  const officialBySurname = new Map<string, OfficialPlayer>();
-  for (const p of official) {
-    const key = getSurnameKey(p.name);
-    if (!key) continue;
-    const existing = officialBySurname.get(key);
-    // Jos useita samannimisiä, suosi enemmän minuutteja saanutta
-    if (!existing || p.minutes > existing.minutes) {
-      officialBySurname.set(key, p);
-    }
-  }
-
-  const merged: NuoriPlayer[] = [];
-  for (const yp of topYouth) {
-    if (yp.age === undefined || yp.age > 23) continue;
-
-    const surname = getSurnameKey(yp.playerName);
-    const officialMatch = officialBySurname.get(surname);
-    const minutes = officialMatch?.minutes ?? yp.minutesPlayed;
-
-    merged.push({
-      name: yp.playerName,
-      team: yp.teamName,
-      age: yp.age,
-      minutes,
-      goals: yp.goals,
-      assists: yp.assists,
-      tp: yp.goals + yp.assists,
-    });
-  }
-
-  merged.sort((a, b) => {
-    if (b.tp !== a.tp) return b.tp - a.tp;
-    return b.minutes - a.minutes;
-  });
-
-  return merged.slice(0, MAX_PLAYERS);
-}
-
 interface HighlightCardProps {
   icon: LucideIcon;
   label: string;
@@ -107,13 +49,13 @@ function HighlightCard({ icon: Icon, label, title, body }: HighlightCardProps) {
 }
 
 interface PlayerCardProps {
-  player: NuoriPlayer;
+  player: U23Player & { tp: number };
   index: number;
   maxTp: number;
 }
 
 function PlayerCard({ player, index, maxTp }: PlayerCardProps) {
-  const initials = getInitials(player.name);
+  const initials = getInitials(player.playerName);
   const avatarColor = AVATAR_COLORS[index % AVATAR_COLORS.length];
   const tpPct = maxTp > 0 ? (player.tp / maxTp) * 100 : 0;
 
@@ -133,10 +75,10 @@ function PlayerCard({ player, index, maxTp }: PlayerCardProps) {
         </div>
         <div className="min-w-0 flex-1">
           <div className="font-medium text-white/95 truncate leading-tight">
-            {player.name}
+            {player.playerName}
           </div>
           <div className="text-xs text-white/50 truncate mt-0.5">
-            {player.team}
+            {player.teamName}
           </div>
         </div>
       </div>
@@ -228,7 +170,15 @@ export default function NuoretPage() {
     );
   }
 
-  const players = mergePlayers(data.agg.topYouthPlayers, data.official.data);
+  // Yhdistetty U23-lista (sama helper kuin PelaikaPagessa).
+  // Rikastaa viralliset minuutit/maalit/syötöt sukunimi-matchilla.
+  const u23 = buildU23Players(data.agg.topYouthPlayers, data.official.data);
+
+  // Lajittele TP desc, toissijaisesti minuutit; max 30.
+  const players = u23
+    .map((p) => ({ ...p, tp: p.goals + p.assists }))
+    .sort((a, b) => (b.tp !== a.tp ? b.tp - a.tp : b.minutes - a.minutes))
+    .slice(0, MAX_PLAYERS);
 
   if (players.length === 0) {
     return (
@@ -302,27 +252,27 @@ export default function NuoretPage() {
         <HighlightCard
           icon={Clock}
           label="Eniten minuutteja"
-          title={topMinutes.name}
-          body={`${topMinutes.team} · ${topMinutes.minutes} minuuttia · ${topMinutes.age} v`}
+          title={topMinutes.playerName}
+          body={`${topMinutes.teamName} · ${topMinutes.minutes} minuuttia · ${topMinutes.age} v`}
         />
         <HighlightCard
           icon={Target}
           label="Paras maalintekijä"
-          title={topScorer.name}
-          body={`${topScorer.team} · ${topScorer.goals} maalia · ${topScorer.age} v`}
+          title={topScorer.playerName}
+          body={`${topScorer.teamName} · ${topScorer.goals} maalia · ${topScorer.age} v`}
         />
         <HighlightCard
           icon={Sparkles}
           label="Tehokkain"
-          title={topTp.name}
-          body={`${topTp.team} · ${topTp.tp} tehopistettä (${topTp.goals} M + ${topTp.assists} S) · ${topTp.age} v`}
+          title={topTp.playerName}
+          body={`${topTp.teamName} · ${topTp.tp} tehopistettä (${topTp.goals} M + ${topTp.assists} S) · ${topTp.age} v`}
         />
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
         {players.map((player, i) => (
           <PlayerCard
-            key={`${player.name}-${player.team}-${i}`}
+            key={`${player.playerName}-${player.teamName}-${i}`}
             player={player}
             index={i}
             maxTp={maxTp}
@@ -331,7 +281,7 @@ export default function NuoretPage() {
       </div>
 
       <div className="text-xs text-white/40 text-center pt-2">
-        Lähde: Veikkausliiga.com (minuutit) + API-Football (maalit, syötöt, ikä)
+        Lähde: Veikkausliiga.com (minuutit, maalit, syötöt) + API-Football (ikä)
       </div>
     </div>
   );

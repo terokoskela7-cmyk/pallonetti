@@ -30,8 +30,9 @@ import {
   getYouthAggregation,
   getOfficialStats,
   filterReliableTeams,
+  buildU23Players,
   type YouthStats,
-  type PlayerStats,
+  type U23Player,
 } from '@/services/api';
 import { InsightBar } from '@/components/InsightBar';
 
@@ -91,18 +92,15 @@ function calcU23Pct(teams: YouthStats[]): number {
   return totalMinutes > 0 ? (u23Minutes / totalMinutes) * 100 : 0;
 }
 
-function filterAndSort(
-  players: PlayerStats[],
-  filter: FilterId,
-): PlayerStats[] {
+function filterAndSort(players: U23Player[], filter: FilterId): U23Player[] {
   let result = players;
 
   if (filter === 'u21') {
-    result = result.filter((p) => p.age !== undefined && p.age <= 21);
+    result = result.filter((p) => p.age <= 21);
   } else if (filter === 'u19') {
-    result = result.filter((p) => p.age !== undefined && p.age <= 19);
+    result = result.filter((p) => p.age <= 19);
   } else if (filter === 'u17') {
-    result = result.filter((p) => p.age !== undefined && p.age <= 17);
+    result = result.filter((p) => p.age <= 17);
   }
 
   const sorted = [...result];
@@ -111,10 +109,10 @@ function filterAndSort(
   } else if (filter === 'assists') {
     sorted.sort((a, b) => b.assists - a.assists);
   } else if (filter === 'youngest') {
-    sorted.sort((a, b) => (a.age ?? 99) - (b.age ?? 99));
+    sorted.sort((a, b) => a.age - b.age);
   } else {
     // 'minutes' (default) and all U-suodattimet
-    sorted.sort((a, b) => b.minutesPlayed - a.minutesPlayed);
+    sorted.sort((a, b) => b.minutes - a.minutes);
   }
 
   return sorted;
@@ -246,7 +244,7 @@ function SeasonTrendSparkline({ currentPct }: { currentPct: number }) {
 }
 
 interface Top5ListProps {
-  players: PlayerStats[];
+  players: U23Player[];
 }
 
 function Top5List({ players }: Top5ListProps) {
@@ -280,15 +278,13 @@ function Top5List({ players }: Top5ListProps) {
             <div className="flex-1 min-w-0">
               <div className="font-medium text-white/95 truncate text-sm">
                 {p.playerName}
-                {p.age !== undefined && (
-                  <span className="text-white/40 font-normal"> · {p.age} v</span>
-                )}
+                <span className="text-white/40 font-normal"> · {p.age} v</span>
               </div>
               <div className="text-xs text-white/50 truncate">{p.teamName}</div>
             </div>
             <div className="text-right shrink-0 leading-tight">
               <div className="text-sm font-bold text-ice font-mono tabular">
-                {p.minutesPlayed}
+                {p.minutes}
               </div>
               <div className="text-[10px] text-white/40">min · {p.goals} M</div>
             </div>
@@ -356,7 +352,7 @@ function SectionHeader({ title, icon: Icon, hint }: SectionHeaderProps) {
 
 export default function PelaikaPage() {
   const navigate = useNavigate();
-  const [selectedPlayer, setSelectedPlayer] = useState<PlayerStats | null>(null);
+  const [selectedPlayer, setSelectedPlayer] = useState<U23Player | null>(null);
   const [activeFilter, setActiveFilter] = useState<FilterId>('minutes');
 
   const {
@@ -381,14 +377,21 @@ export default function PelaikaPage() {
     [statsData],
   );
 
-  const topYouthPlayers = useMemo(
-    () => aggData?.topYouthPlayers ?? [],
-    [aggData],
+  // YKSI yhdistetty U23-lista jota käytetään KAIKKIALLA tällä sivulla.
+  // Lähtee aina topYouthPlayers-listasta (varmistettu U23) ja rikastaa
+  // viralliset minuutit/maalit/syötöt sukunimi-matchilla.
+  const u23Players = useMemo(
+    () =>
+      buildU23Players(
+        aggData?.topYouthPlayers ?? [],
+        officialData?.data ?? [],
+      ),
+    [aggData, officialData],
   );
 
   const filteredPlayers = useMemo(
-    () => filterAndSort(topYouthPlayers, activeFilter),
-    [topYouthPlayers, activeFilter],
+    () => filterAndSort(u23Players, activeFilter),
+    [u23Players, activeFilter],
   );
 
   if (statsLoading || aggLoading || officialLoading) return <LoadingSkeleton />;
@@ -403,25 +406,13 @@ export default function PelaikaPage() {
 
   const vPct = calcU23Pct(veikkausliiga);
 
-  // U23-pelaajamäärä: ENSISIJAINEN lähde on YouthStats team-breakdown
-  // (ei kapeneva 20:n cap kuten topYouthPlayers). Jos joskus official-datasta
-  // saadaan ikä, voidaan tarkentaa sieltä.
-  const u23Count = veikkausliiga.reduce((s, t) => s + t.youthPlayersU23, 0);
-  const officialU23 =
-    officialData?.data?.filter((p) => p.age !== undefined && p.age <= 23) ?? [];
-  const u23CountDisplay = officialU23.length > 0 ? officialU23.length : u23Count;
-  const totalPlayers = officialData?.data?.length ?? 0;
+  // Eniten minuutteja: u23Players sortattuna minuuttien mukaan → #1.
+  // Tämä takaa että top-pelaaja on TODELLA U23 (ei esim. Kreidl).
+  const topByMinutes = [...u23Players].sort((a, b) => b.minutes - a.minutes)[0];
 
-  // Eniten minuutteja: virallinen scraper-data (Veikkausliiga.com).
-  const officialSortedByMin = officialData?.data
-    ? [...officialData.data].sort((a, b) => b.minutes - a.minutes)
-    : [];
-  const topOfficial = officialSortedByMin[0];
-
-  // Nuorin debyyttipisteet (B): pienin age topYouthPlayers-listasta.
-  const playersWithAge = topYouthPlayers.filter((p) => p.age !== undefined);
-  const youngest = playersWithAge.length
-    ? playersWithAge.reduce((a, b) => ((a.age ?? 99) <= (b.age ?? 99) ? a : b))
+  // Nuorin debyyttipisteet: pienin ikä u23Players-listasta.
+  const youngest = u23Players.length
+    ? u23Players.reduce((a, b) => (a.age <= b.age ? a : b))
     : null;
 
   const teamsOver25 = veikkausliiga.filter(
@@ -448,7 +439,9 @@ export default function PelaikaPage() {
         </div>
       </header>
 
-      {/* 1. KPI-kortit (5 kpl) */}
+      {/* 1. KPI-kortit (5 kpl). Kaikki KPI:t U23-numerot (Eniten minuutteja)
+          tulevat YHDISTETYSTÄ u23Players-listasta — siksi esim. Johannes
+          Kreidl ei näy täällä vaikka hän on Veikkausliigan minuuttijohtaja. */}
       <section className="grid grid-cols-2 lg:grid-cols-5 gap-3">
         <KpiCard
           label="U23 peliaika-%"
@@ -457,19 +450,23 @@ export default function PelaikaPage() {
         />
         <KpiCard
           label="U23 pelaajia"
-          value={`${u23CountDisplay} / ${totalPlayers}`}
+          value={String(u23Players.length)}
           hint="Veikkausliigassa"
           accent="ice"
         />
         <KpiCard
-          label="Eniten minuutteja"
-          value={topOfficial ? String(topOfficial.minutes) : '—'}
-          hint={topOfficial ? `${topOfficial.name} · ${topOfficial.team}` : undefined}
+          label="Eniten minuutteja (U23)"
+          value={topByMinutes ? String(topByMinutes.minutes) : '—'}
+          hint={
+            topByMinutes
+              ? `${topByMinutes.playerName} · ${topByMinutes.teamName}`
+              : undefined
+          }
           accent="ice"
         />
         <KpiCard
           label="Nuorin debyyttipisteet"
-          value={youngest?.age !== undefined ? `${youngest.age} v` : '—'}
+          value={youngest ? `${youngest.age} v` : '—'}
           hint={youngest ? `${youngest.playerName} · ${youngest.teamName}` : undefined}
         />
         <KpiCard
@@ -514,9 +511,11 @@ export default function PelaikaPage() {
         <div className="lg:col-span-2 bg-navy-700/40 border border-navy-600 rounded-lg p-5">
           <SectionHeader
             title="Top 5 — minuutit"
-            hint={`${topYouthPlayers.length} U23 (näytteessä)`}
+            hint={`${u23Players.length} U23 (näytteessä)`}
           />
-          <Top5List players={topYouthPlayers} />
+          <Top5List
+            players={[...u23Players].sort((a, b) => b.minutes - a.minutes)}
+          />
         </div>
       </section>
 
@@ -587,15 +586,13 @@ export default function PelaikaPage() {
                         </td>
                         <td className="py-2 pr-3 font-medium text-white/95">
                           <span>{p.playerName}</span>
-                          {p.age !== undefined && (
-                            <span className="ml-2 text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded bg-ice/15 text-ice font-medium">
-                              {p.age} v
-                            </span>
-                          )}
+                          <span className="ml-2 text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded bg-ice/15 text-ice font-medium">
+                            {p.age} v
+                          </span>
                         </td>
                         <td className="py-2 pr-3 text-white/60">{p.teamName}</td>
                         <td className="py-2 pr-3 text-right text-ice font-mono tabular">
-                          {p.minutesPlayed}
+                          {p.minutes}
                         </td>
                         <td className="py-2 pr-3 text-right text-white/90 font-mono tabular">
                           {p.goals}
@@ -637,9 +634,9 @@ export default function PelaikaPage() {
           </div>
           {selectedPlayer && (
             <div className="text-xs text-white/50 mb-4">
-              {selectedPlayer.teamName}
-              {selectedPlayer.age !== undefined && ` · ${selectedPlayer.age} v`}
-              {` · ${selectedPlayer.minutesPlayed} min · ${selectedPlayer.goals} M · ${selectedPlayer.assists} S`}
+              {selectedPlayer.teamName} · {selectedPlayer.age} v ·{' '}
+              {selectedPlayer.minutes} min · {selectedPlayer.goals} M ·{' '}
+              {selectedPlayer.assists} S
             </div>
           )}
           <div className="flex-1 flex flex-col items-center justify-center text-center space-y-2 py-10">

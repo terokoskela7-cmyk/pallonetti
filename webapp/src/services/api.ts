@@ -250,6 +250,48 @@ export function filterReliableTeams(teams: YouthStats[]): YouthStats[] {
   return teams.filter((t) => t.totalMinutes >= LOW_DATA_TOTAL_MINUTES);
 }
 
+/**
+ * Yhtenäinen U23-pelaajaesitys. Yhdistää kaksi datalähdettä:
+ *  - youthAgg.topYouthPlayers (API-Football): luotettava ikä, U23-suodatus jo
+ *    tehty backendissä; minuutit/maalit voivat olla epätarkkoja.
+ *  - officialPlayers (Veikkausliiga.com scraper): tarkat minuutit/maalit/syötöt,
+ *    ei ikätietoa eikä U23-suodatusta.
+ *
+ * Strategia: lähdetään AINA topYouthPlayers-listasta (= varmistettu U23) ja
+ * rikastetaan official-datalla sukunimi-matchilla. Tämä takaa ettei
+ * U23-näkymiin pääse yli-23-vuotiaita pelaajia.
+ */
+export interface U23Player {
+  playerName: string;
+  teamName: string;
+  age: number;
+  minutes: number;
+  goals: number;
+  assists: number;
+}
+
+export function buildU23Players(
+  topYouthPlayers: PlayerStats[],
+  officialPlayers: OfficialPlayer[],
+): U23Player[] {
+  return topYouthPlayers
+    .filter((p): p is PlayerStats & { age: number } => p.age !== undefined)
+    .map((p) => {
+      const lastName = p.playerName.split(' ').pop()?.toLowerCase() ?? '';
+      const official = lastName
+        ? officialPlayers.find((o) => o.name.toLowerCase().includes(lastName))
+        : undefined;
+      return {
+        playerName: p.playerName,
+        teamName: p.teamName,
+        age: p.age,
+        minutes: official?.minutes ?? p.minutesPlayed,
+        goals: official?.goals ?? p.goals,
+        assists: official?.assists ?? p.assists,
+      };
+    });
+}
+
 /** Kaikki 3 sarjaa yhdellä kutsulla — käytä etusivulla */
 export interface YouthStatsAll {
   veikkausliiga: YouthStats[];

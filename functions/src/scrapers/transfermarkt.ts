@@ -1,23 +1,24 @@
 // ============================================
-// TRANSFERMARKT.COM SCRAPER (direct HTML)
-// Hakee pelaajan TM-ID:n nimellä ja parsii profiilisivun
-// 13 kenttää (markkina-arvo, sopimus, lainat, kansallisuus,
-// maajoukkuetilastot jne.). Tallentaa Firestore-cachelle 7 päivän
-// TTL:llä.
+// TRANSFERMARKT.COM SCRAPER (direct HTML, U23-fokus)
+// Pipeline:
+//   1) schnellsuche nimellä → {tmId, marketValue, url}
+//   2) profile-sivu → koko TransfermarktPlayer (sopimus, lainat, agentti…)
+//   3) Firestore tallennus:
+//      transfermarkt_players/{tmId}              — koko profiili 7 päivän TTL:llä
+//      transfermarkt_index/{season}/names/{slug} — nimi→tmId-hakuindeksi
 //
-// HUOM (oikeudellinen): TM:n robots.txt rajoittaa skrapausta. Tämä
-// scraper on tarkoitettu pieneen, ei-kaupalliseen julkiseen
-// data-alustaan — pyynnöt rate-limitataan ja kunnioitetaan TM:n
-// taakkaa (>=500 ms peräkkäisten requestien välillä).
+// Batch-skriptaus ei käy koko Veikkausliigan kokoonpanoja läpi vaan vain
+// U23-pelaajat (max 20) joista youthAggregation antaa valmiin listan.
+// 2 sekunnin viive pelaajien välillä TM:n rajoja kunnioittaen.
 // ============================================
 import axios, { AxiosError } from 'axios';
 import * as cheerio from 'cheerio';
 import * as admin from 'firebase-admin';
+import { dataAggregator } from '../services/dataAggregator';
 
 const TM_BASE = 'https://www.transfermarkt.com';
-const COMPETITION_ID = 'FI1'; // Veikkausliiga TM-tunnus
 const CACHE_TTL_DAYS = 7;
-const REQUEST_DELAY_MS = 600;
+const BATCH_DELAY_MS = 2000;
 
 const USER_AGENT =
   'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 ' +
@@ -34,77 +35,56 @@ function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-export interface TransfermarktProfile {
-  tmId: number;
+// ============================================
+// TYPES
+// ============================================
+export interface TransfermarktSearchResult {
+  tmId: string;
+  marketValue: number | null;
+  marketValueRaw: string | null;
+  url: string;
+}
+
+export interface TransfermarktPlayer {
+  tmId: string;
   name: string;
+  url: string;
   imageUrl: string | null;
-  marketValue: number | null; // euroissa
+  marketValue: number | null;
   marketValueRaw: string | null;
   shirtNumber: number | null;
-  positions: { main: string | null; other: string[] };
+  position: string | null;
   nationality: string[];
   birthPlace: string | null;
-  height: string | null; // esim. "1,80 m"
-  foot: 'right' | 'left' | 'both' | string | null;
+  height: string | null;
+  foot: string | null;
   agent: string | null;
-  currentClub: string | null;
-  joined: string | null;
   contractExpires: string | null;
   loanFrom: string | null;
   loanExpires: string | null;
-  internationalCaps: { caps: number; goals: number } | null;
-  currentInternational: string | null;
+  internationalTeam: string | null;
+  caps: number | null;
+  goals: number | null;
   fetchedAt: string;
   expiresAt: string;
   source: 'transfermarkt.com';
 }
 
-// ============================================
-// SEARCH — schnellsuche → ensimmäinen /spieler/(\d+)
-// ============================================
-export async function searchPlayerTmId(
-  name: string,
-): Promise<number | null> {
-  if (!name.trim()) return null;
-  const url = `${TM_BASE}/schnellsuche/ergebnis/schnellsuche?query=${encodeURIComponent(name)}`;
-  console.log(`[tm-scraper] search: ${url}`);
-
-  try {
-    const response = await axios.get<string>(url, {
-      timeout: 15000,
-      headers: COMMON_HEADERS,
-      maxRedirects: 5,
-    });
-    const $ = cheerio.load(response.data);
-    let foundId: number | null = null;
-
-    // 1) Suora link-haku: ensimmäinen /spieler/N link
-    $('a[href*="/profil/spieler/"]').each((_, a) => {
-      if (foundId !== null) return;
-      const href = $(a).attr('href') ?? '';
-      const m = href.match(/\/spieler\/(\d+)/);
-      if (m) {
-        const id = parseInt(m[1], 10);
-        if (!isNaN(id)) foundId = id;
-      }
-    });
-
-    return foundId;
-  } catch (error) {
-    const message = error instanceof AxiosError ? error.message : String(error);
-    console.error(`[tm-scraper] search failed for "${name}":`, message);
-    return null;
-  }
+export interface TransfermarktIndexEntry {
+  tmId: string;
+  name: string;
+  marketValue: number | null;
+  updatedAt: string;
 }
 
 // ============================================
-// PARSE HELPERS — etsi arvo labelin perusteella
+// HELPERS
 // ============================================
 function parseMarketValue(raw: string): number | null {
   if (!raw) return null;
-  // Esim. "€600k", "€1.20m", "€1.5bn", "-", "—"
-  const cleaned = raw.replace(/[ \s]+/g, '').toLowerCase();
-  const match = cleaned.match(/€?\s*([\d.,]+)\s*(k|m|bn|b)?/i);
+  const cleaned = raw.replace(/[\s ]+/g, '').toLowerCase();
+  // Esim. "€600k", "€1.20m", "€1,20m", "€1.5bn", "-", "—"
+  const match = cleaned.match(/€?([\d.,]+)\s*(k|m|bn|b)?/i);
   if (!match) return null;
   const numStr = match[1].replace(/,/g, '.');
   const num = parseFloat(numStr);
@@ -116,9 +96,10 @@ function parseMarketValue(raw: string): number | null {
   return Math.round(num);
 }
 
+/** Lookup arvon useilla mahdollisilla labeleilla (TM:n DOM on muuttunut viime
+ *  vuosina) — kokeillaan ensin data-header-rakennetta ja sitten th/td-tablea. */
 function pickByLabel($: cheerio.CheerioAPI, labels: string[]): string | null {
   for (const label of labels) {
-    // Pattern: <li class="data-header__label">{label}<span class="data-header__content">VALUE</span></li>
     const li = $(`li.data-header__label`)
       .filter((_, el) => {
         const text = $(el).clone().children().remove().end().text().trim();
@@ -130,9 +111,10 @@ function pickByLabel($: cheerio.CheerioAPI, labels: string[]): string | null {
       if (content) return content;
     }
 
-    // Pattern: <th>{label}</th><td>VALUE</td>
     const th = $(`th, .definition-list__item__title`)
-      .filter((_, el) => $(el).text().trim().toLowerCase().startsWith(label.toLowerCase()))
+      .filter((_, el) =>
+        $(el).text().trim().toLowerCase().startsWith(label.toLowerCase()),
+      )
       .first();
     if (th.length) {
       const td = th.next('td, .definition-list__item__definition').first();
@@ -144,7 +126,6 @@ function pickByLabel($: cheerio.CheerioAPI, labels: string[]): string | null {
 }
 
 function parseShirtNumber($: cheerio.CheerioAPI): number | null {
-  // Profiilin H1:ssä on usein "#34 Player Name" tai erillinen .data-header__shirt-number
   const shirt =
     $('.data-header__shirt-number').first().text().trim() ||
     $('span.dataRueckennummer').first().text().trim();
@@ -152,16 +133,13 @@ function parseShirtNumber($: cheerio.CheerioAPI): number | null {
     const m = shirt.match(/(\d+)/);
     if (m) return parseInt(m[1], 10);
   }
-  const headerText = $('h1.data-header__headline-wrapper, h1[class*="headline"]')
-    .first()
-    .text();
-  const hm = headerText.match(/#\s*(\d+)/);
-  return hm ? parseInt(hm[1], 10) : null;
+  return null;
 }
 
-function parseCapsGoals(raw: string | null): { caps: number; goals: number } | null {
+function parseCapsGoals(
+  raw: string | null,
+): { caps: number; goals: number } | null {
   if (!raw) return null;
-  // Esim. "8 / 2" tai "8/2" tai "Caps / Goals 8 / 2"
   const m = raw.match(/(\d+)\s*\/\s*(\d+)/);
   if (!m) return null;
   return { caps: parseInt(m[1], 10), goals: parseInt(m[2], 10) };
@@ -175,90 +153,160 @@ function splitList(raw: string | null): string[] {
     .filter(Boolean);
 }
 
+/** Firestore-yhteensopiva slug nimestä — vain ascii + alaviivat */
+export function nameSlug(name: string): string {
+  return (
+    name
+      .normalize('NFD')
+      .replace(/[̀-ͯ]/g, '')
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '_')
+      .replace(/^_+|_+$/g, '')
+      .slice(0, 200) || 'unknown'
+  );
+}
+
 // ============================================
-// PROFILE SCRAPE
+// VAIHE 1 — SEARCH (schnellsuche → {tmId, marketValue, url})
+// ============================================
+export async function searchTransfermarkt(
+  name: string,
+): Promise<TransfermarktSearchResult | null> {
+  if (!name.trim()) return null;
+  const url = `${TM_BASE}/schnellsuche/ergebnis/schnellsuche?query=${encodeURIComponent(name)}`;
+  console.log(`[tm] search: ${url}`);
+
+  try {
+    const response = await axios.get<string>(url, {
+      timeout: 15000,
+      headers: COMMON_HEADERS,
+      maxRedirects: 5,
+    });
+    const $ = cheerio.load(response.data);
+
+    // Ensimmäinen pelaajalinkki: a[href*="/profil/spieler/"]
+    const firstLink = $('a[href*="/profil/spieler/"]').first();
+    if (firstLink.length === 0) return null;
+
+    const href = firstLink.attr('href') ?? '';
+    const idMatch = href.match(/\/spieler\/(\d+)/);
+    if (!idMatch) return null;
+    const tmId = idMatch[1];
+    const profileUrl = href.startsWith('http') ? href : `${TM_BASE}${href}`;
+
+    // Markkina-arvo: etsi sama rivi (tr) ja siitä td.rechts.hauptlink
+    const row = firstLink.closest('tr');
+    let marketValueRaw =
+      row.find('td.rechts.hauptlink').first().text().trim() || '';
+    if (!marketValueRaw) {
+      // Fallback: viimeinen td.rechts samalta riviltä
+      marketValueRaw = row.find('td.rechts').last().text().trim();
+    }
+    const marketValue = marketValueRaw ? parseMarketValue(marketValueRaw) : null;
+
+    return {
+      tmId,
+      marketValue,
+      marketValueRaw: marketValueRaw || null,
+      url: profileUrl,
+    };
+  } catch (error) {
+    const message = error instanceof AxiosError ? error.message : String(error);
+    console.error(`[tm] search failed for "${name}":`, message);
+    return null;
+  }
+}
+
+// ============================================
+// VAIHE 1 — PROFILE SCRAPE
 // ============================================
 export async function scrapePlayerProfile(
-  tmId: number,
-): Promise<TransfermarktProfile> {
+  tmId: string,
+): Promise<TransfermarktPlayer> {
   const url = `${TM_BASE}/x/profil/spieler/${tmId}`;
-  console.log(`[tm-scraper] profile: ${url}`);
+  console.log(`[tm] profile: ${url}`);
 
   const response = await axios.get<string>(url, {
     timeout: 20000,
     headers: COMMON_HEADERS,
     maxRedirects: 5,
   });
-
   const $ = cheerio.load(response.data);
 
-  // Nimi: H1 headline (jos sisältää #-numeron, riisutaan)
+  // Nimi
   const rawName = $('h1.data-header__headline-wrapper, h1[class*="headline"]')
     .first()
     .text()
     .trim();
   const name = rawName.replace(/#\s*\d+/, '').trim() || 'Tuntematon';
 
-  // Kuva: <img class="data-header__profile-image">
+  // Kuva
   const imageUrl =
     $('img.data-header__profile-image').first().attr('src') ??
     $('div.data-header__profile-image img').first().attr('src') ??
     null;
 
-  // Markkina-arvo: data-header marquee linkki
+  // Markkina-arvo: ensisijaisesti .tm-player-market-value-development__current
+  // (uudempi DOM), fallback .data-header__market-value-wrapper.
   const marketValueRaw =
+    $('.tm-player-market-value-development__current').first().text().trim() ||
     $('a.data-header__market-value-wrapper').first().text().trim() ||
-    $('.market-value-wrapper, .tm-player-market-value-development__current-value')
-      .first()
-      .text()
-      .trim() ||
     null;
   const marketValue = marketValueRaw ? parseMarketValue(marketValueRaw) : null;
 
-  // Päädata label/value-pareista
-  const birthPlace = pickByLabel($, ['Place of birth:']);
-  const height = pickByLabel($, ['Height:']);
-  const foot = pickByLabel($, ['Foot:'])?.toLowerCase() ?? null;
-  const mainPosition = pickByLabel($, ['Main position:', 'Position:']);
-  const otherPosRaw = pickByLabel($, ['Other position:']);
-  const citizenshipRaw = pickByLabel($, ['Citizenship:', 'Nationality:']);
-  const currentClub = pickByLabel($, ['Current club:']);
-  const joined = pickByLabel($, ['Joined:']);
+  // Position: ensisijaisesti .detail-position__position, fallback label.
+  const position =
+    $('.detail-position__position').first().text().trim() ||
+    pickByLabel($, ['Main position:', 'Position:']);
+
+  // Sopimus + laina + perustiedot
   const contractExpires = pickByLabel($, ['Contract expires:']);
   const loanFrom = pickByLabel($, ['On loan from:']);
   const loanExpires = pickByLabel($, ['Contract there expires:']);
-  const agent = pickByLabel($, ['Player agent:', 'Agent:']);
+  const height = pickByLabel($, ['Height:']);
+  const foot = pickByLabel($, ['Foot:'])?.toLowerCase() ?? null;
+  const birthPlace = pickByLabel($, ['Place of birth:']);
+  const nationality = splitList(pickByLabel($, ['Citizenship:', 'Nationality:']));
+
+  // Maajoukkuetilastot
+  const internationalTeam = pickByLabel($, ['Current international:']);
   const capsRaw = pickByLabel($, ['Caps/Goals:', 'Caps / Goals:']);
-  const currentInternational = pickByLabel($, ['Current international:']);
+  const capsGoals = parseCapsGoals(capsRaw);
+
+  // Agentti: profiilissa "Player agent:" tai "Agent:". DOM-luokkien hajoamisen
+  // varalta etsitään labelilla ensin, sitten varafallback.
+  const agent =
+    pickByLabel($, ['Player agent:', 'Agent:']) ||
+    $('.detail-position__club a, .detail-position__club span').first().text().trim() ||
+    null;
 
   const shirtNumber = parseShirtNumber($);
 
   const now = new Date();
-  const expiresAt = new Date(now.getTime() + CACHE_TTL_DAYS * 24 * 60 * 60 * 1000);
+  const expiresAt = new Date(
+    now.getTime() + CACHE_TTL_DAYS * 24 * 60 * 60 * 1000,
+  );
 
   return {
     tmId,
     name,
+    url,
     imageUrl: imageUrl || null,
     marketValue,
     marketValueRaw: marketValueRaw || null,
     shirtNumber,
-    positions: {
-      main: mainPosition,
-      other: splitList(otherPosRaw),
-    },
-    nationality: splitList(citizenshipRaw),
+    position: position || null,
+    nationality,
     birthPlace,
     height,
     foot,
-    agent,
-    currentClub,
-    joined,
+    agent: agent || null,
     contractExpires,
     loanFrom,
     loanExpires,
-    internationalCaps: parseCapsGoals(capsRaw),
-    currentInternational,
+    internationalTeam,
+    caps: capsGoals?.caps ?? null,
+    goals: capsGoals?.goals ?? null,
     fetchedAt: now.toISOString(),
     expiresAt: expiresAt.toISOString(),
     source: 'transfermarkt.com',
@@ -266,271 +314,164 @@ export async function scrapePlayerProfile(
 }
 
 // ============================================
-// FIRESTORE — single player
+// FIRESTORE — profile + index
 // ============================================
 export async function savePlayerProfile(
-  profile: TransfermarktProfile,
+  profile: TransfermarktPlayer,
 ): Promise<void> {
   await admin
     .firestore()
     .collection('transfermarkt_players')
-    .doc(String(profile.tmId))
+    .doc(profile.tmId)
     .set(profile);
-  console.log(`[tm-scraper] saved player ${profile.tmId} (${profile.name})`);
 }
 
 export async function getStoredProfile(
-  tmId: number,
-): Promise<TransfermarktProfile | null> {
+  tmId: string,
+): Promise<TransfermarktPlayer | null> {
   const doc = await admin
     .firestore()
     .collection('transfermarkt_players')
-    .doc(String(tmId))
+    .doc(tmId)
     .get();
   if (!doc.exists) return null;
-  const data = doc.data() as TransfermarktProfile;
+  const data = doc.data() as TransfermarktPlayer;
   if (new Date(data.expiresAt) < new Date()) return null;
   return data;
 }
 
-/** Yhdistetty haku: tmId → suora, name → schnellsuche → suora.
- *  Cache-first; jos miss/expired tehdään fresh scrape. */
+export async function saveIndexEntry(
+  season: number,
+  name: string,
+  entry: { tmId: string; marketValue: number | null },
+): Promise<void> {
+  await admin
+    .firestore()
+    .collection('transfermarkt_index')
+    .doc(String(season))
+    .collection('names')
+    .doc(nameSlug(name))
+    .set({
+      tmId: entry.tmId,
+      name,
+      marketValue: entry.marketValue,
+      updatedAt: new Date().toISOString(),
+    });
+}
+
+export async function getIndexEntry(
+  season: number,
+  name: string,
+): Promise<TransfermarktIndexEntry | null> {
+  const doc = await admin
+    .firestore()
+    .collection('transfermarkt_index')
+    .doc(String(season))
+    .collection('names')
+    .doc(nameSlug(name))
+    .get();
+  if (!doc.exists) return null;
+  return doc.data() as TransfermarktIndexEntry;
+}
+
+export async function getAllIndexEntries(
+  season: number,
+): Promise<TransfermarktIndexEntry[]> {
+  const snap = await admin
+    .firestore()
+    .collection('transfermarkt_index')
+    .doc(String(season))
+    .collection('names')
+    .get();
+  return snap.docs.map((d) => d.data() as TransfermarktIndexEntry);
+}
+
+// ============================================
+// PUBLIC ENTRY: cache-first single-player fetch
+// ============================================
 export async function getOrFetchPlayer(args: {
-  tmId?: number;
-  name?: string;
+  name: string;
+  season: number;
   forceRefresh?: boolean;
-}): Promise<TransfermarktProfile | null> {
-  let tmId = args.tmId;
-
-  if (!tmId && args.name) {
-    tmId = (await searchPlayerTmId(args.name)) ?? undefined;
-    if (!tmId) {
-      console.warn(`[tm-scraper] search returned no tmId for "${args.name}"`);
-      return null;
-    }
-    await sleep(REQUEST_DELAY_MS);
-  }
-
-  if (!tmId) return null;
-
+}): Promise<TransfermarktPlayer | null> {
+  // 1) Lookup index
   if (!args.forceRefresh) {
-    const cached = await getStoredProfile(tmId);
-    if (cached) return cached;
+    const indexed = await getIndexEntry(args.season, args.name);
+    if (indexed) {
+      const cached = await getStoredProfile(indexed.tmId);
+      if (cached) return cached;
+    }
   }
 
-  const profile = await scrapePlayerProfile(tmId);
+  // 2) Live search + scrape
+  const search = await searchTransfermarkt(args.name);
+  if (!search) return null;
+
+  await sleep(800);
+  const profile = await scrapePlayerProfile(search.tmId);
+
   await savePlayerProfile(profile);
+  await saveIndexEntry(args.season, args.name, {
+    tmId: search.tmId,
+    marketValue: search.marketValue ?? profile.marketValue,
+  });
+
   return profile;
 }
 
 // ============================================
-// LEAGUE — Veikkausliiga startseite + team rosters
+// VAIHE 2 — BATCH: kaikki U23-pelaajat youthAggregationista
 // ============================================
-export interface TmLeaguePlayer {
-  tmId: number;
-  name: string;
-  team: string;
-  teamTmId: number;
-  marketValue: number | null;
-  marketValueRaw: string | null;
-}
-
-interface ScrapedTeam {
-  teamId: number;
-  teamName: string;
-  teamUrl: string;
-}
-
-async function scrapeLeagueTeams(season: number): Promise<ScrapedTeam[]> {
-  const url = `${TM_BASE}/veikkausliiga/startseite/wettbewerb/${COMPETITION_ID}/plus/?saison_id=${season}`;
-  console.log(`[tm-scraper] league teams: ${url}`);
-
-  const response = await axios.get<string>(url, {
-    timeout: 20000,
-    headers: COMMON_HEADERS,
-  });
-  const $ = cheerio.load(response.data);
-
-  const teams: ScrapedTeam[] = [];
-  const seen = new Set<number>();
-
-  // Joukkuelinkit Veikkausliiga-sivulla: /<slug>/startseite/verein/<id>
-  $('a[href*="/startseite/verein/"]').each((_, a) => {
-    const href = $(a).attr('href') ?? '';
-    const m = href.match(/\/startseite\/verein\/(\d+)/);
-    if (!m) return;
-    const teamId = parseInt(m[1], 10);
-    if (seen.has(teamId)) return;
-    seen.add(teamId);
-
-    // Joukkueen nimi: img-alt jos olemassa, muuten link-teksti
-    const img = $(a).find('img').first();
-    const teamName = img.attr('alt')?.trim() || $(a).text().trim();
-    if (!teamName) return;
-
-    teams.push({
-      teamId,
-      teamName,
-      teamUrl: href.startsWith('http') ? href : `${TM_BASE}${href}`,
-    });
-  });
-
-  return teams;
-}
-
-async function scrapeTeamRoster(
-  team: ScrapedTeam,
+export async function scrapeAllU23Players(
   season: number,
-): Promise<TmLeaguePlayer[]> {
-  // Pidetään team-URL sellaisenaan mutta varmistetaan saison_id
-  const url = team.teamUrl.includes('saison_id=')
-    ? team.teamUrl
-    : `${team.teamUrl}/saison_id/${season}`;
-  console.log(`[tm-scraper] team roster: ${url}`);
+): Promise<
+  Array<{ name: string; tmId: string; marketValue: number | null }>
+> {
+  const agg = await dataAggregator.getYouthAggregation(season);
+  const players = agg.topYouthPlayers.slice(0, 20);
 
-  const response = await axios.get<string>(url, {
-    timeout: 20000,
-    headers: COMMON_HEADERS,
-  });
-  const $ = cheerio.load(response.data);
+  const results: Array<{
+    name: string;
+    tmId: string;
+    marketValue: number | null;
+  }> = [];
 
-  const players: TmLeaguePlayer[] = [];
-  const seen = new Set<number>();
-
-  // Joukkueen pelaajataulukon rivit — etsi spieler-linkki + lähimmän rivin markkina-arvo
-  $('table.items tbody tr').each((_, row) => {
-    const link = $(row).find('a[href*="/profil/spieler/"]').first();
-    const href = link.attr('href') ?? '';
-    const m = href.match(/\/spieler\/(\d+)/);
-    if (!m) return;
-    const tmId = parseInt(m[1], 10);
-    if (seen.has(tmId)) return;
-    seen.add(tmId);
-
-    const name = link.text().trim() || link.attr('title')?.trim() || '';
-    // Markkina-arvo: viimeisin TD jossa "€" tai class joka sisältää "rechts hauptlink"
-    const valueCell = $(row).find('td.rechts.hauptlink, td.rechts').last();
-    const marketValueRaw = valueCell.text().trim() || null;
-    const marketValue = marketValueRaw ? parseMarketValue(marketValueRaw) : null;
-
-    if (!name) return;
-    players.push({
-      tmId,
-      name,
-      team: team.teamName,
-      teamTmId: team.teamId,
-      marketValue,
-      marketValueRaw,
-    });
-  });
-
-  return players;
-}
-
-export async function scrapeVeikkausliiga(
-  season: number,
-): Promise<TmLeaguePlayer[]> {
-  const teams = await scrapeLeagueTeams(season);
-  console.log(`[tm-scraper] found ${teams.length} teams for season ${season}`);
-
-  const allPlayers: TmLeaguePlayer[] = [];
-  for (const team of teams) {
+  for (const p of players) {
     try {
-      await sleep(REQUEST_DELAY_MS);
-      const roster = await scrapeTeamRoster(team, season);
-      allPlayers.push(...roster);
-      console.log(
-        `[tm-scraper] ${team.teamName}: ${roster.length} pelaajaa`,
-      );
-    } catch (error) {
-      const message =
-        error instanceof Error ? error.message : String(error);
-      console.error(
-        `[tm-scraper] failed for team ${team.teamName} (${team.teamId}):`,
-        message,
-      );
-    }
-  }
+      console.log(`[tm-batch] processing: ${p.playerName}`);
+      const search = await searchTransfermarkt(p.playerName);
+      if (!search) {
+        console.warn(`[tm-batch] no TM hit for ${p.playerName}`);
+        await sleep(BATCH_DELAY_MS);
+        continue;
+      }
 
-  return allPlayers;
-}
+      // Pieni viive search→profile välillä
+      await sleep(800);
+      const profile = await scrapePlayerProfile(search.tmId);
 
-export async function saveLeague(
-  season: number,
-  players: TmLeaguePlayer[],
-): Promise<{ count: number; updatedAt: string }> {
-  const db = admin.firestore();
-  const seasonRef = db.collection('transfermarkt_league').doc(String(season));
-
-  // Kirjoita pelaajat batch-eränä
-  const BATCH_LIMIT = 450;
-  for (let i = 0; i < players.length; i += BATCH_LIMIT) {
-    const batch = db.batch();
-    const slice = players.slice(i, i + BATCH_LIMIT);
-    for (const p of slice) {
-      const ref = seasonRef.collection('players').doc(String(p.tmId));
-      batch.set(ref, {
-        ...p,
-        season,
-        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      await savePlayerProfile(profile);
+      await saveIndexEntry(season, p.playerName, {
+        tmId: search.tmId,
+        marketValue: search.marketValue ?? profile.marketValue,
       });
-    }
-    await batch.commit();
-  }
 
-  const updatedAt = new Date().toISOString();
-  await seasonRef.set({
-    season,
-    source: 'transfermarkt.com',
-    count: players.length,
-    updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-  });
+      results.push({
+        name: p.playerName,
+        tmId: search.tmId,
+        marketValue: search.marketValue ?? profile.marketValue,
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      console.error(`[tm-batch] failed for ${p.playerName}:`, message);
+    }
+
+    // 2 s viive pelaajien välillä (rate limit)
+    await sleep(BATCH_DELAY_MS);
+  }
 
   console.log(
-    `[tm-scraper] saved ${players.length} league players for season ${season}`,
+    `[tm-batch] season=${season} processed=${players.length} stored=${results.length}`,
   );
-  return { count: players.length, updatedAt };
-}
-
-export async function scrapeAndSaveLeague(
-  season: number,
-): Promise<{ count: number; updatedAt: string }> {
-  const players = await scrapeVeikkausliiga(season);
-  return saveLeague(season, players);
-}
-
-export async function getStoredLeague(
-  season: number,
-): Promise<{
-  players: TmLeaguePlayer[];
-  meta: { count: number; updatedAt: string | null; source: string } | null;
-}> {
-  const db = admin.firestore();
-  const seasonRef = db.collection('transfermarkt_league').doc(String(season));
-  const [metaSnap, playersSnap] = await Promise.all([
-    seasonRef.get(),
-    seasonRef.collection('players').get(),
-  ]);
-
-  const players = playersSnap.docs.map((d) => {
-    const data = d.data() as TmLeaguePlayer & {
-      updatedAt?: admin.firestore.Timestamp;
-    };
-    const { updatedAt: _u, ...rest } = data;
-    return rest as TmLeaguePlayer;
-  });
-
-  const metaData = metaSnap.data();
-  const meta = metaData
-    ? {
-        count: (metaData.count as number) ?? players.length,
-        updatedAt:
-          (metaData.updatedAt as admin.firestore.Timestamp | undefined)
-            ?.toDate()
-            .toISOString() ?? null,
-        source: (metaData.source as string) ?? 'transfermarkt.com',
-      }
-    : null;
-
-  return { players, meta };
+  return results;
 }

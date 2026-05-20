@@ -17,8 +17,8 @@ service cloud.firestore {
       allow read: if true;
       allow write: if false;
     }
-    // Transfermarkt-scraped sarjadata per kausi — sama periaate
-    match /transfermarkt_league/{document=**} {
+    // Transfermarkt name→tmId-indeksi per kausi
+    match /transfermarkt_index/{document=**} {
       allow read: if true;
       allow write: if false;
     }

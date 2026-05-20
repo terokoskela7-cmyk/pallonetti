@@ -12,6 +12,21 @@ service cloud.firestore {
       allow read: if true;
       allow write: if false;
     }
+    // Transfermarkt-scraped pelaajaprofiilit — vain Functions kirjoittaa
+    match /transfermarkt_players/{document=**} {
+      allow read: if true;
+      allow write: if false;
+    }
+    // Transfermarkt-scraped sarjadata per kausi — sama periaate
+    match /transfermarkt_league/{document=**} {
+      allow read: if true;
+      allow write: if false;
+    }
+    // API-Football pelaajakohtainen cache (24h TTL)
+    match /players_cache/{document=**} {
+      allow read: if true;
+      allow write: if false;
+    }
     // Kaikki muu — ei sallita selaimesta
     match /{document=**} {
       allow read, write: if false;

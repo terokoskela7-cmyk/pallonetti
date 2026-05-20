@@ -35,6 +35,7 @@ import {
   type U23Player,
 } from '@/services/api';
 import { InsightBar } from '@/components/InsightBar';
+import { InfoTooltip } from '@/components/InfoTooltip';
 
 const SEASON = 2026;
 
@@ -122,10 +123,11 @@ interface KpiCardProps {
   label: string;
   value: string;
   hint?: string;
+  info?: string;
   accent?: 'aurora' | 'ice' | 'white';
 }
 
-function KpiCard({ label, value, hint, accent = 'white' }: KpiCardProps) {
+function KpiCard({ label, value, hint, info, accent = 'white' }: KpiCardProps) {
   const color =
     accent === 'aurora'
       ? 'text-aurora'
@@ -134,8 +136,9 @@ function KpiCard({ label, value, hint, accent = 'white' }: KpiCardProps) {
         : 'text-white/90';
   return (
     <div className="bg-navy-700 border border-navy-600 rounded-lg p-4">
-      <div className="text-[10px] uppercase tracking-wider text-white/40 mb-2">
-        {label}
+      <div className="text-[10px] uppercase tracking-wider text-white/40 mb-2 flex items-center gap-1.5">
+        <span>{label}</span>
+        {info && <InfoTooltip content={info} label={`Lisätietoja: ${label}`} />}
       </div>
       <div className={`text-2xl font-bold font-mono tabular leading-none ${color}`}>
         {value}
@@ -456,12 +459,14 @@ export default function PelaikaPage() {
           label="U23 peliaika-%"
           value={`${vPct.toFixed(1)} %`}
           accent="aurora"
+          info="Veikkausliigan kaikista peliminuuteista alle 23-vuotiaiden osuus. Painotettu summa joukkueiden kesken (API-Football). Sulkee pois joukkueet joilla totalMinutes < 1000 (datavaje)."
         />
         <KpiCard
           label="U23 pelaajia"
           value={`${u23CountDisplay} / ${totalPlayers}`}
           hint="Veikkausliigassa"
           accent="ice"
+          info="Alle 23-vuotiaat peliaikaa saaneet pelaajat / kaikki Veikkausliigan pelaajat. U23-summa lasketaan joukkueiden YouthStats-erittelyistä (oikea ei-katkaistu luku, ei rajoitu Top-20:een)."
         />
         <KpiCard
           label="Eniten minuutteja (U23)"
@@ -472,15 +477,18 @@ export default function PelaikaPage() {
               : undefined
           }
           accent="ice"
+          info="U23-pelaaja jolla eniten pelattuja minuutteja. Yhdistää API-Footballin (varmistettu U23) ja Veikkausliiga.com:n viralliset minuutit sukunimi-matchilla."
         />
         <KpiCard
           label="Nuorin debyyttipisteet"
           value={youngest ? `${youngest.age} v` : '—'}
           hint={youngest ? `${youngest.playerName} · ${youngest.teamName}` : undefined}
+          info="Nuorin pelaaja joka on saanut peliaikaa tällä kaudella. Lasketaan U23-pelaajien (topYouthPlayers) listasta — pelaajat joilla on ikätieto API-Footballissa ja jotka ovat saaneet minuutteja."
         />
         <KpiCard
           label="Joukkueet ≥ 25 %"
           value={`${teamsOver25} / ${veikkausliiga.length}`}
+          info="Joukkueet joiden U23-peliaikaosuus on vähintään 25 % / kaikki Veikkausliigan joukkueet (datavaje-suodatuksen jälkeen). Korkea arvo = liiga antaa laajasti peliaikaa nuorille."
         />
       </section>
 

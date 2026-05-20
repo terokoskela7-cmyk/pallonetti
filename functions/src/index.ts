@@ -29,7 +29,7 @@ if (!admin.apps.length) {
 // API_VERSION: muuta tätä joka deployssa, jotta Firebase tunnistaa muutoksen.
 // RAPIDAPI_KEY-tarkistus on siirretty footballApi-luokan request-interceptoriin,
 // koska module-load-aikana process.env ei välttämättä ole vielä asetettu.
-const API_VERSION = '1.1.0'; // youth-stats pagination + 3 sarjaa
+const API_VERSION = '1.2.0'; // + /api/player/:id/season/:season + players_cache
 
 // ============================================
 // Express API App
@@ -239,6 +239,75 @@ app.get('/api/players/:season/market-values', async (req, res) => {
     res.status(500).json({
       success: false,
       error: 'Failed to fetch market values',
+      timestamp: new Date().toISOString(),
+    });
+  }
+});
+
+/** GET /api/player/:playerId/season/:season - Yksittäisen pelaajan kauden
+ *  tilastot suoraan API-Footballista. Cachetetaan Firestore-kokoelmaan
+ *  `players_cache/{season}_{playerId}` 24 tunniksi. Frontend voi käyttää tätä
+ *  kehityskäyrän ja täydellisen pelaajakortin rakentamiseen. */
+app.get('/api/player/:playerId/season/:season', async (req, res) => {
+  const playerId = parseInt(req.params.playerId, 10);
+  const season = parseInt(req.params.season, 10);
+
+  if (isNaN(playerId) || isNaN(season)) {
+    return res.status(400).json({
+      success: false,
+      error: 'Invalid playerId or season — both must be integers',
+      timestamp: new Date().toISOString(),
+    });
+  }
+
+  const docRef = admin
+    .firestore()
+    .collection('players_cache')
+    .doc(`${season}_${playerId}`);
+
+  try {
+    // 1. Tarkista cache
+    const cached = await docRef.get();
+    if (cached.exists) {
+      const cachedData = cached.data() as {
+        data: unknown;
+        expiresAt: string;
+      };
+      if (new Date(cachedData.expiresAt) > new Date()) {
+        return res.json({
+          success: true,
+          data: cachedData.data,
+          cached: true,
+          source: 'api-football',
+          timestamp: new Date().toISOString(),
+        });
+      }
+    }
+
+    // 2. Hae API-Footballista
+    const fresh = await footballApi.getPlayerById(playerId, season);
+
+    // 3. Tallenna 24 h ajaksi
+    const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
+    await docRef.set({
+      data: fresh,
+      cachedAt: new Date().toISOString(),
+      expiresAt: expiresAt.toISOString(),
+      source: 'api-football',
+    });
+
+    res.json({
+      success: true,
+      data: fresh,
+      cached: false,
+      source: 'api-football',
+      timestamp: new Date().toISOString(),
+    });
+  } catch (error) {
+    console.error(`Player ${playerId} season ${season} fetch error:`, error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch player season data',
       timestamp: new Date().toISOString(),
     });
   }

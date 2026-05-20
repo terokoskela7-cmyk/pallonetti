@@ -141,6 +141,19 @@ class FootballApiService {
     return this.fetchAllPages<ApiFootballPlayer>('/players', params);
   }
 
+  /** Hae yksittäinen pelaaja id:llä — palauttaa koko statistics-arrayn. */
+  async getPlayerById(
+    playerId: number,
+    season: number,
+    league: number = VEIKKAUSLIIGA_ID,
+  ): Promise<ApiFootballPlayer[]> {
+    return this.fetch<ApiFootballPlayer[]>('/players', {
+      id: playerId,
+      season,
+      league,
+    });
+  }
+
   /** Hae sarjataulukko */
   async getStandings(season: number, league: number = VEIKKAUSLIIGA_ID): Promise<ApiFootballStanding[]> {
     return this.fetch<ApiFootballStanding[]>('/standings', {

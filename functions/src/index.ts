@@ -17,6 +17,11 @@ import {
   scrapeAndSave,
   getOfficialStats,
 } from './scrapers/veikkausliiga';
+import {
+  getOrFetchPlayer,
+  scrapeAndSaveLeague,
+  getStoredLeague,
+} from './scrapers/transfermarkt';
 
 // Region: kaikki funktiot deployataan europe-west1:een (sama kuin TalentMaster-sisarprojekti)
 const REGION = 'europe-west1';
@@ -29,7 +34,7 @@ if (!admin.apps.length) {
 // API_VERSION: muuta tätä joka deployssa, jotta Firebase tunnistaa muutoksen.
 // RAPIDAPI_KEY-tarkistus on siirretty footballApi-luokan request-interceptoriin,
 // koska module-load-aikana process.env ei välttämättä ole vielä asetettu.
-const API_VERSION = '1.2.0'; // + /api/player/:id/season/:season + players_cache
+const API_VERSION = '1.3.0'; // + Transfermarkt-scraper /api/transfermarkt/*
 
 // ============================================
 // Express API App
@@ -728,6 +733,121 @@ app.get('/api/official-stats/:year', async (req, res) => {
   }
 });
 
+// ============================================
+// TRANSFERMARKT SCRAPER
+// ============================================
+
+/** GET /api/transfermarkt/player?name=&tmId= - Yksittäisen pelaajan TM-profiili.
+ *  Cache-first: lukee `transfermarkt_players/{tmId}` ja palauttaa jos voimassa.
+ *  Jos cache miss tai expired ja `tmId` (tai `name`, joka tuottaa tmId:n
+ *  schnellsuche:lla) annetaan, tehdään fresh scrape. Julkinen — refresh-pakotus
+ *  on erillinen admin-endpoint. */
+app.get('/api/transfermarkt/player', async (req, res) => {
+  const tmIdRaw = req.query.tmId ? parseInt(String(req.query.tmId), 10) : undefined;
+  const name = req.query.name ? String(req.query.name).trim() : undefined;
+
+  if ((tmIdRaw !== undefined && isNaN(tmIdRaw)) || (!tmIdRaw && !name)) {
+    return res.status(400).json({
+      success: false,
+      error: 'Anna joko tmId (integer) tai name',
+    });
+  }
+
+  try {
+    const profile = await getOrFetchPlayer({ tmId: tmIdRaw, name });
+    if (!profile) {
+      return res.status(404).json({
+        success: false,
+        error: 'Pelaajaa ei löytynyt Transfermarktista',
+      });
+    }
+    return res.json({
+      success: true,
+      data: profile,
+      source: 'transfermarkt.com',
+      timestamp: new Date().toISOString(),
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Tuntematon virhe';
+    console.error('[tm-player] failed:', message);
+    return res.status(500).json({ success: false, error: message });
+  }
+});
+
+/** GET /api/transfermarkt/refresh-player?tmId=&name= - Admin: pakota fresh scrape */
+app.get('/api/transfermarkt/refresh-player', requireAdminKey, async (req, res) => {
+  const tmIdRaw = req.query.tmId ? parseInt(String(req.query.tmId), 10) : undefined;
+  const name = req.query.name ? String(req.query.name).trim() : undefined;
+  if ((tmIdRaw !== undefined && isNaN(tmIdRaw)) || (!tmIdRaw && !name)) {
+    return res
+      .status(400)
+      .json({ success: false, error: 'Anna joko tmId tai name' });
+  }
+  try {
+    const profile = await getOrFetchPlayer({
+      tmId: tmIdRaw,
+      name,
+      forceRefresh: true,
+    });
+    if (!profile) {
+      return res.status(404).json({ success: false, error: 'Pelaajaa ei löytynyt' });
+    }
+    return res.json({ success: true, data: profile });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Tuntematon virhe';
+    console.error('[tm-refresh-player] failed:', message);
+    return res.status(500).json({ success: false, error: message });
+  }
+});
+
+/** GET /api/transfermarkt/veikkausliiga?season=2026 - Kaikki Veikkausliigan
+ *  pelaajat TM:stä Firestore-cachesta. Cron päivittää viikoittain. */
+app.get('/api/transfermarkt/veikkausliiga', async (req, res) => {
+  const season = parseInt(String(req.query.season ?? new Date().getFullYear()), 10);
+  if (isNaN(season)) {
+    return res
+      .status(400)
+      .json({ success: false, error: 'season-parametri on virheellinen' });
+  }
+  try {
+    const { players, meta } = await getStoredLeague(season);
+    return res.json({
+      success: true,
+      data: players,
+      meta,
+      source: 'transfermarkt.com',
+      timestamp: new Date().toISOString(),
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Tuntematon virhe';
+    console.error('[tm-league] failed:', message);
+    return res.status(500).json({ success: false, error: message });
+  }
+});
+
+/** GET /api/scrape/transfermarkt/veikkausliiga?season=2026 - Admin: pakota refresh */
+app.get(
+  '/api/scrape/transfermarkt/veikkausliiga',
+  requireAdminKey,
+  async (req, res) => {
+    const season = parseInt(
+      String(req.query.season ?? new Date().getFullYear()),
+      10,
+    );
+    if (isNaN(season)) {
+      return res.status(400).json({ success: false, error: 'season puuttuu' });
+    }
+    try {
+      const result = await scrapeAndSaveLeague(season);
+      return res.json({ success: true, ...result });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Tuntematon virhe';
+      console.error('[scrape/tm/veikkausliiga] failed:', message);
+      return res.status(500).json({ success: false, error: message });
+    }
+  },
+);
+
 /** POST /api/admin/cache-cleanup - Clean expired cache */
 app.post('/api/admin/cache-cleanup', async (_req, res) => {
   try {
@@ -801,6 +921,24 @@ export const scheduledVeikkausliigaScrape = functions
       );
     } catch (error) {
       console.error('[scheduledVeikkausliigaScrape] failed:', error);
+    }
+  });
+
+/** Scheduled: Transfermarkt-skrapaus viikoittain (maanantai 02:00 Helsinki) */
+export const scheduledTransfermarktLeague = functions
+  .region(REGION)
+  .pubsub.schedule('0 2 * * 1')
+  .timeZone('Europe/Helsinki')
+  .onRun(async () => {
+    const season = new Date().getFullYear();
+    console.log(`[scheduledTransfermarktLeague] starting season=${season}`);
+    try {
+      const result = await scrapeAndSaveLeague(season);
+      console.log(
+        `[scheduledTransfermarktLeague] saved ${result.count} players @ ${result.updatedAt}`,
+      );
+    } catch (error) {
+      console.error('[scheduledTransfermarktLeague] failed:', error);
     }
   });
 

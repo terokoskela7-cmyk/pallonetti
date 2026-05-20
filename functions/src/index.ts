@@ -296,7 +296,7 @@ app.get('/api/player/:playerId/season/:season', async (req, res) => {
       source: 'api-football',
     });
 
-    res.json({
+    return res.json({
       success: true,
       data: fresh,
       cached: false,
@@ -305,7 +305,7 @@ app.get('/api/player/:playerId/season/:season', async (req, res) => {
     });
   } catch (error) {
     console.error(`Player ${playerId} season ${season} fetch error:`, error);
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       error: 'Failed to fetch player season data',
       timestamp: new Date().toISOString(),

@@ -34,7 +34,7 @@ if (!admin.apps.length) {
 // API_VERSION: muuta tätä joka deployssa, jotta Firebase tunnistaa muutoksen.
 // RAPIDAPI_KEY-tarkistus on siirretty footballApi-luokan request-interceptoriin,
 // koska module-load-aikana process.env ei välttämättä ole vielä asetettu.
-const API_VERSION = '1.4.0'; // Transfermarkt v2: U23-fokus + name-index endpointit
+const API_VERSION = '1.5.0'; // + /api/player/:id/fixtures (kierroskohtainen data)
 
 // ============================================
 // Express API App
@@ -315,6 +315,141 @@ app.get('/api/player/:playerId/season/:season', async (req, res) => {
       error: 'Failed to fetch player season data',
       timestamp: new Date().toISOString(),
     });
+  }
+});
+
+/** GET /api/player/:playerId/fixtures?season=2026 - Pelaajan kierroskohtaiset
+ *  tilastot kaudelta. Hakee joukkueen kaikki ottelut, lukee per-ottelun
+ *  /fixtures/players-vastauksesta pelaajan rivin, palauttaa siistityn arrayn.
+ *  Cachetetaan Firestoreen `player_fixtures/{season}_{playerId}` 24 h ajaksi. */
+app.get('/api/player/:playerId/fixtures', async (req, res) => {
+  const playerId = req.params.playerId;
+  const season = parseInt(String(req.query.season ?? new Date().getFullYear()), 10);
+  if (!playerId || isNaN(season)) {
+    return res.status(400).json({
+      success: false,
+      error: 'playerId tai season puuttuu/virheellinen',
+    });
+  }
+
+  const docRef = admin
+    .firestore()
+    .collection('player_fixtures')
+    .doc(`${season}_${playerId}`);
+
+  try {
+    // 1. Cache check
+    const cached = await docRef.get();
+    if (cached.exists) {
+      const cachedData = cached.data() as {
+        data: unknown;
+        expiresAt: string;
+      };
+      if (new Date(cachedData.expiresAt) > new Date()) {
+        return res.json({
+          success: true,
+          data: cachedData.data,
+          cached: true,
+          source: 'api-football',
+          timestamp: new Date().toISOString(),
+        });
+      }
+    }
+
+    // 2. Etsi pelaajan teamId youthAggregationista
+    const agg = await dataAggregator.getYouthAggregation(season);
+    const player = agg.topYouthPlayers.find((p) => p.playerId === playerId);
+    if (!player) {
+      return res.status(404).json({
+        success: false,
+        error: 'Pelaajaa ei löytynyt youthAggregationista (ei top-20:ssa)',
+      });
+    }
+    const teamId = parseInt(player.teamId, 10);
+    if (isNaN(teamId)) {
+      return res
+        .status(500)
+        .json({ success: false, error: 'teamId on virheellinen' });
+    }
+
+    // 3. Hae joukkueen ottelut, suodata FT-tilanteeseen
+    const allFixtures = await footballApi.getTeamFixtures(teamId, season);
+    const finished = allFixtures.filter(
+      (f) => f.fixture.status.short === 'FT',
+    );
+
+    // 4. Per ottelu: hae player-stats ja poimi pelaajan rivi.
+    //    Promise.all rinnakkain — API-Football Pro tukee n. 30 req/min.
+    const results = await Promise.all(
+      finished.map(async (f) => {
+        let entry: {
+          minutes: number;
+          goals: number;
+          assists: number;
+          rating: number | null;
+        } | null = null;
+        try {
+          const stats = await footballApi.getFixturePlayerStats(f.fixture.id);
+          for (const teamGroup of stats) {
+            for (const p of teamGroup.players) {
+              if (String(p.player.id) === playerId) {
+                const s = p.statistics[0];
+                entry = {
+                  minutes: s?.games?.minutes ?? 0,
+                  goals: s?.goals?.total ?? 0,
+                  assists: s?.goals?.assists ?? 0,
+                  rating: s?.games?.rating
+                    ? parseFloat(s.games.rating)
+                    : null,
+                };
+                break;
+              }
+            }
+            if (entry) break;
+          }
+        } catch (err) {
+          console.error(
+            `[player-fixtures] stats fetch failed for fixture ${f.fixture.id}:`,
+            err instanceof Error ? err.message : err,
+          );
+        }
+        return {
+          round: f.league.round,
+          date: f.fixture.date,
+          minutes: entry?.minutes ?? 0,
+          goals: entry?.goals ?? 0,
+          assists: entry?.assists ?? 0,
+          rating: entry?.rating ?? null,
+          homeTeam: f.teams.home.name,
+          awayTeam: f.teams.away.name,
+          score:
+            f.goals.home != null && f.goals.away != null
+              ? `${f.goals.home}-${f.goals.away}`
+              : null,
+        };
+      }),
+    );
+
+    // 5. Tallenna cacheen 24 h ajaksi
+    const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
+    await docRef.set({
+      data: results,
+      cachedAt: new Date().toISOString(),
+      expiresAt: expiresAt.toISOString(),
+      source: 'api-football',
+    });
+
+    return res.json({
+      success: true,
+      data: results,
+      cached: false,
+      source: 'api-football',
+      timestamp: new Date().toISOString(),
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Tuntematon virhe';
+    console.error(`[player-fixtures] failed for ${playerId}:`, message);
+    return res.status(500).json({ success: false, error: message });
   }
 });
 

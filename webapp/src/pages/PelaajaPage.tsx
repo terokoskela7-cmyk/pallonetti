@@ -4,11 +4,13 @@ import { ArrowLeft, Info, TrendingUp } from 'lucide-react';
 import {
   LineChart,
   Line,
+  Area,
   XAxis,
   YAxis,
   Tooltip,
   ResponsiveContainer,
   CartesianGrid,
+  ComposedChart,
   type TooltipProps,
 } from 'recharts';
 import type {
@@ -20,10 +22,12 @@ import {
   getOfficialStats,
   getYouthAggregation,
   getPlayerSeason,
+  getPlayerFixtures,
   getTransfermarktPlayer,
   formatMarketValue,
   type ApiFootballPlayerSeason,
   type OfficialPlayer,
+  type PlayerFixture,
   type PlayerStats,
 } from '@/services/api';
 
@@ -226,6 +230,136 @@ function ProgressionTooltip({
   );
 }
 
+interface RealProgressionTooltipData {
+  round: string;
+  minutes: number;
+  cumMin: number;
+  goals: number;
+  assists: number;
+  rating: number | null;
+  matchup: string;
+  score: string | null;
+}
+
+function RealProgressionTooltip({
+  active,
+  payload,
+}: TooltipProps<ValueType, NameType>) {
+  if (!active || !payload || payload.length === 0) return null;
+  const d = payload[0].payload as RealProgressionTooltipData;
+  return (
+    <div className="bg-navy-800 border border-navy-600 rounded-md shadow-xl px-3 py-2 text-xs space-y-0.5">
+      <div className="text-white/90 font-medium">{d.round}</div>
+      <div className="text-white/60">
+        {d.matchup}
+        {d.score && (
+          <span className="text-white/90 font-mono ml-2">{d.score}</span>
+        )}
+      </div>
+      <div className="text-ice tabular pt-1">
+        {d.minutes} min · kum. {d.cumMin}
+      </div>
+      {(d.goals > 0 || d.assists > 0) && (
+        <div className="text-white/80">
+          {d.goals} M · {d.assists} S
+        </div>
+      )}
+      {d.rating !== null && (
+        <div className="text-aurora">Rating: {d.rating.toFixed(2)}</div>
+      )}
+    </div>
+  );
+}
+
+interface RealProgressionChartProps {
+  fixtures: PlayerFixture[];
+}
+
+function RealProgressionChart({ fixtures }: RealProgressionChartProps) {
+  const chartData: RealProgressionTooltipData[] = [];
+  let cum = 0;
+  fixtures.forEach((f, i) => {
+    cum += f.minutes;
+    const roundNum = f.round.match(/(\d+)\s*$/)?.[1] ?? String(i + 1);
+    chartData.push({
+      round: `K${roundNum}`,
+      minutes: f.minutes,
+      cumMin: cum,
+      goals: f.goals,
+      assists: f.assists,
+      rating: f.rating,
+      matchup: `${f.homeTeam} – ${f.awayTeam}`,
+      score: f.score,
+    });
+  });
+
+  const maxCum = chartData[chartData.length - 1]?.cumMin ?? 0;
+
+  return (
+    <div style={{ width: '100%', height: 220 }}>
+      <ResponsiveContainer width="100%" height="100%">
+        <ComposedChart
+          data={chartData}
+          margin={{ top: 8, right: 16, bottom: 8, left: 0 }}
+        >
+          <CartesianGrid stroke="#1a2640" strokeDasharray="2 4" />
+          <XAxis
+            dataKey="round"
+            stroke="#8899AA"
+            tick={{ fontSize: 11, fill: '#A5B4C8' }}
+            tickLine={false}
+            axisLine={{ stroke: '#243350' }}
+          />
+          <YAxis
+            yAxisId="left"
+            stroke="#8899AA"
+            tick={{ fontSize: 11, fill: '#A5B4C8' }}
+            tickLine={false}
+            axisLine={false}
+            domain={[0, 90]}
+            ticks={[0, 30, 60, 90]}
+            unit=" min"
+          />
+          <YAxis
+            yAxisId="right"
+            orientation="right"
+            stroke="#8899AA"
+            tick={{ fontSize: 10, fill: '#A5B4C8' }}
+            tickLine={false}
+            axisLine={false}
+            domain={[0, Math.max(90, maxCum)]}
+            hide={maxCum === 0}
+          />
+          <Tooltip
+            content={<RealProgressionTooltip />}
+            cursor={{ stroke: '#00C8FF', strokeOpacity: 0.3 }}
+          />
+          <Area
+            yAxisId="right"
+            type="monotone"
+            dataKey="cumMin"
+            fill="#00C8FF"
+            fillOpacity={0.08}
+            stroke="none"
+            isAnimationActive={false}
+          />
+          <Line
+            yAxisId="left"
+            type="monotone"
+            dataKey="minutes"
+            stroke="#00C8FF"
+            strokeWidth={2.5}
+            dot={{ fill: '#00C8FF', r: 3 }}
+            activeDot={{ r: 5 }}
+            isAnimationActive={false}
+            connectNulls
+          />
+        </ComposedChart>
+      </ResponsiveContainer>
+    </div>
+  );
+}
+
 interface ProgressionChartProps {
   minutes: number;
   appearances: number;
@@ -338,6 +472,21 @@ export default function PelaajaPage() {
       }
     },
     [youthName, SEASON],
+  );
+
+  // 5. Vaihe: kierroskohtainen fixture-data. Jos onnistuu → oikea käyrä.
+  // Jos epäonnistuu (esim. ensimmäinen lataus, cache vasta täyttymässä) →
+  // jäädään estimaattiin.
+  const { data: fixturesData, loading: fixturesLoading } = useApi(
+    async () => {
+      if (!playerId) return null;
+      try {
+        return await getPlayerFixtures(playerId, SEASON);
+      } catch {
+        return null;
+      }
+    },
+    [playerId, SEASON],
   );
 
   if (baseLoading) return <LoadingState />;
@@ -522,8 +671,17 @@ export default function PelaajaPage() {
       </section>
 
       {/* Transfermarkt — markkina-arvo + lisätiedot. Näkyy vain kun
-          TM-data on indeksoitu (refresh ajettu pelaajalle). */}
-      {tmData && tmData.marketValue !== null && (
+          TM-data on indeksoitu JA arvo on luotettava (≤ 5M €).
+          Sukunimi-haku TM:stä voi yhdistää väärin pelaajan tunnetumpaan
+          ulkomaiseen kaimaan — yli 5M € on lähes varmasti väärä match
+          U23-pelaajalle Veikkausliigassa. */}
+      {(() => {
+        const safeMarketValue =
+          tmData && tmData.marketValue !== null && tmData.marketValue <= 5_000_000
+            ? tmData.marketValue
+            : null;
+        if (!tmData || safeMarketValue === null) return null;
+        return (
         <section className="bg-navy-700/40 border border-navy-600 rounded-xl p-5">
           <div className="flex items-start gap-6">
             <div className="flex-1">
@@ -531,7 +689,7 @@ export default function PelaajaPage() {
                 Markkina-arvo
               </div>
               <div className="text-3xl md:text-4xl font-bold text-ice font-mono tabular leading-none">
-                {formatMarketValue(tmData.marketValue) ?? '—'}
+                {formatMarketValue(safeMarketValue) ?? '—'}
               </div>
               {tmData.contractExpires && (
                 <div className="text-xs text-white/50 mt-3">
@@ -574,19 +732,28 @@ export default function PelaajaPage() {
             Lähde: Transfermarkt
           </div>
         </section>
-      )}
+        );
+      })()}
 
-      {/* Kehityskäyrä — estimoitu kumulatiivinen min */}
+      {/* Kehityskäyrä — oikea fixture-data jos saatavilla, muuten estimaatti */}
       <section className="bg-navy-700/40 border border-navy-600 rounded-xl p-5">
         <div className="flex items-baseline justify-between gap-3 mb-2">
           <h2 className="text-xs uppercase tracking-wider text-white/40">
-            Kehityskäyrä — kumulatiiviset minuutit
+            Kehityskäyrä — minuutit per kierros
           </h2>
           <span className="text-[10px] text-white/30 uppercase tracking-wider">
-            Estimoitu · tarkka kierrosdata tulossa
+            {fixturesData && fixturesData.length > 0
+              ? `${fixturesData.length} ottelua · oikea data`
+              : fixturesLoading
+                ? 'Estimoitu · kierrosdata ladataan'
+                : 'Estimoitu · kierrosdata tulossa'}
           </span>
         </div>
-        <ProgressionChart minutes={minutes} appearances={appearances} />
+        {fixturesData && fixturesData.length > 0 ? (
+          <RealProgressionChart fixtures={fixturesData} />
+        ) : (
+          <ProgressionChart minutes={minutes} appearances={appearances} />
+        )}
       </section>
 
       {/* Vaihtopenkkistatistikka */}

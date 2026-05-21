@@ -213,7 +213,10 @@ export default function NuoretPage() {
       .pop()
       ?.toLowerCase();
     if (!surname) return null;
-    return marketValueBySurname.get(surname) ?? null;
+    const mv = marketValueBySurname.get(surname) ?? null;
+    // Validointi: yli 5M € on lähes varmasti väärä TM-match U23-pelaajalle
+    // Veikkausliigassa (sukunimi-haku saattaa osua tunnetumpaan kaimaan).
+    return mv !== null && mv <= 5_000_000 ? mv : null;
   }
 
   if (loading) return <LoadingSkeleton />;

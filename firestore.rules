@@ -27,6 +27,11 @@ service cloud.firestore {
       allow read: if true;
       allow write: if false;
     }
+    // Pelaajakohtainen fixture-data (kierroskohtaiset minuutit), 24h TTL
+    match /player_fixtures/{document=**} {
+      allow read: if true;
+      allow write: if false;
+    }
     // Kaikki muu — ei sallita selaimesta
     match /{document=**} {
       allow read, write: if false;

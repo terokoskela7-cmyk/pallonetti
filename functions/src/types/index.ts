@@ -369,6 +369,54 @@ export interface ApiFootballMatch {
   }>;
 }
 
+/** API-Football /fixtures/players -vastaus: ryhmitelty joukkueittain.
+ *  Käytetään fixture-tason data-pipelinessa (kierroskohtaiset minuutit). */
+export interface ApiFootballFixturePlayers {
+  team: { id: number; name: string; logo: string };
+  players: Array<{
+    player: { id: number; name: string; photo?: string };
+    statistics: Array<{
+      games: {
+        minutes: number | null;
+        number: number | null;
+        position: string | null;
+        rating: string | null;
+        captain: boolean;
+        substitute: boolean;
+      };
+      goals: {
+        total: number | null;
+        conceded: number | null;
+        assists: number | null;
+        saves: number | null;
+      };
+      offsides: number | null;
+      shots: { total: number | null; on: number | null };
+      passes: { total: number | null; key: number | null; accuracy: string | null };
+      tackles: {
+        total: number | null;
+        blocks: number | null;
+        interceptions: number | null;
+      };
+      duels: { total: number | null; won: number | null };
+      dribbles: {
+        attempts: number | null;
+        success: number | null;
+        past: number | null;
+      };
+      fouls: { drawn: number | null; committed: number | null };
+      cards: { yellow: number | null; red: number | null };
+      penalty: {
+        won: number | null;
+        commited: number | null;
+        scored: number | null;
+        missed: number | null;
+        saved: number | null;
+      };
+    }>;
+  }>;
+}
+
 /** FBref-pelaajatilastot */
 export interface FbrefPlayerStats {
   player: string;

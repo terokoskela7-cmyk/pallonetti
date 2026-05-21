@@ -10,6 +10,7 @@ import {
   ApiFootballPlayer,
   ApiFootballStanding,
   ApiFootballMatch,
+  ApiFootballFixturePlayers,
   VeikkausliigaSeason,
   PlayerStats,
   StandingEntry,
@@ -151,6 +152,29 @@ class FootballApiService {
       id: playerId,
       season,
       league,
+    });
+  }
+
+  /** Hae joukkueen kaikki ottelut kaudelta (kotipeli + vieras). */
+  async getTeamFixtures(
+    teamId: number,
+    season: number,
+    league: number = VEIKKAUSLIIGA_ID,
+  ): Promise<ApiFootballMatch[]> {
+    return this.fetch<ApiFootballMatch[]>('/fixtures', {
+      league,
+      season,
+      team: teamId,
+    });
+  }
+
+  /** Hae ottelun per-pelaaja-tilastot (/fixtures/players). Vastaus on
+   *  ryhmitelty joukkueittain: [{ team, players: [{player, statistics}] }]. */
+  async getFixturePlayerStats(
+    fixtureId: number,
+  ): Promise<ApiFootballFixturePlayers[]> {
+    return this.fetch<ApiFootballFixturePlayers[]>('/fixtures/players', {
+      fixture: fixtureId,
     });
   }
 

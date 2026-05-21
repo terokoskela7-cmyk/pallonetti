@@ -377,6 +377,25 @@ export const getPlayerSeason = (
 ): Promise<ApiFootballPlayerSeason[]> =>
   fetchApi(`/player/${playerId}/season/${season}`);
 
+/** Pelaajan kierroskohtainen rivi — backend kokoaa joukkueen otteluista. */
+export interface PlayerFixture {
+  round: string; // API-Football: "Regular Season - 7"
+  date: string; // ISO
+  minutes: number; // 0 jos ei pelannut
+  goals: number;
+  assists: number;
+  rating: number | null;
+  homeTeam: string;
+  awayTeam: string;
+  score: string | null; // "2-1"
+}
+
+export const getPlayerFixtures = (
+  playerId: string,
+  season: number,
+): Promise<PlayerFixture[]> =>
+  fetchApi(`/player/${playerId}/fixtures?season=${season}`);
+
 // ============================================
 // OFFICIAL STATS (Veikkausliiga.com scrape)
 // ============================================

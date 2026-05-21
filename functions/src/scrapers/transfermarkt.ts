@@ -438,10 +438,18 @@ export async function scrapeAllU23Players(
 
   for (const p of players) {
     try {
-      console.log(`[tm-batch] processing: ${p.playerName}`);
-      const search = await searchTransfermarkt(p.playerName);
+      // Hakusana: pelkkä sukunimi (viimeinen sana). Luotettavampi kuin
+      // koko nimi koska API-Football voi palauttaa "O. Ruoppi" mutta TM
+      // listaa "Otto Ruoppi" — etunimien kirjoituseroavaisuudet eivät
+      // haittaa kun haetaan vain sukunimellä.
+      const surname =
+        p.playerName.split(/\s+/).filter(Boolean).pop() ?? p.playerName;
+      console.log(
+        `[tm-batch] processing: ${p.playerName} (haku: "${surname}")`,
+      );
+      const search = await searchTransfermarkt(surname);
       if (!search) {
-        console.warn(`[tm-batch] no TM hit for ${p.playerName}`);
+        console.warn(`[tm-batch] no TM hit for "${surname}" (${p.playerName})`);
         await sleep(BATCH_DELAY_MS);
         continue;
       }

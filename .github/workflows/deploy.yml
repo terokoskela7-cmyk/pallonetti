@@ -77,7 +77,6 @@ jobs:
           echo "RAPIDAPI_KEY=${{ secrets.RAPIDAPI_KEY }}" > functions/.env
           echo "ADMIN_KEY=${{ secrets.ADMIN_KEY }}" >> functions/.env
       - name: Deploy to Firebase
-<<<<<<< HEAD
         # --only listaa eksplisiittisesti deployattavat funktiot. Tämä OHITTAA
         # scheduledTransfermarktLeague + scheduledTransfermarktU23 (vanhoja
         # cronjobeja jotka jäivät Firebaseen) — niitä ei poisteta eikä
@@ -89,11 +88,6 @@ jobs:
         uses: w9jds/firebase-action@v15.18.0
         with:
           args: deploy --only hosting,firestore,functions:api,functions:scheduledDataRefresh,functions:scheduledCacheCleanup,functions:scheduledVeikkausliigaScrape,functions:refreshData --force
-=======
-        uses: w9jds/firebase-action@v15.18.0
-        with:
-          args: deploy --only hosting,firestore,functions:api,functions:scheduledDataRefresh,functions:scheduledCacheCleanup,functions:scheduledVeikkausliigaScrape,functions:refreshData
->>>>>>> 8dd019740cc78fd7d827050816776a439d028eed
         env:
           GCP_SA_KEY: ${{ secrets.GCP_SA_KEY }}
           PROJECT_ID: pallonetti-fi

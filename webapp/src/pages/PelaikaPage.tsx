@@ -31,11 +31,13 @@ import {
   getYouthAggregation,
   getOfficialStats,
   getPlayerSeason,
+  getPlayerFixtures,
   filterReliableTeams,
   buildU23Players,
   type YouthStats,
   type U23Player,
   type ApiFootballPlayerSeason,
+  type PlayerFixture,
 } from '@/services/api';
 import { InsightBar } from '@/components/InsightBar';
 import { InfoTooltip } from '@/components/InfoTooltip';
@@ -356,20 +358,78 @@ function SectionHeader({ title, icon: Icon, hint }: SectionHeaderProps) {
   );
 }
 
-/** Pelaajan kehityskäyrä — kumulatiiviset minuutit estimoituna ottelujen yli.
- *  Datalähde: GET /api/player/:playerId/season/:season → ApiFootballPlayerSeason[].
- *  Strategia: officialMinutes (täsmälliset) jaetaan tasaisesti appearances:n yli. */
+/** Pelaajan kehityskäyrä — käyttää oikeaa fixture-dataa (per-kierros)
+ *  jos saatavilla, muuten putoaa takaisin estimaattiin
+ *  (getPlayerSeason-datasta jaettuna tasaisesti). */
 interface PlayerProgressionPanelProps {
   player: U23Player | null;
   loading: boolean;
   data: ApiFootballPlayerSeason[] | null;
+  fixtures: PlayerFixture[] | null;
+}
+
+interface FixtureTooltipData {
+  round: string;
+  minutes: number;
+  goals: number;
+  assists: number;
+  rating: number | null;
+  matchup: string;
+  score: string | null;
+}
+
+function FixtureTooltip({
+  active,
+  payload,
+}: TooltipProps<ValueType, NameType>) {
+  if (!active || !payload || payload.length === 0) return null;
+  const d = payload[0].payload as FixtureTooltipData;
+  return (
+    <div className="bg-navy-800 border border-navy-600 rounded-md shadow-xl px-3 py-2 text-xs space-y-0.5">
+      <div className="text-white/90 font-medium">{d.round}</div>
+      <div className="text-white/60">
+        {d.matchup}
+        {d.score && (
+          <span className="text-white/90 font-mono ml-2">{d.score}</span>
+        )}
+      </div>
+      <div className="text-ice tabular pt-1">{d.minutes} min</div>
+      {(d.goals > 0 || d.assists > 0) && (
+        <div className="text-white/80">
+          {d.goals} M · {d.assists} S
+        </div>
+      )}
+      {d.rating !== null && (
+        <div className="text-aurora">Rating: {d.rating.toFixed(2)}</div>
+      )}
+    </div>
+  );
 }
 
 function PlayerProgressionPanel({
   player,
   loading,
   data,
+  fixtures,
 }: PlayerProgressionPanelProps) {
+  // 1) Yritä oikealla fixture-datalla
+  const fixtureChartData: FixtureTooltipData[] | null = useMemo(() => {
+    if (!fixtures || fixtures.length === 0) return null;
+    return fixtures.map((f, i) => {
+      const roundNum = f.round.match(/(\d+)\s*$/)?.[1] ?? String(i + 1);
+      return {
+        round: `K${roundNum}`,
+        minutes: f.minutes,
+        goals: f.goals,
+        assists: f.assists,
+        rating: f.rating,
+        matchup: `${f.homeTeam} – ${f.awayTeam}`,
+        score: f.score,
+      };
+    });
+  }, [fixtures]);
+
+  // 2) Fallback-estimaatti getPlayerSeason-datasta
   const stats =
     data && data.length > 0
       ? data[0].statistics.find((s) => s.league.id === 244) ??
@@ -380,7 +440,7 @@ function PlayerProgressionPanel({
   const apiMin = stats?.games.minutes ?? 0;
   const totalMin = officialMin || apiMin;
 
-  const chartData =
+  const estimateData =
     appearances > 0 && totalMin > 0
       ? Array.from({ length: appearances }, (_, i) => ({
           round: 'K' + (i + 1),
@@ -390,8 +450,18 @@ function PlayerProgressionPanel({
 
   return (
     <div className="lg:col-span-2 rounded-xl border border-dashed border-navy-600 bg-navy-700/30 p-6 flex flex-col">
-      <div className="text-[10px] uppercase tracking-wider text-white/40 mb-2">
-        Kehityskäyrä
+      <div className="text-[10px] uppercase tracking-wider text-white/40 mb-2 flex items-center justify-between gap-2">
+        <span>Kehityskäyrä</span>
+        {fixtureChartData && (
+          <span className="text-ice normal-case tracking-normal">
+            · oikea data ({fixtureChartData.length} ottelua)
+          </span>
+        )}
+        {!fixtureChartData && estimateData.length > 0 && (
+          <span className="text-white/30 normal-case tracking-normal">
+            · estimaatti
+          </span>
+        )}
       </div>
       <div className="text-base font-medium text-white/90 mb-1">
         {player ? player.playerName : 'Valitse pelaaja taulukosta'}
@@ -415,7 +485,53 @@ function PlayerProgressionPanel({
           <Loader2 className="w-6 h-6 text-ice animate-spin" />
           <div className="text-sm text-white/50">Ladataan kierrosdataa…</div>
         </div>
-      ) : chartData.length === 0 ? (
+      ) : fixtureChartData && fixtureChartData.length > 0 ? (
+        // Oikea fixture-data — min per kierros 0–90
+        <>
+          <div style={{ width: '100%', height: 160 }}>
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart
+                data={fixtureChartData}
+                margin={{ top: 8, right: 12, bottom: 8, left: 0 }}
+              >
+                <CartesianGrid stroke="#1a2640" strokeDasharray="2 4" />
+                <XAxis
+                  dataKey="round"
+                  stroke="#8899AA"
+                  tick={{ fontSize: 11, fill: '#A5B4C8' }}
+                  tickLine={false}
+                  axisLine={{ stroke: '#243350' }}
+                />
+                <YAxis
+                  stroke="#8899AA"
+                  tick={{ fontSize: 10, fill: '#A5B4C8' }}
+                  tickLine={false}
+                  axisLine={false}
+                  domain={[0, 90]}
+                  ticks={[0, 30, 60, 90]}
+                />
+                <Tooltip
+                  content={<FixtureTooltip />}
+                  cursor={{ stroke: '#00C8FF', strokeOpacity: 0.3 }}
+                />
+                <Line
+                  type="monotone"
+                  dataKey="minutes"
+                  stroke="#06b6d4"
+                  strokeWidth={2}
+                  dot={{ fill: '#06b6d4', r: 2.5 }}
+                  activeDot={{ r: 5 }}
+                  isAnimationActive={false}
+                  connectNulls
+                />
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
+          <p className="text-[11px] text-white/40 mt-3 text-center">
+            Minuutit per kierros · {fixtureChartData.length} ottelua
+          </p>
+        </>
+      ) : estimateData.length === 0 ? (
         <div className="flex-1 flex flex-col items-center justify-center text-center space-y-2 py-10">
           <Info className="w-6 h-6 text-white/30" />
           <div className="text-sm text-white/50">
@@ -423,11 +539,12 @@ function PlayerProgressionPanel({
           </div>
         </div>
       ) : (
+        // Fallback-estimaatti
         <>
           <div style={{ width: '100%', height: 160 }}>
             <ResponsiveContainer width="100%" height="100%">
               <LineChart
-                data={chartData}
+                data={estimateData}
                 margin={{ top: 8, right: 12, bottom: 8, left: 0 }}
               >
                 <XAxis
@@ -497,6 +614,33 @@ export default function PelaikaPage() {
     async () => {
       if (!selectedPlayerId) return null;
       return getPlayerSeason(selectedPlayerId, SEASON);
+    },
+    [selectedPlayerId, SEASON],
+  );
+
+  // Oikea kierroskohtainen fixture-data — jos saatavilla, ohittaa estimaatin.
+  const { data: playerFixtures, loading: playerFixturesLoading } = useApi(
+    async () => {
+      if (!selectedPlayerId) return null;
+      try {
+        const result = await getPlayerFixtures(selectedPlayerId, SEASON);
+        // eslint-disable-next-line no-console
+        console.log(
+          '[PelaikaPage] fixtures fetched for',
+          selectedPlayerId,
+          '→ count:',
+          result?.length ?? 0,
+        );
+        return result;
+      } catch (err) {
+        // eslint-disable-next-line no-console
+        console.warn(
+          '[PelaikaPage] fixtures fetch failed for',
+          selectedPlayerId,
+          err,
+        );
+        return null;
+      }
     },
     [selectedPlayerId, SEASON],
   );
@@ -770,8 +914,9 @@ export default function PelaikaPage() {
 
         <PlayerProgressionPanel
           player={selectedPlayer}
-          loading={playerSeasonLoading}
+          loading={playerSeasonLoading || playerFixturesLoading}
           data={playerSeasonData}
+          fixtures={playerFixtures}
         />
       </section>
 

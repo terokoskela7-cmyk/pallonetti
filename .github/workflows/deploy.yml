@@ -84,9 +84,4 @@ jobs:
         # cronjobeja jotka jäivät Firebaseen) — niitä ei poisteta eikä
         # deployata. Manuaalinen siivous Cloud Schedulerista kun oikeudet
         # konfiguroitu. Cron palautetaan koodiin sen jälkeen.
-        uses: w9jds/firebase-action@master
-        with:
-          args: deploy --only hosting,firestore,functions:api,functions:scheduledDataRefresh,functions:scheduledCacheCleanup,functions:scheduledVeikkausliigaScrape,functions:refreshData --project pallonetti-fi --force
-        env:
-          GCP_SA_KEY: ${{ secrets.GCP_SA_KEY }}
-          PROJECT_ID: pallonetti-fi
+        run: npx firebase-tools deploy --token "${{ secrets.FIREBASE_TOKEN }}" --only hosting,firestore,functions:api,functions:scheduledDataRefresh,functions:scheduledCacheCleanup,functions:scheduledVeikkausliigaScrape,functions:refreshData

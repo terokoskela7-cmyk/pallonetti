@@ -71,17 +71,15 @@ jobs:
         # joka reititetään Firebase Hosting rewrite:n kautta Cloud Function 'api':lle.
         # Sama koodi toimii niin pallonetti-fi.web.app:ssä kuin custom domainissa.
 
-      # ----- DEPLOY -----
-
+     # ----- DEPLOY -----
       - name: Create functions/.env from secret
         run: |
           echo "RAPIDAPI_KEY=${{ secrets.RAPIDAPI_KEY }}" > functions/.env
           echo "ADMIN_KEY=${{ secrets.ADMIN_KEY }}" >> functions/.env
-
       - name: Deploy to Firebase
-        # --only listaa eksplisiittisesti deployattavat funktiot. Tämä OHITTAA
-        # scheduledTransfermarktLeague + scheduledTransfermarktU23 (vanhoja
-        # cronjobeja jotka jäivät Firebaseen) — niitä ei poisteta eikä
-        # deployata. Manuaalinen siivous Cloud Schedulerista kun oikeudet
-        # konfiguroitu. Cron palautetaan koodiin sen jälkeen.
-        run: npx firebase-tools deploy --token "${{ secrets.FIREBASE_TOKEN }}" --only hosting,firestore,functions:api,functions:scheduledDataRefresh,functions:scheduledCacheCleanup,functions:scheduledVeikkausliigaScrape,functions:refreshData
+        uses: w9jds/firebase-action@v15.18.0
+        with:
+          args: deploy --only hosting,firestore,functions:api,functions:scheduledDataRefresh,functions:scheduledCacheCleanup,functions:scheduledVeikkausliigaScrape,functions:refreshData
+        env:
+          GCP_SA_KEY: ${{ secrets.GCP_SA_KEY }}
+          PROJECT_ID: pallonetti-fi

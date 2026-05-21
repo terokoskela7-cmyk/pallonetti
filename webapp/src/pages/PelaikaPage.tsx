@@ -5,6 +5,7 @@ import {
   RefreshCw,
   TrendingUp,
   ArrowUpRight,
+  Loader2,
   type LucideIcon,
 } from 'lucide-react';
 import {
@@ -29,10 +30,12 @@ import {
   getYouthStatsAll,
   getYouthAggregation,
   getOfficialStats,
+  getPlayerSeason,
   filterReliableTeams,
   buildU23Players,
   type YouthStats,
   type U23Player,
+  type ApiFootballPlayerSeason,
 } from '@/services/api';
 import { InsightBar } from '@/components/InsightBar';
 import { InfoTooltip } from '@/components/InfoTooltip';
@@ -353,6 +356,118 @@ function SectionHeader({ title, icon: Icon, hint }: SectionHeaderProps) {
   );
 }
 
+/** Pelaajan kehityskäyrä — kumulatiiviset minuutit estimoituna ottelujen yli.
+ *  Datalähde: GET /api/player/:playerId/season/:season → ApiFootballPlayerSeason[].
+ *  Strategia: officialMinutes (täsmälliset) jaetaan tasaisesti appearances:n yli. */
+interface PlayerProgressionPanelProps {
+  player: U23Player | null;
+  loading: boolean;
+  data: ApiFootballPlayerSeason[] | null;
+}
+
+function PlayerProgressionPanel({
+  player,
+  loading,
+  data,
+}: PlayerProgressionPanelProps) {
+  const stats =
+    data && data.length > 0
+      ? data[0].statistics.find((s) => s.league.id === 244) ??
+        data[0].statistics[0]
+      : null;
+  const appearances = stats?.games.appearences ?? 0;
+  const officialMin = player?.minutes ?? 0;
+  const apiMin = stats?.games.minutes ?? 0;
+  const totalMin = officialMin || apiMin;
+
+  const chartData =
+    appearances > 0 && totalMin > 0
+      ? Array.from({ length: appearances }, (_, i) => ({
+          round: 'K' + (i + 1),
+          min: Math.round(totalMin / appearances) * (i + 1),
+        }))
+      : [];
+
+  return (
+    <div className="lg:col-span-2 rounded-xl border border-dashed border-navy-600 bg-navy-700/30 p-6 flex flex-col">
+      <div className="text-[10px] uppercase tracking-wider text-white/40 mb-2">
+        Kehityskäyrä
+      </div>
+      <div className="text-base font-medium text-white/90 mb-1">
+        {player ? player.playerName : 'Valitse pelaaja taulukosta'}
+      </div>
+      {player && (
+        <div className="text-xs text-white/50 mb-4">
+          {player.teamName} · {player.age} v · {player.minutes} min ·{' '}
+          {player.goals} M · {player.assists} S
+        </div>
+      )}
+
+      {!player ? (
+        <div className="flex-1 flex flex-col items-center justify-center text-center space-y-2 py-10">
+          <TrendingUp className="w-7 h-7 text-white/30" />
+          <div className="text-sm text-white/50">
+            Klikkaa rivi taulukosta nähdäksesi käyrä.
+          </div>
+        </div>
+      ) : loading ? (
+        <div className="flex-1 flex flex-col items-center justify-center text-center space-y-2 py-10">
+          <Loader2 className="w-6 h-6 text-ice animate-spin" />
+          <div className="text-sm text-white/50">Ladataan kierrosdataa…</div>
+        </div>
+      ) : chartData.length === 0 ? (
+        <div className="flex-1 flex flex-col items-center justify-center text-center space-y-2 py-10">
+          <Info className="w-6 h-6 text-white/30" />
+          <div className="text-sm text-white/50">
+            Ei vielä otteluita kaudelta.
+          </div>
+        </div>
+      ) : (
+        <>
+          <div style={{ width: '100%', height: 160 }}>
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart
+                data={chartData}
+                margin={{ top: 8, right: 12, bottom: 8, left: 0 }}
+              >
+                <XAxis
+                  dataKey="round"
+                  stroke="#8899AA"
+                  tick={{ fontSize: 11, fill: '#A5B4C8' }}
+                  tickLine={false}
+                  axisLine={{ stroke: '#243350' }}
+                />
+                <YAxis hide />
+                <Tooltip
+                  contentStyle={{
+                    background: '#0F1D32',
+                    border: '1px solid #243350',
+                    borderRadius: 6,
+                    fontSize: 12,
+                  }}
+                  labelStyle={{ color: '#fff' }}
+                  formatter={(v: number) => [v + ' min', 'Kum. minuutit']}
+                />
+                <Line
+                  type="monotone"
+                  dataKey="min"
+                  stroke="#06b6d4"
+                  strokeWidth={2}
+                  dot={false}
+                  isAnimationActive={false}
+                />
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
+          <p className="text-[11px] text-white/40 mt-3 text-center">
+            Estimoitu tasaisesti {appearances} ottelun yli
+          </p>
+        </>
+      )}
+    </div>
+  );
+}
+
 export default function PelaikaPage() {
   const navigate = useNavigate();
   const [selectedPlayer, setSelectedPlayer] = useState<U23Player | null>(null);
@@ -373,6 +488,17 @@ export default function PelaikaPage() {
   const { data: officialData, loading: officialLoading } = useApi(
     () => getOfficialStats(SEASON),
     [SEASON],
+  );
+
+  // Pelaajan kausi-detail kehityskäyrää varten. Triggeröityy automaattisesti
+  // kun selectedPlayer.playerId muuttuu (taulukon klikkaus).
+  const selectedPlayerId = selectedPlayer?.playerId;
+  const { data: playerSeasonData, loading: playerSeasonLoading } = useApi(
+    async () => {
+      if (!selectedPlayerId) return null;
+      return getPlayerSeason(selectedPlayerId, SEASON);
+    },
+    [selectedPlayerId, SEASON],
   );
 
   const veikkausliiga = useMemo(
@@ -642,31 +768,11 @@ export default function PelaikaPage() {
           )}
         </div>
 
-        <div className="lg:col-span-2 rounded-xl border border-dashed border-navy-600 bg-navy-700/30 p-6 flex flex-col">
-          <div className="text-[10px] uppercase tracking-wider text-white/40 mb-2">
-            Kehityskäyrä
-          </div>
-          <div className="text-base font-medium text-white/90 mb-1">
-            {selectedPlayer ? selectedPlayer.playerName : 'Valitse pelaaja taulukosta'}
-          </div>
-          {selectedPlayer && (
-            <div className="text-xs text-white/50 mb-4">
-              {selectedPlayer.teamName} · {selectedPlayer.age} v ·{' '}
-              {selectedPlayer.minutes} min · {selectedPlayer.goals} M ·{' '}
-              {selectedPlayer.assists} S
-            </div>
-          )}
-          <div className="flex-1 flex flex-col items-center justify-center text-center space-y-2 py-10">
-            <TrendingUp className="w-7 h-7 text-white/30" />
-            <div className="text-sm font-medium text-white/70">
-              Kierroskohtainen data tulossa
-            </div>
-            <div className="text-xs text-white/40 max-w-xs leading-relaxed">
-              Rakennetaan kun kierrosdata saatavilla — pelaajan minuutit ja
-              tehopisteet kierros kierrokselta.
-            </div>
-          </div>
-        </div>
+        <PlayerProgressionPanel
+          player={selectedPlayer}
+          loading={playerSeasonLoading}
+          data={playerSeasonData}
+        />
       </section>
 
       {/* 5. InsightBar lopussa */}

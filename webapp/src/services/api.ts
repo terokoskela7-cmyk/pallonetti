@@ -262,6 +262,7 @@ export function filterReliableTeams(teams: YouthStats[]): YouthStats[] {
  * U23-näkymiin pääse yli-23-vuotiaita pelaajia.
  */
 export interface U23Player {
+  playerId: string;
   playerName: string;
   teamName: string;
   age: number;
@@ -282,6 +283,7 @@ export function buildU23Players(
         ? officialPlayers.find((o) => o.name.toLowerCase().includes(lastName))
         : undefined;
       return {
+        playerId: p.playerId,
         playerName: p.playerName,
         teamName: p.teamName,
         age: p.age,

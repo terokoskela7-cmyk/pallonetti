@@ -779,7 +779,11 @@ app.get('/api/transfermarkt/player/:name', async (req, res) => {
 });
 
 /** POST /api/transfermarkt/refresh — admin: ajaa scrapeAllU23Players.
- *  body/query: season (oletus nykyvuosi). Vastaa 200 OK kun batch valmis. */
+ *  Query/body: season (oletus nykyvuosi), limit (esim. 5), offset (esim. 0).
+ *  Batchaa työn pieniin osiin jotta Cloud Functions -timeout (60 s) ei osu:
+ *    POST /api/transfermarkt/refresh?season=2026&limit=5&offset=0
+ *    POST /api/transfermarkt/refresh?season=2026&limit=5&offset=5  ...
+ *  Ilman limit/offset käsittelee koko U23-listan (max 20). */
 app.post('/api/transfermarkt/refresh', requireAdminKey, async (req, res) => {
   const seasonRaw =
     (req.body && req.body.season) ?? req.query.season ?? new Date().getFullYear();
@@ -789,11 +793,32 @@ app.post('/api/transfermarkt/refresh', requireAdminKey, async (req, res) => {
       .status(400)
       .json({ success: false, error: 'season-parametri on virheellinen' });
   }
+
+  const limitRaw =
+    (req.body && req.body.limit) ?? req.query.limit ?? undefined;
+  const offsetRaw =
+    (req.body && req.body.offset) ?? req.query.offset ?? undefined;
+  const limit =
+    limitRaw !== undefined ? parseInt(String(limitRaw), 10) : undefined;
+  const offset =
+    offsetRaw !== undefined ? parseInt(String(offsetRaw), 10) : undefined;
+  if (
+    (limit !== undefined && (isNaN(limit) || limit < 1)) ||
+    (offset !== undefined && (isNaN(offset) || offset < 0))
+  ) {
+    return res.status(400).json({
+      success: false,
+      error: 'limit/offset on virheellinen (limit >= 1, offset >= 0)',
+    });
+  }
+
   try {
-    const players = await scrapeAllU23Players(season);
+    const players = await scrapeAllU23Players(season, limit, offset);
     return res.json({
       success: true,
       count: players.length,
+      offset: offset ?? 0,
+      limit: limit ?? null,
       players,
       timestamp: new Date().toISOString(),
     });

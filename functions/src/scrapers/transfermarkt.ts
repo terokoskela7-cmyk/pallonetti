@@ -424,11 +424,23 @@ export async function getOrFetchPlayer(args: {
 // ============================================
 export async function scrapeAllU23Players(
   season: number,
+  limit?: number,
+  offset?: number,
 ): Promise<
   Array<{ name: string; tmId: string; marketValue: number | null }>
 > {
   const agg = await dataAggregator.getYouthAggregation(season);
-  const players = agg.topYouthPlayers.slice(0, 20);
+  // topYouthPlayers on backendissä jo cap:attu 20:een. Sovelletaan vielä
+  // tämän päälle valinnainen limit/offset-paginointi jotta yksittäinen
+  // refresh ei kestä liian kauan Cloud Functions -timeout-rajaan nähden
+  // (n. 60 s @ 2 s/pelaaja → batch 5 mahtuu reilusti).
+  const cap = 20;
+  const start = Math.max(0, offset ?? 0);
+  const end = limit !== undefined ? Math.min(cap, start + limit) : cap;
+  const players = agg.topYouthPlayers.slice(start, end);
+  console.log(
+    `[tm-batch] season=${season} slice=[${start},${end}) total=${agg.topYouthPlayers.length}`,
+  );
 
   const results: Array<{
     name: string;

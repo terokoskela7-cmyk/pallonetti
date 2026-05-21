@@ -20,6 +20,8 @@ import {
   getOfficialStats,
   getYouthAggregation,
   getPlayerSeason,
+  getTransfermarktPlayer,
+  formatMarketValue,
   type ApiFootballPlayerSeason,
   type OfficialPlayer,
   type PlayerStats,
@@ -313,6 +315,7 @@ export default function PelaajaPage() {
   }, [base, slug]);
 
   const playerId = youthMatch?.playerId;
+  const youthName = youthMatch?.playerName;
 
   // 3. Vaihe: hae playerById kun playerId on tiedossa (rinnakkain re-render:ssä)
   const { data: detailArray, loading: detailLoading } = useApi(
@@ -321,6 +324,20 @@ export default function PelaajaPage() {
       return getPlayerSeason(playerId, SEASON);
     },
     [playerId, SEASON],
+  );
+
+  // 4. Vaihe: hae Transfermarkt-data nimellä. Cache-first backendissä —
+  // jos pelaaja ei ole vielä indeksoitu, ei näytetä mitään (data jää nulliksi).
+  const { data: tmData } = useApi(
+    async () => {
+      if (!youthName) return null;
+      try {
+        return await getTransfermarktPlayer(youthName, SEASON);
+      } catch {
+        return null;
+      }
+    },
+    [youthName, SEASON],
   );
 
   if (baseLoading) return <LoadingState />;
@@ -353,7 +370,9 @@ export default function PelaajaPage() {
   const photoUrl = detail?.player.photo;
   const nationality = detail?.player.nationality;
   const number = stats?.games.number;
-  const position = stats?.games.position;
+  // Pelipaikka: TM:n arvo on yleensä tarkempi (esim. "Centre-Forward" vs.
+  // API-Footballin "Attacker"). Jos TM:llä on arvo, käytetään sitä.
+  const position = tmData?.position ?? stats?.games.position;
   const rating = stats?.games.rating ? parseFloat(stats.games.rating) : null;
   const minutes = officialMatch?.minutes ?? youthMatch.minutesPlayed;
   const goals = officialMatch?.goals ?? youthMatch.goals;
@@ -501,6 +520,61 @@ export default function PelaajaPage() {
           </div>
         </div>
       </section>
+
+      {/* Transfermarkt — markkina-arvo + lisätiedot. Näkyy vain kun
+          TM-data on indeksoitu (refresh ajettu pelaajalle). */}
+      {tmData && tmData.marketValue !== null && (
+        <section className="bg-navy-700/40 border border-navy-600 rounded-xl p-5">
+          <div className="flex items-start gap-6">
+            <div className="flex-1">
+              <div className="text-xs uppercase tracking-wider text-white/40 mb-1">
+                Markkina-arvo
+              </div>
+              <div className="text-3xl md:text-4xl font-bold text-ice font-mono tabular leading-none">
+                {formatMarketValue(tmData.marketValue) ?? '—'}
+              </div>
+              {tmData.contractExpires && (
+                <div className="text-xs text-white/50 mt-3">
+                  Sopimus voimassa:{' '}
+                  <span className="text-white/80">{tmData.contractExpires}</span>
+                </div>
+              )}
+              {tmData.loanFrom && (
+                <div className="text-xs text-white/50 mt-1">
+                  Lainalla:{' '}
+                  <span className="text-white/80">{tmData.loanFrom}</span>
+                </div>
+              )}
+            </div>
+            <div className="hidden md:flex flex-col items-end text-right text-xs text-white/50 space-y-1 max-w-[40%]">
+              {tmData.position && (
+                <div>
+                  Pelipaikka (TM):{' '}
+                  <span className="text-white/80">{tmData.position}</span>
+                </div>
+              )}
+              {tmData.height && (
+                <div>
+                  Pituus: <span className="text-white/80">{tmData.height}</span>
+                </div>
+              )}
+              {tmData.foot && (
+                <div>
+                  Jalka: <span className="text-white/80">{tmData.foot}</span>
+                </div>
+              )}
+              {tmData.agent && (
+                <div>
+                  Agentti: <span className="text-white/80">{tmData.agent}</span>
+                </div>
+              )}
+            </div>
+          </div>
+          <div className="text-[10px] text-white/30 mt-4 uppercase tracking-wider">
+            Lähde: Transfermarkt
+          </div>
+        </section>
+      )}
 
       {/* Kehityskäyrä — estimoitu kumulatiivinen min */}
       <section className="bg-navy-700/40 border border-navy-600 rounded-xl p-5">

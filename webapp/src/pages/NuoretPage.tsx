@@ -1,8 +1,11 @@
+import { useMemo } from 'react';
 import { useApi } from '@/hooks/useApi';
 import {
   getYouthAggregation,
   getOfficialStats,
+  getTransfermarktLeague,
   buildU23Players,
+  formatMarketValue,
   type U23Player,
 } from '@/services/api';
 import { Hero } from '@/components/Hero';
@@ -52,9 +55,10 @@ interface PlayerCardProps {
   player: U23Player & { tp: number };
   index: number;
   maxTp: number;
+  marketValue: number | null;
 }
 
-function PlayerCard({ player, index, maxTp }: PlayerCardProps) {
+function PlayerCard({ player, index, maxTp, marketValue }: PlayerCardProps) {
   const initials = getInitials(player.playerName);
   const avatarColor = AVATAR_COLORS[index % AVATAR_COLORS.length];
   const tpPct = maxTp > 0 ? (player.tp / maxTp) * 100 : 0;
@@ -122,6 +126,17 @@ function PlayerCard({ player, index, maxTp }: PlayerCardProps) {
           🔥 {player.goals} maalia
         </div>
       )}
+
+      {marketValue !== null && (
+        <div className="flex items-baseline justify-between border-t border-navy-600 pt-2 -mb-1">
+          <span className="text-[10px] uppercase tracking-wider text-white/40">
+            Markkina-arvo
+          </span>
+          <span className="text-sm font-bold text-amber-400 font-mono tabular">
+            {formatMarketValue(marketValue)}
+          </span>
+        </div>
+      )}
     </article>
   );
 }
@@ -155,6 +170,51 @@ export default function NuoretPage() {
     },
     [SEASON],
   );
+
+  // Transfermarkt batch — ladataan rinnakkain, sivu ei jää odottamaan.
+  // Jos endpointti palauttaa virheen (esim. indeksi tyhjä), tmEntries jää
+  // tyhjäksi listaksi → markkina-arvoja ei näytetä, kortit ovat normaalit.
+  const { data: tmEntries } = useApi(
+    async () => {
+      try {
+        return await getTransfermarktLeague(SEASON);
+      } catch {
+        return [] as Awaited<ReturnType<typeof getTransfermarktLeague>>;
+      }
+    },
+    [SEASON],
+  );
+
+  // Sukunimi → marketValue -Map. Sukunimi = nimen viimeinen sana,
+  // lowercase. Sama logiikka kuin backendin batch-funktiossa.
+  const marketValueBySurname = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const e of tmEntries ?? []) {
+      if (e.marketValue === null || e.marketValue === undefined) continue;
+      const surname = e.name
+        .split(/\s+/)
+        .filter(Boolean)
+        .pop()
+        ?.toLowerCase();
+      if (!surname) continue;
+      // Jos useita TM-osumia samalla sukunimellä, suosi suurempaa arvoa
+      const existing = map.get(surname);
+      if (existing === undefined || e.marketValue > existing) {
+        map.set(surname, e.marketValue);
+      }
+    }
+    return map;
+  }, [tmEntries]);
+
+  function lookupMarketValue(playerName: string): number | null {
+    const surname = playerName
+      .split(/\s+/)
+      .filter(Boolean)
+      .pop()
+      ?.toLowerCase();
+    if (!surname) return null;
+    return marketValueBySurname.get(surname) ?? null;
+  }
 
   if (loading) return <LoadingSkeleton />;
 
@@ -276,6 +336,7 @@ export default function NuoretPage() {
             player={player}
             index={i}
             maxTp={maxTp}
+            marketValue={lookupMarketValue(player.playerName)}
           />
         ))}
       </div>

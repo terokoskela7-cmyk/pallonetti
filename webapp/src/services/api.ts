@@ -425,6 +425,69 @@ export async function getOfficialStats(year: number): Promise<OfficialStatsRespo
 }
 
 // ============================================
+// TRANSFERMARKT (backend scrape)
+// ============================================
+export interface TransfermarktPlayerDetail {
+  tmId: string;
+  name: string;
+  url: string;
+  imageUrl: string | null;
+  marketValue: number | null;
+  marketValueRaw: string | null;
+  shirtNumber: number | null;
+  position: string | null;
+  nationality: string[];
+  birthPlace: string | null;
+  height: string | null;
+  foot: string | null;
+  agent: string | null;
+  contractExpires: string | null;
+  loanFrom: string | null;
+  loanExpires: string | null;
+  internationalTeam: string | null;
+  caps: number | null;
+  goals: number | null;
+  fetchedAt: string;
+  expiresAt: string;
+  source: 'transfermarkt.com';
+}
+
+export interface TransfermarktIndexEntry {
+  tmId: string;
+  name: string;
+  marketValue: number | null;
+  updatedAt: string;
+}
+
+export const getTransfermarktPlayer = (
+  name: string,
+  season: number,
+): Promise<TransfermarktPlayerDetail> =>
+  fetchApi(
+    `/transfermarkt/player/${encodeURIComponent(name)}?season=${season}`,
+  );
+
+export const getTransfermarktLeague = (
+  season: number,
+): Promise<TransfermarktIndexEntry[]> =>
+  fetchApi(`/transfermarkt/league/${season}`);
+
+/** "€600k", "€1.2m", "€1.5bn", null jos arvo puuttuu tai 0. */
+export function formatMarketValue(
+  value: number | null | undefined,
+): string | null {
+  if (value === null || value === undefined || value === 0) return null;
+  if (value >= 1_000_000_000)
+    return `€${(value / 1_000_000_000).toFixed(1)}bn`;
+  if (value >= 1_000_000) {
+    const m = value / 1_000_000;
+    return m >= 10 ? `€${m.toFixed(0)}m` : `€${m.toFixed(1)}m`;
+  }
+  if (value >= 1_000) return `€${(value / 1_000).toFixed(0)}k`;
+  return `€${value}`;
+}
+
+// ============================================
 // MATCHES
 // ============================================
 export type MatchStatus = 'SCHEDULED' | 'LIVE' | 'IN_PLAY' | 'FINISHED' | 'POSTPONED';

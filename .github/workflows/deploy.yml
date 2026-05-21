@@ -79,9 +79,14 @@ jobs:
           echo "ADMIN_KEY=${{ secrets.ADMIN_KEY }}" >> functions/.env
 
       - name: Deploy to Firebase
+        # --only listaa eksplisiittisesti deployattavat funktiot. Tämä OHITTAA
+        # scheduledTransfermarktLeague + scheduledTransfermarktU23 (vanhoja
+        # cronjobeja jotka jäivät Firebaseen) — niitä ei poisteta eikä
+        # deployata. Manuaalinen siivous Cloud Schedulerista kun oikeudet
+        # konfiguroitu. Cron palautetaan koodiin sen jälkeen.
         uses: w9jds/firebase-action@master
         with:
-          args: deploy --only functions,firestore,hosting --project pallonetti-fi --force
+          args: deploy --only hosting,firestore,functions:api,functions:scheduledDataRefresh,functions:scheduledCacheCleanup,functions:scheduledVeikkausliigaScrape,functions:refreshData --project pallonetti-fi --force
         env:
           GCP_SA_KEY: ${{ secrets.GCP_SA_KEY }}
           PROJECT_ID: pallonetti-fi

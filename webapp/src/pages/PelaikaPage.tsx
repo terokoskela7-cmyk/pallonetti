@@ -4,6 +4,8 @@ import {
   Info,
   RefreshCw,
   TrendingUp,
+  Target,
+  Rocket,
   ArrowUpRight,
   Loader2,
   type LucideIcon,
@@ -41,6 +43,7 @@ import {
 } from '@/services/api';
 import { InsightBar } from '@/components/InsightBar';
 import { InfoTooltip } from '@/components/InfoTooltip';
+import { ResearchCard } from '@/components/ResearchCard';
 
 const SEASON = 2026;
 
@@ -703,6 +706,43 @@ export default function PelaikaPage() {
 
   return (
     <div className="px-6 py-10 md:py-14 space-y-8">
+      {/* Editorial — tutkimus johdattaa dataan (CIES) */}
+      <section className="space-y-6">
+        <div className="space-y-3">
+          <div className="text-xs uppercase tracking-[0.2em] text-ice font-medium">
+            Tutkimus — peliaika luo arvoa
+          </div>
+          <h2 className="text-3xl md:text-5xl font-light tracking-tight leading-tight">
+            Peliaika on <span className="text-aurora font-medium">kaikki</span>
+          </h2>
+          <p className="text-base md:text-lg text-white/70 max-w-2xl leading-relaxed">
+            CIES Football Observatory tutki 50 liigaa: maat joissa nuoret
+            saavat eniten peliaikaa, tuottavat eniten huippupelaajia. Tanskan
+            Superliga on Euroopan kärjessä 11.7% U21-minuuteilla.
+          </p>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+          <ResearchCard
+            icon={TrendingUp}
+            stat="r = 0.77"
+            title="Peliaika→markkina-arvo"
+            source="Stirr et al., Antwerp 2024"
+          />
+          <ResearchCard
+            icon={Target}
+            stat="11.7%"
+            title="Tanska, Euroopan kärki"
+            source="CIES Football Obs. 2026"
+          />
+          <ResearchCard
+            icon={Rocket}
+            stat="40×"
+            title="Red Bull ROI"
+            source="Keita·Haaland·Šeško"
+          />
+        </div>
+      </section>
+
       {/* Hero */}
       <header className="relative overflow-hidden rounded-xl bg-gradient-to-br from-navy-600 via-navy-700 to-navy-800 border border-navy-600 px-6 md:px-10 py-8 md:py-12">
         <div className="absolute -top-12 -right-12 w-48 h-48 rounded-full bg-aurora/10 blur-3xl" />

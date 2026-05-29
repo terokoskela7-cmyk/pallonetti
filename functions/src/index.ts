@@ -583,7 +583,9 @@ app.get('/api/youth-aggregation/:season', async (req, res) => {
  *
  * Iteroi kauden päättyneet (FT) Veikkausliiga-ottelut ja laskee per kierros
  * U21-pelaajien minuutit suhteessa kaikkiin pelattuihin minuutteihin. U21 =
- * syntymävuosi >= (season - 22), eli kaudella 2026 syntynyt 2004 tai myöhemmin.
+ * syntymävuosi >= (season - 21), eli kaudella 2026 syntynyt 2005 tai myöhemmin.
+ * Sama ikäraja kuin youthPercentageU21-KPI (ikä <= 21) — trendi ja KPI
+ * mittaavat täsmälleen samaa joukkoa.
  * Sama datalähde kuin youth-stats (API-Football). Cachetetaan Firestore-
  * kokoelmaan `u21_round_trend/{season}` 6 tunniksi (raskas: ~1 kutsu/ottelu).
  *
@@ -628,8 +630,9 @@ app.get('/api/u21-round-trend/:season', async (req, res) => {
     }
 
     // 2. Syntymävuodet U21-luokitusta varten (sama datalähde kuin youth-stats).
-    //    U21 = syntynyt season-22 tai myöhemmin (2026 → 2004, kuten spec).
-    const U21_MIN_BIRTH_YEAR = season - 22;
+    //    U21 = syntynyt season-21 tai myöhemmin (2026 → 2005). Sama joukko kuin
+    //    youthPercentageU21-KPI (ikä <= 21).
+    const U21_MIN_BIRTH_YEAR = season - 21;
     const players = await footballApi.getPlayers(season);
     const birthYearById = new Map<number, number>();
     for (const p of players) {

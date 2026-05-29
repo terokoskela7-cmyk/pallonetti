@@ -34,7 +34,7 @@ if (!admin.apps.length) {
 // API_VERSION: muuta tätä joka deployssa, jotta Firebase tunnistaa muutoksen.
 // RAPIDAPI_KEY-tarkistus on siirretty footballApi-luokan request-interceptoriin,
 // koska module-load-aikana process.env ei välttämättä ole vielä asetettu.
-const API_VERSION = '1.6.0'; // + /api/u21-round-trend/:season (kierroskohtainen U21 %)
+const API_VERSION = '1.6.1'; // fix: topYouthPlayers-epävakaus (cache poisoning + clearType + ID-join)
 
 // ============================================
 // Express API App

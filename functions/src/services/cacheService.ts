@@ -67,6 +67,9 @@ class CacheService {
         cachedAt: now.toISOString(),
         expiresAt: expiresAt.toISOString(),
         source,
+        // Tallenna myös looginen tyyppi, jotta clearType voi invalidoida
+        // oikein (aiemmin clearType haki source-kentästä type-arvolla → ei osunut).
+        type: type ?? source,
         version: 1,
       };
 
@@ -119,12 +122,14 @@ class CacheService {
     }
   }
 
-  /** Tyhjennä tietty cache-tyyppi */
+  /** Tyhjennä tietty cache-tyyppi. Hakee `type`-kentästä (ei `source`) —
+   *  korjattu: ennen haki source-kentästä type-arvolla, jolloin esim.
+   *  youth_agg (source='aggregator', type='youth_stats') ei koskaan tyhjentynyt. */
   async clearType(type: string): Promise<void> {
     try {
       const snapshot = await this.db
         .collection('cache')
-        .where('source', '==', type)
+        .where('type', '==', type)
         .get();
 
       const batch = this.db.batch();

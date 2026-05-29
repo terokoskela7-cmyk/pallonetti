@@ -206,6 +206,8 @@ export interface CacheEntry<T> {
   cachedAt: string;
   expiresAt: string;
   source: string;
+  /** Looginen tyyppi (esim. 'youth_stats') — käytetään clearType-invalidointiin. */
+  type?: string;
   version: number;
 }
 

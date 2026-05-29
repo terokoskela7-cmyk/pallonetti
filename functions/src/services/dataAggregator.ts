@@ -16,6 +16,7 @@ import {
   StandingEntry,
   Match,
   Player,
+  ApiFootballPlayer,
 } from '../types';
 
 class DataAggregator {
@@ -122,9 +123,25 @@ class DataAggregator {
     }));
   }
 
+  /** getPlayers cachella — jaettu raakapelaajalista (sis. birth.date).
+   *  Cachetetaan VAIN ei-tyhjänä ja palautetaan cachesta vain ei-tyhjänä,
+   *  jottei API-Footballin hetkellinen tyhjä vastaus myrkytä cachea. */
+  private async getRawPlayersCached(season: number): Promise<ApiFootballPlayer[]> {
+    const key = `raw_players_${season}`;
+    const cached = await cacheService.get<ApiFootballPlayer[]>(key);
+    if (cached && cached.length > 0) return cached;
+    const fresh = await footballApi.getPlayers(season);
+    if (fresh.length > 0) {
+      await cacheService.set(key, fresh, 'api-football', 'players');
+    }
+    return fresh;
+  }
+
   /** Hae nuorten pelaajien aggregaatio koko liigalle */
   async getYouthAggregation(season: number): Promise<YouthAggregation> {
-    const cacheKey = `youth_agg_${season}`;
+    // v2: vaihdettu avain invalidoi aiemman bugin myrkyttämän cachen
+    // (tyhjä topYouthPlayers jäi 6 h:ksi cacheen).
+    const cacheKey = `youth_agg_v2_${season}`;
     const cached = await cacheService.get<YouthAggregation>(cacheKey);
     if (cached) return { ...cached, cached: true } as unknown as YouthAggregation;
 
@@ -133,35 +150,31 @@ class DataAggregator {
       this.getPlayerStats(season),
       this.getStandings(season),
     ]);
+    void standings;
 
     // Calculate league-wide aggregates
     const totalPlayersAnalyzed = playerStats.length;
     const totalMinutes = youthStats.reduce((sum, t) => sum + t.totalMinutes, 0);
     const youthMinutesU21 = youthStats.reduce((sum, t) => sum + t.youthMinutesU21, 0);
     const youthMinutesU23 = youthStats.reduce((sum, t) => sum + t.youthMinutesU23, 0);
+    const youthPlayersU23Total = youthStats.reduce((s, t) => s + t.youthPlayersU23, 0);
 
-    // Get top youth players (under 21 with most minutes)
-    const playersWithAge = await footballApi.getPlayers(season);
-    const youthPlayerStats: PlayerStats[] = [];
-
-    for (const ps of playerStats) {
-      const apiPlayer = playersWithAge.find(
-        (ap) => ap.player.name === ps.playerName
-      );
-      if (apiPlayer) {
-        const birthYear = apiPlayer.player.birth.date
-          ? parseInt(apiPlayer.player.birth.date.split('-')[0])
-          : 0;
-        const age = birthYear ? season - birthYear : apiPlayer.player.age || 99;
-
-        if (age <= 23) {
-          youthPlayerStats.push({ ...ps, age });
-        }
-      }
+    // Top youth players: ikä liitetään pelaajan ID:llä (ei hauraalla nimimatchilla),
+    // ja getPlayers haetaan cachen kautta — juurisyy-korjaus: aiempi erillinen
+    // cachettamaton getPlayers-kutsu palautti ajoittain tyhjän → top-lista tyhjeni.
+    const apiPlayers = await this.getRawPlayersCached(season);
+    const ageById = new Map<string, number>();
+    for (const ap of apiPlayers) {
+      const birthYear = ap.player.birth?.date
+        ? parseInt(ap.player.birth.date.split('-')[0], 10)
+        : 0;
+      const age = birthYear ? season - birthYear : ap.player.age || 99;
+      ageById.set(String(ap.player.id), age);
     }
 
-    // Sort by minutes and get top 20
-    const topYouthPlayers = youthPlayerStats
+    const topYouthPlayers = playerStats
+      .map((ps) => ({ ...ps, age: ageById.get(ps.playerId) ?? 99 }))
+      .filter((ps) => ps.age <= 23)
       .sort((a, b) => b.minutesPlayed - a.minutesPlayed)
       .slice(0, 20);
 
@@ -170,7 +183,7 @@ class DataAggregator {
       league: 'Veikkausliiga',
       totalPlayersAnalyzed,
       youthPlayersU21: youthStats.reduce((s, t) => s + t.youthPlayersU21, 0),
-      youthPlayersU23: youthStats.reduce((s, t) => s + t.youthPlayersU23, 0),
+      youthPlayersU23: youthPlayersU23Total,
       totalMinutesPlayed: totalMinutes,
       youthMinutesU21,
       youthMinutesU23,
@@ -181,7 +194,14 @@ class DataAggregator {
       updatedAt: new Date().toISOString(),
     };
 
-    await cacheService.set(cacheKey, aggregation, 'aggregator', 'youth_stats');
+    // Älä cacheta selvästi transienttia tyhjää: jos joukkuetilastot löysivät
+    // U23-pelaajia mutta top-lista jäi tyhjäksi, kyseessä on hetkellinen
+    // getPlayers-häiriö → ei tallenneta (ettei myrkytetä cachea 6 h:ksi).
+    const looksTransient =
+      topYouthPlayers.length === 0 && youthPlayersU23Total > 0;
+    if (!looksTransient) {
+      await cacheService.set(cacheKey, aggregation, 'aggregator', 'youth_stats');
+    }
     return aggregation;
   }
 

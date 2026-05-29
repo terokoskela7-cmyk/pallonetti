@@ -307,6 +307,19 @@ export const getYouthStatsAll = (season: number): Promise<YouthStatsAll> =>
 export const getYouthAggregation = (season: number): Promise<YouthAggregation> =>
   fetchApi(`/youth-aggregation/${season}`);
 
+/** Kierroskohtainen U21 peliaika-% — backend laskee päättyneistä otteluista.
+ *  U21 = syntynyt (season-22) tai myöhemmin (2026 → 2004). */
+export interface U21RoundTrendPoint {
+  round: number;
+  u21Pct: number;
+  u21Mins: number;
+  totalMins: number;
+}
+
+export const getU21RoundTrend = (
+  season: number,
+): Promise<U21RoundTrendPoint[]> => fetchApi(`/u21-round-trend/${season}`);
+
 // ============================================
 // PLAYER BY ID (API-Football season-detail)
 // ============================================

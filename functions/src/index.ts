@@ -34,7 +34,7 @@ if (!admin.apps.length) {
 // API_VERSION: muuta tätä joka deployssa, jotta Firebase tunnistaa muutoksen.
 // RAPIDAPI_KEY-tarkistus on siirretty footballApi-luokan request-interceptoriin,
 // koska module-load-aikana process.env ei välttämättä ole vielä asetettu.
-const API_VERSION = '1.5.0'; // + /api/player/:id/fixtures (kierroskohtainen data)
+const API_VERSION = '1.6.0'; // + /api/u21-round-trend/:season (kierroskohtainen U21 %)
 
 // ============================================
 // Express API App
@@ -573,6 +573,145 @@ app.get('/api/youth-aggregation/:season', async (req, res) => {
     res.status(500).json({
       success: false,
       error: 'Failed to fetch youth aggregation',
+      timestamp: new Date().toISOString(),
+    });
+  }
+});
+
+/**
+ * GET /api/u21-round-trend/:season — kierroskohtainen U21 peliaika-%.
+ *
+ * Iteroi kauden päättyneet (FT) Veikkausliiga-ottelut ja laskee per kierros
+ * U21-pelaajien minuutit suhteessa kaikkiin pelattuihin minuutteihin. U21 =
+ * syntymävuosi >= (season - 22), eli kaudella 2026 syntynyt 2004 tai myöhemmin.
+ * Sama datalähde kuin youth-stats (API-Football). Cachetetaan Firestore-
+ * kokoelmaan `u21_round_trend/{season}` 6 tunniksi (raskas: ~1 kutsu/ottelu).
+ *
+ * Palauttaa: { round, u21Pct, u21Mins, totalMins }[] kierroksittain (vain
+ * kierrokset joissa totalMins > 0).
+ */
+app.get('/api/u21-round-trend/:season', async (req, res) => {
+  const season = parseInt(req.params.season, 10);
+  if (isNaN(season)) {
+    return res.status(400).json({
+      success: false,
+      error: 'season on virheellinen',
+      timestamp: new Date().toISOString(),
+    });
+  }
+
+  const docRef = admin
+    .firestore()
+    .collection('u21_round_trend')
+    .doc(String(season));
+
+  // "Regular Season - 7" → 7
+  const parseRound = (round: string): number => {
+    const m = round.match(/(\d+)\s*$/);
+    return m ? parseInt(m[1], 10) : 0;
+  };
+
+  try {
+    // 1. Cache check
+    const cached = await docRef.get();
+    if (cached.exists) {
+      const cachedData = cached.data() as { data: unknown; expiresAt: string };
+      if (new Date(cachedData.expiresAt) > new Date()) {
+        return res.json({
+          success: true,
+          data: cachedData.data,
+          cached: true,
+          source: 'api-football',
+          timestamp: new Date().toISOString(),
+        });
+      }
+    }
+
+    // 2. Syntymävuodet U21-luokitusta varten (sama datalähde kuin youth-stats).
+    //    U21 = syntynyt season-22 tai myöhemmin (2026 → 2004, kuten spec).
+    const U21_MIN_BIRTH_YEAR = season - 22;
+    const players = await footballApi.getPlayers(season);
+    const birthYearById = new Map<number, number>();
+    for (const p of players) {
+      const year = p.player.birth?.date
+        ? parseInt(p.player.birth.date.split('-')[0], 10)
+        : NaN;
+      if (!isNaN(year)) birthYearById.set(p.player.id, year);
+    }
+
+    // 3. Kauden päättyneet ottelut.
+    const fixtures = await footballApi.getFixtures(season);
+    const finished = fixtures.filter((f) => f.fixture.status.short === 'FT');
+
+    // 4. Per ottelu: hae pelaajaminuutit ja summaa kierroksittain.
+    //    Rajattu rinnakkaisuus suojaa API-Football-rate-limitiltä ja
+    //    Cloud Functions -timeoutilta kun otteluita on kymmeniä.
+    const roundAgg = new Map<number, { u21: number; total: number }>();
+    const CONCURRENCY = 8;
+    for (let i = 0; i < finished.length; i += CONCURRENCY) {
+      const batch = finished.slice(i, i + CONCURRENCY);
+      await Promise.all(
+        batch.map(async (f) => {
+          const round = parseRound(f.league.round);
+          if (round <= 0) return;
+          let stats;
+          try {
+            stats = await footballApi.getFixturePlayerStats(f.fixture.id);
+          } catch (err) {
+            console.error(
+              `[u21-round-trend] fixture ${f.fixture.id} stats failed:`,
+              err instanceof Error ? err.message : err,
+            );
+            return;
+          }
+          const acc = roundAgg.get(round) ?? { u21: 0, total: 0 };
+          for (const teamGroup of stats) {
+            for (const pl of teamGroup.players) {
+              const mins = pl.statistics?.[0]?.games?.minutes ?? 0;
+              if (!mins) continue;
+              acc.total += mins;
+              const by = birthYearById.get(pl.player.id);
+              if (by !== undefined && by >= U21_MIN_BIRTH_YEAR) acc.u21 += mins;
+            }
+          }
+          roundAgg.set(round, acc);
+        }),
+      );
+    }
+
+    // 5. Muodosta array, vain kierrokset joissa pelattuja minuutteja.
+    const trend = [...roundAgg.entries()]
+      .filter(([, v]) => v.total > 0)
+      .sort((a, b) => a[0] - b[0])
+      .map(([round, v]) => ({
+        round,
+        u21Pct: Math.round((v.u21 / v.total) * 1000) / 10,
+        u21Mins: v.u21,
+        totalMins: v.total,
+      }));
+
+    // 6. Tallenna cacheen 6 h ajaksi.
+    const expiresAt = new Date(Date.now() + 6 * 60 * 60 * 1000);
+    await docRef.set({
+      data: trend,
+      cachedAt: new Date().toISOString(),
+      expiresAt: expiresAt.toISOString(),
+      source: 'api-football',
+    });
+
+    return res.json({
+      success: true,
+      data: trend,
+      cached: false,
+      source: 'api-football',
+      timestamp: new Date().toISOString(),
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Tuntematon virhe';
+    console.error('[u21-round-trend] failed:', message);
+    return res.status(500).json({
+      success: false,
+      error: 'Failed to compute U21 round trend',
       timestamp: new Date().toISOString(),
     });
   }

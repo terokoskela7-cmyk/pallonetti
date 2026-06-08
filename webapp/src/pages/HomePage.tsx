@@ -7,6 +7,11 @@ import {
   Rocket,
   Loader2,
   Info,
+  BarChart3,
+  Users,
+  Search,
+  HelpCircle,
+  type LucideIcon,
 } from 'lucide-react';
 import {
   LineChart,
@@ -46,6 +51,34 @@ const CIES_TARGET_PCT = 11.7;
 const U21_PLAYER_TARGET = 17;
 // Markkina-arvojen yläraja sukunimi-matchille — sama logiikka kuin NuoretPage.
 const MAX_REASONABLE_MV = 5_000_000;
+
+// ============================================================
+// Sivuston rakenne — opastaa käyttäjää
+// ============================================================
+interface GuideCardProps {
+  to: string;
+  icon: LucideIcon;
+  title: string;
+  body: string;
+}
+
+function GuideCard({ to, icon: Icon, title, body }: GuideCardProps) {
+  return (
+    <Link
+      to={to}
+      className="bg-navy-700 border border-navy-600 rounded-lg p-4 hover:border-ice/40 transition-colors group"
+    >
+      <div className="flex items-center gap-2 text-xs uppercase tracking-wider text-white/40 mb-2">
+        <Icon className="w-4 h-4 text-ice" />
+        {title}
+      </div>
+      <p className="text-sm text-white/70 leading-relaxed">{body}</p>
+      <div className="mt-2 text-xs text-ice opacity-0 group-hover:opacity-100 transition-opacity">
+        Avaa sivu →
+      </div>
+    </Link>
+  );
+}
 
 // ============================================================
 // Apulaskennat
@@ -335,11 +368,44 @@ export default function HomePage() {
             Peliaika on <span className="text-aurora font-medium">kaikki</span>
           </>
         }
-        subtitle="CIES Football Observatory tutki 50 liigaa: pelaajat jotka saavat riittävästi peliaikaa alle 21-vuotiaina pääsevät huomattavasti todennäköisemmin huipulle. Peliaika ei ole palkinto — se on edellytys."
+        subtitle="Seuraa suomalaisten nuorten pelaajien peliaikaa Veikkausliigassa. Yhdistämme API-Footballin, Veikkausliigan viralliset tilastot ja Transfermarktin markkina-arvot yhdeksi näkymäksi."
         height="lg"
       />
 
-      {/* ---------- Osio 2 — Live KPI-kortit ---------- */}
+      {/* ---------- Osio 2 — Sivuston rakenne ---------- */}
+      <section className="space-y-4">
+        <div className="text-xs uppercase tracking-wider text-white/40">
+          Mistä löydät mitäkin
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+          <GuideCard
+            to="/peliaika"
+            icon={BarChart3}
+            title="Analyysi"
+            body="Joukkueiden U23-%-kaaviot, pelaajataulukko filttereillä ja kehityskäyrät. Syväsukellus dataan."
+          />
+          <GuideCard
+            to="/nuoret"
+            icon={Users}
+            title="U21-pelaajat"
+            body="Alle 21-vuotiaiden spotlight: pelaajakortit, markkina-arvot ja CIES-vertailu."
+          />
+          <GuideCard
+            to="/pelaajat"
+            icon={Search}
+            title="Kaikki pelaajat"
+            body="Hakemisto kaikista Veikkausliigan pelaajista. Hae nimellä tai suodata joukkueella."
+          />
+          <GuideCard
+            to="/about"
+            icon={HelpCircle}
+            title="Tietoa"
+            body="Datalähteet, metodologia, U21/U23-määritelmät ja tekijän yhteystiedot."
+          />
+        </div>
+      </section>
+
+      {/* ---------- Osio 3 — Live KPI-kortit ---------- */}
       <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
         <KpiCard
           label="U21 peliaika-%"
@@ -377,7 +443,7 @@ export default function HomePage() {
         />
       </section>
 
-      {/* ---------- Osio 3 — Kierrostrendi ---------- */}
+      {/* ---------- Osio 4 — Kierrostrendi ---------- */}
       <section className="bg-navy-700/40 border border-navy-600 rounded-lg p-5">
         <div className="flex items-baseline justify-between gap-3 mb-4">
           <h2 className="text-base font-medium flex items-center gap-2">

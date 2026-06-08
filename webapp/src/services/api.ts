@@ -264,6 +264,7 @@ export interface U23Player {
   minutes: number;
   goals: number;
   assists: number;
+  rating?: number;
 }
 
 export function buildU23Players(
@@ -285,6 +286,7 @@ export function buildU23Players(
         minutes: official?.minutes ?? p.minutesPlayed,
         goals: official?.goals ?? p.goals,
         assists: official?.assists ?? p.assists,
+        rating: p.rating,
       };
     });
 }

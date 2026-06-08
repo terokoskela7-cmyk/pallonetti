@@ -719,6 +719,7 @@ export default function PelaikaPage() {
                     <th className="py-2 pr-3 text-right">Min</th>
                     <th className="py-2 pr-3 text-right">M</th>
                     <th className="py-2 pr-3 text-right">S</th>
+                    <th className="py-2 pr-3 text-right">Rating</th>
                     <th className="py-2 pl-3 w-8" aria-label="Avaa pelaaja" />
                   </tr>
                 </thead>
@@ -756,6 +757,9 @@ export default function PelaikaPage() {
                         </td>
                         <td className="py-2 pr-3 text-right text-white/90 font-mono tabular">
                           {p.assists}
+                        </td>
+                        <td className="py-2 pr-3 text-right text-aurora font-mono tabular">
+                          {p.rating?.toFixed(1) ?? '—'}
                         </td>
                         <td className="py-2 pl-3 text-right">
                           <button

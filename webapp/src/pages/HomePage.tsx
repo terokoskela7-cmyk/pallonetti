@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
   ArrowRight,
@@ -11,6 +11,7 @@ import {
   Users,
   Search,
   HelpCircle,
+  ChevronDown,
   type LucideIcon,
 } from 'lucide-react';
 import {
@@ -87,6 +88,23 @@ function calcU21Pct(teams: YouthStats[]): number {
   const total = teams.reduce((s, t) => s + t.totalMinutes, 0);
   const u21 = teams.reduce((s, t) => s + t.youthMinutesU21, 0);
   return total > 0 ? (u21 / total) * 100 : 0;
+}
+
+function calcU23Pct(teams: YouthStats[]): number {
+  const total = teams.reduce((s, t) => s + t.totalMinutes, 0);
+  const u23 = teams.reduce((s, t) => s + t.youthMinutesU23, 0);
+  return total > 0 ? (u23 / total) * 100 : 0;
+}
+
+function formatRelativeTime(iso: string): string {
+  const diff = Date.now() - new Date(iso).getTime();
+  const min = Math.floor(diff / 60000);
+  if (min < 1) return 'juuri nyt';
+  if (min < 60) return `${min} min sitten`;
+  const h = Math.floor(min / 60);
+  if (h < 24) return `${h} t sitten`;
+  const d = Math.floor(h / 24);
+  return `${d} pv sitten`;
 }
 
 // ============================================================
@@ -283,6 +301,9 @@ const MISSIONS = [
 ];
 
 export default function HomePage() {
+  const [ageGroup, setAgeGroup] = useState<'u21' | 'u23'>('u21');
+  const [infoOpen, setInfoOpen] = useState(false);
+
   // Päädata: kolme sarjaa + U23-aggregaatti + viralliset minuutit.
   const { data, loading, error } = useApi(async () => {
     const [stats, agg, official] = await Promise.all([
@@ -317,13 +338,19 @@ export default function HomePage() {
     return map;
   }, [tmEntries]);
 
-  // U21-kohortti — sama buildU23Players + ikäsuodatus kuin muualla.
-  const u21Players = useMemo(() => {
+  // U23 = kaikki topYouthPlayers (backend suodattaa jo U23:iin).
+  const u23Players = useMemo(() => {
     if (!data) return [];
-    return buildU23Players(data.agg.topYouthPlayers, data.official.data)
-      .filter((p) => p.age <= 21)
-      .sort((a, b) => b.minutes - a.minutes);
+    return buildU23Players(data.agg.topYouthPlayers, data.official.data).sort(
+      (a, b) => b.minutes - a.minutes,
+    );
   }, [data]);
+
+  // U21 = U23:sta ikäsuodatettuna.
+  const u21Players = useMemo(
+    () => u23Players.filter((p) => p.age <= 21),
+    [u23Players],
+  );
 
   if (loading) {
     return (
@@ -344,19 +371,24 @@ export default function HomePage() {
   }
 
   const veikkausliiga = filterReliableTeams(data.stats.veikkausliiga);
-  const u21Pct = calcU21Pct(veikkausliiga);
-  const u21Count = veikkausliiga.reduce((s, t) => s + t.youthPlayersU21, 0);
-  const u21Missing = Math.max(0, U21_PLAYER_TARGET - u21Count);
-  const topU21 = u21Players[0] ?? null;
+  const isU21 = ageGroup === 'u21';
 
-  // U21 yhteismarkkina-arvo: summaa kohortin pelaajat sukunimi-matchilla.
-  const u21TotalMv = u21Players.reduce((sum, p) => {
+  // Laskelmat ikäryhmän mukaan
+  const pct = isU21 ? calcU21Pct(veikkausliiga) : calcU23Pct(veikkausliiga);
+  const count = isU21
+    ? veikkausliiga.reduce((s, t) => s + t.youthPlayersU21, 0)
+    : veikkausliiga.reduce((s, t) => s + t.youthPlayersU23, 0);
+  const missing = isU21 ? Math.max(0, U21_PLAYER_TARGET - count) : 0;
+  const players = isU21 ? u21Players : u23Players;
+  const topPlayer = players[0] ?? null;
+
+  const totalMv = players.reduce((sum, p) => {
     const surname = p.playerName.split(/\s+/).filter(Boolean).pop()?.toLowerCase();
     const mv = surname ? marketValueBySurname.get(surname) ?? null : null;
     return mv !== null && mv <= MAX_REASONABLE_MV ? sum + mv : sum;
   }, 0);
 
-  const pctVsTarget = u21Pct - CIES_TARGET_PCT;
+  const pctVsTarget = isU21 ? pct - CIES_TARGET_PCT : 0;
 
   return (
     <div className="px-6 py-10 md:py-16 space-y-14">
@@ -405,42 +437,85 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* ---------- Osio 3 — Live KPI-kortit ---------- */}
-      <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-        <KpiCard
-          label="U21 peliaika-%"
-          value={`${u21Pct.toFixed(1)} %`}
-          accent="aurora"
-          compare={{
-            tone: pctVsTarget >= 0 ? 'aurora' : 'red',
-            text:
-              pctVsTarget >= 0
-                ? `+${pctVsTarget.toFixed(1)} pp yli CIES-tavoitteen (${CIES_TARGET_PCT} %)`
-                : `${pctVsTarget.toFixed(1)} pp alle CIES-tavoitteen (${CIES_TARGET_PCT} %)`,
-          }}
-        />
-        <KpiCard
-          label="U21 pelaajia"
-          value={String(u21Count)}
-          accent="ice"
-          compare={
-            u21Missing > 0
-              ? { tone: 'red', text: `${u21Missing} vajaa tavoitteesta ${U21_PLAYER_TARGET}` }
-              : { tone: 'aurora', text: `tavoite ${U21_PLAYER_TARGET} saavutettu` }
-          }
-        />
-        <KpiCard
-          label="Eniten minuutteja (U21)"
-          value={topU21 ? String(topU21.minutes) : '—'}
-          accent="ice"
-          hint={topU21 ? `${topU21.playerName} · ${topU21.teamName}` : undefined}
-        />
-        <KpiCard
-          label="U21 yhteismarkkina-arvo"
-          value={formatMarketValue(u21TotalMv) ?? '—'}
-          accent="amber"
-          hint={`${u21Players.length} pelaajaa seurannassa`}
-        />
+      {/* ---------- Osio 3 — Ikäryhmä-valitsin + KPI ---------- */}
+      <section className="space-y-4">
+        {/* Toggle */}
+        <div className="flex items-center gap-3">
+          <span className="text-xs uppercase tracking-wider text-white/40">
+            Ikäryhmä
+          </span>
+          <div className="inline-flex bg-navy-700 border border-navy-600 rounded-md overflow-hidden">
+            <button
+              onClick={() => setAgeGroup('u21')}
+              className={`px-3 py-1.5 text-xs font-medium transition-colors ${
+                isU21
+                  ? 'bg-ice/15 text-ice'
+                  : 'text-white/60 hover:text-white hover:bg-navy-600'
+              }`}
+            >
+              U21
+            </button>
+            <button
+              onClick={() => setAgeGroup('u23')}
+              className={`px-3 py-1.5 text-xs font-medium transition-colors ${
+                !isU21
+                  ? 'bg-ice/15 text-ice'
+                  : 'text-white/60 hover:text-white hover:bg-navy-600'
+              }`}
+            >
+              U23
+            </button>
+          </div>
+          {isU21 && (
+            <span className="text-[11px] text-white/40">
+              CIES-tavoite: {CIES_TARGET_PCT}% (Tanskan Superliga)
+            </span>
+          )}
+        </div>
+
+        {/* KPI-kortit */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+          <KpiCard
+            label={`${ageGroup.toUpperCase()} peliaika-%`}
+            value={`${pct.toFixed(1)} %`}
+            accent="aurora"
+            compare={
+              isU21
+                ? {
+                    tone: pctVsTarget >= 0 ? 'aurora' : 'red',
+                    text:
+                      pctVsTarget >= 0
+                        ? `+${pctVsTarget.toFixed(1)} pp yli CIES-tavoitteen (${CIES_TARGET_PCT} %)`
+                        : `${pctVsTarget.toFixed(1)} pp alle CIES-tavoitteen (${CIES_TARGET_PCT} %)`,
+                  }
+                : undefined
+            }
+          />
+          <KpiCard
+            label={`${ageGroup.toUpperCase()} pelaajia`}
+            value={String(count)}
+            accent="ice"
+            compare={
+              isU21 && missing > 0
+                ? { tone: 'red', text: `${missing} vajaa tavoitteesta ${U21_PLAYER_TARGET}` }
+                : isU21
+                  ? { tone: 'aurora', text: `tavoite ${U21_PLAYER_TARGET} saavutettu` }
+                  : undefined
+            }
+          />
+          <KpiCard
+            label={`Eniten minuutteja (${ageGroup.toUpperCase()})`}
+            value={topPlayer ? String(topPlayer.minutes) : '—'}
+            accent="ice"
+            hint={topPlayer ? `${topPlayer.playerName} · ${topPlayer.teamName}` : undefined}
+          />
+          <KpiCard
+            label={`${ageGroup.toUpperCase()} yhteismarkkina-arvo`}
+            value={formatMarketValue(totalMv) ?? '—'}
+            accent="amber"
+            hint={`${players.length} pelaajaa seurannassa`}
+          />
+        </div>
       </section>
 
       {/* ---------- Osio 4 — Kierrostrendi ---------- */}
@@ -458,27 +533,47 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* ---------- Osio 4 — Tutkimus + missio ---------- */}
+      {/* ---------- Osio 5 — INFO-accordion + missio ---------- */}
       <section className="space-y-8">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-          <ResearchCard
-            icon={TrendingUp}
-            stat="r = 0.77"
-            title="Peliajan ja huipulle pääsyn korrelaatio nuorilla pelaajilla"
-            source="Stirr et al., University of Antwerp"
-          />
-          <ResearchCard
-            icon={Target}
-            stat="11,7 %"
-            title="Tanskan Superliga — Euroopan kärki U21-peliajassa"
-            source="CIES Football Observatory 2026"
-          />
-          <ResearchCard
-            icon={Rocket}
-            stat="40×"
-            title="Red Bull -mallin sijoitetun pääoman tuotto nuoriin pelaajiin"
-            source="Keita · Haaland · Šeško"
-          />
+        <div className="bg-navy-700/40 border border-navy-600 rounded-lg overflow-hidden">
+          <button
+            onClick={() => setInfoOpen((v) => !v)}
+            className="w-full flex items-center justify-between gap-3 px-5 py-4 text-left hover:bg-navy-700/60 transition-colors"
+          >
+            <div className="flex items-center gap-2">
+              <Info className="w-4 h-4 text-ice shrink-0" />
+              <span className="text-sm font-medium text-white/90">
+                Miksi peliaika ratkaisee? — Tutkimusta, tilastoja ja Pohjoismaista kontekstia
+              </span>
+            </div>
+            <ChevronDown
+              className={`w-4 h-4 text-white/40 shrink-0 transition-transform ${
+                infoOpen ? 'rotate-180' : ''
+              }`}
+            />
+          </button>
+          {infoOpen && (
+            <div className="px-5 pb-5 grid grid-cols-1 md:grid-cols-3 gap-3 border-t border-navy-600 pt-4">
+              <ResearchCard
+                icon={TrendingUp}
+                stat="r = 0.77"
+                title="Peliajan ja huipulle pääsyn korrelaatio nuorilla pelaajilla"
+                source="Stirr et al., University of Antwerp"
+              />
+              <ResearchCard
+                icon={Target}
+                stat="11,7 %"
+                title="Tanskan Superliga — Euroopan kärki U21-peliajassa"
+                source="CIES Football Observatory 2026"
+              />
+              <ResearchCard
+                icon={Rocket}
+                stat="40×"
+                title="Red Bull -mallin sijoitetun pääoman tuotto nuoriin pelaajiin"
+                source="Keita · Haaland · Šeško"
+              />
+            </div>
+          )}
         </div>
 
         <div className="space-y-3">
@@ -500,6 +595,13 @@ export default function HomePage() {
           Lähteet: <span className="text-white/60">API-Football</span> ·{' '}
           <span className="text-white/60">Veikkausliiga.com</span> ·{' '}
           <span className="text-white/60">Transfermarkt</span>
+        </span>
+        <span className="w-px h-3 bg-white/20" />
+        <span>
+          päivitetty{' '}
+          <span className="text-white/60">
+            {formatRelativeTime(data.agg.updatedAt)}
+          </span>
         </span>
       </footer>
     </div>

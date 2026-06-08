@@ -2,23 +2,10 @@ import { Routes, Route } from 'react-router-dom';
 import { Layout } from '@/components/Layout';
 import HomePage from '@/pages/HomePage';
 import PelaikaPage from '@/pages/PelaikaPage';
-import JoukkueetPage from '@/pages/JoukkueetPage';
 import NuoretPage from '@/pages/NuoretPage';
 import PelaajatPage from '@/pages/PelaajatPage';
 import PelaajaPage from '@/pages/PelaajaPage';
-
-function Placeholder({ title }: { title: string }) {
-  return (
-    <section className="px-6 py-20">
-      <h1 className="text-3xl font-medium tracking-tight mb-3">{title}</h1>
-      <p className="text-white/60 text-lg">Tulossa pian.</p>
-    </section>
-  );
-}
-
-function AboutPage() {
-  return <Placeholder title="About" />;
-}
+import AboutPage from '@/pages/AboutPage';
 
 export default function App() {
   return (
@@ -28,7 +15,6 @@ export default function App() {
         <Route path="/nuoret" element={<NuoretPage />} />
         <Route path="/pelaajat" element={<PelaajatPage />} />
         <Route path="/peliaika" element={<PelaikaPage />} />
-        <Route path="/joukkueet" element={<JoukkueetPage />} />
         <Route path="/pelaaja/:slug" element={<PelaajaPage />} />
         <Route path="/about" element={<AboutPage />} />
       </Routes>

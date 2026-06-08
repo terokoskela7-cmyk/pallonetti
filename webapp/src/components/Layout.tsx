@@ -9,11 +9,10 @@ interface LayoutProps {
 
 const navLinks: Array<{ to: string; label: string; end?: boolean }> = [
   { to: '/', label: 'etusivu', end: true },
-  { to: '/nuoret', label: 'nuoret' },
-  { to: '/pelaajat', label: 'pelaajat' },
-  { to: '/peliaika', label: 'peliaika' },
-  { to: '/joukkueet', label: 'joukkueet' },
-  { to: '/about', label: 'about' },
+  { to: '/peliaika', label: 'analyysi' },
+  { to: '/nuoret', label: 'U21-pelaajat' },
+  { to: '/pelaajat', label: 'kaikki pelaajat' },
+  { to: '/about', label: 'tietoa' },
 ];
 
 const desktopLinkClass = ({ isActive }: { isActive: boolean }): string =>

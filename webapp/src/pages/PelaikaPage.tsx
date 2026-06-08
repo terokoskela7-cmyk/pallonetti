@@ -4,8 +4,6 @@ import {
   Info,
   RefreshCw,
   TrendingUp,
-  Target,
-  Rocket,
   ArrowUpRight,
   Loader2,
   type LucideIcon,
@@ -43,11 +41,8 @@ import {
 } from '@/services/api';
 import { InsightBar } from '@/components/InsightBar';
 import { InfoTooltip } from '@/components/InfoTooltip';
-import { ResearchCard } from '@/components/ResearchCard';
 
 const SEASON = 2026;
-
-const AVATAR_COLORS = ['#00D4FF', '#00FF88', '#6366f1', '#f59e0b', '#ef4444'];
 
 type FilterId =
   | 'minutes'
@@ -67,13 +62,6 @@ const FILTERS: Array<{ id: FilterId; label: string }> = [
   { id: 'u19', label: 'U19' },
   { id: 'u17', label: 'U17' },
 ];
-
-function getInitials(name: string): string {
-  const parts = name.trim().split(/\s+/).filter(Boolean);
-  if (parts.length === 0) return '?';
-  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
-  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
-}
 
 function slugify(name: string): string {
   return name
@@ -217,92 +205,6 @@ function TeamBarChart({ teams }: { teams: YouthStats[] }) {
         </BarChart>
       </ResponsiveContainer>
     </div>
-  );
-}
-
-function SeasonTrendSparkline({ currentPct }: { currentPct: number }) {
-  // Placeholder-data: 8 kierrosta, kasvava trendi joka päättyy nykyiseen
-  // vPct-arvoon. Korvataan oikealla matchday-aggregoinnilla seuraavalla
-  // sprintillä.
-  const start = Math.max(0, currentPct - 6);
-  const data = Array.from({ length: 8 }, (_, i) => ({
-    round: i + 1,
-    pct: start + (currentPct - start) * (i / 7),
-  }));
-
-  return (
-    <div className="relative" style={{ width: '100%', height: 80 }}>
-      <ResponsiveContainer width="100%" height="100%">
-        <LineChart data={data} margin={{ top: 4, right: 8, bottom: 4, left: 8 }}>
-          <Line
-            type="monotone"
-            dataKey="pct"
-            stroke="#00C8FF"
-            strokeWidth={2}
-            dot={false}
-            isAnimationActive={false}
-            strokeOpacity={0.5}
-          />
-        </LineChart>
-      </ResponsiveContainer>
-      <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-        <span className="text-[10px] uppercase tracking-wider text-white/40 bg-navy-700/80 px-2 py-0.5 rounded">
-          Placeholder · kierrosdata tulossa
-        </span>
-      </div>
-    </div>
-  );
-}
-
-interface Top5ListProps {
-  players: U23Player[];
-}
-
-function Top5List({ players }: Top5ListProps) {
-  const top = players.slice(0, 5);
-  if (top.length === 0) {
-    return (
-      <div className="text-sm text-white/40 italic py-6 text-center">
-        Pelaajadataa ei vielä saatavilla.
-      </div>
-    );
-  }
-  return (
-    <ol className="space-y-2">
-      {top.map((p, i) => {
-        const color = AVATAR_COLORS[i % AVATAR_COLORS.length];
-        return (
-          <li
-            key={`${p.playerName}-${p.teamName}-${i}`}
-            className="flex items-center gap-3 bg-navy-700 border border-navy-600 border-l-2 border-l-ice rounded-r-md p-3"
-          >
-            <span className="text-lg font-bold text-ice font-mono w-5 text-center shrink-0">
-              {i + 1}
-            </span>
-            <div
-              className="w-9 h-9 rounded-full bg-ice/10 flex items-center justify-center font-semibold text-xs shrink-0"
-              style={{ color }}
-              aria-hidden="true"
-            >
-              {getInitials(p.playerName)}
-            </div>
-            <div className="flex-1 min-w-0">
-              <div className="font-medium text-white/95 truncate text-sm">
-                {p.playerName}
-                <span className="text-white/40 font-normal"> · {p.age} v</span>
-              </div>
-              <div className="text-xs text-white/50 truncate">{p.teamName}</div>
-            </div>
-            <div className="text-right shrink-0 leading-tight">
-              <div className="text-sm font-bold text-ice font-mono tabular">
-                {p.minutes}
-              </div>
-              <div className="text-[10px] text-white/40">min · {p.goals} M</div>
-            </div>
-          </li>
-        );
-      })}
-    </ol>
   );
 }
 
@@ -626,22 +528,8 @@ export default function PelaikaPage() {
     async () => {
       if (!selectedPlayerId) return null;
       try {
-        const result = await getPlayerFixtures(selectedPlayerId, SEASON);
-        // eslint-disable-next-line no-console
-        console.log(
-          '[PelaikaPage] fixtures fetched for',
-          selectedPlayerId,
-          '→ count:',
-          result?.length ?? 0,
-        );
-        return result;
-      } catch (err) {
-        // eslint-disable-next-line no-console
-        console.warn(
-          '[PelaikaPage] fixtures fetch failed for',
-          selectedPlayerId,
-          err,
-        );
+        return await getPlayerFixtures(selectedPlayerId, SEASON);
+      } catch {
         return null;
       }
     },
@@ -706,43 +594,6 @@ export default function PelaikaPage() {
 
   return (
     <div className="px-6 py-10 md:py-14 space-y-8">
-      {/* Editorial — tutkimus johdattaa dataan (CIES) */}
-      <section className="space-y-6">
-        <div className="space-y-3">
-          <div className="text-xs uppercase tracking-[0.2em] text-ice font-medium">
-            Tutkimus — peliaika luo arvoa
-          </div>
-          <h2 className="text-3xl md:text-5xl font-light tracking-tight leading-tight">
-            Peliaika on <span className="text-aurora font-medium">kaikki</span>
-          </h2>
-          <p className="text-base md:text-lg text-white/70 max-w-2xl leading-relaxed">
-            CIES Football Observatory tutki 50 liigaa: maat joissa nuoret
-            saavat eniten peliaikaa, tuottavat eniten huippupelaajia. Tanskan
-            Superliga on Euroopan kärjessä 11.7% U21-minuuteilla.
-          </p>
-        </div>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-          <ResearchCard
-            icon={TrendingUp}
-            stat="r = 0.77"
-            title="Peliaika→markkina-arvo"
-            source="Stirr et al., Antwerp 2024"
-          />
-          <ResearchCard
-            icon={Target}
-            stat="11.7%"
-            title="Tanska, Euroopan kärki"
-            source="CIES Football Obs. 2026"
-          />
-          <ResearchCard
-            icon={Rocket}
-            stat="40×"
-            title="Red Bull ROI"
-            source="Keita·Haaland·Šeško"
-          />
-        </div>
-      </section>
-
       {/* Hero */}
       <header className="relative overflow-hidden rounded-xl bg-gradient-to-br from-navy-600 via-navy-700 to-navy-800 border border-navy-600 px-6 md:px-10 py-8 md:py-12">
         <div className="absolute -top-12 -right-12 w-48 h-48 rounded-full bg-aurora/10 blur-3xl" />
@@ -802,47 +653,26 @@ export default function PelaikaPage() {
         />
       </section>
 
-      {/* Kauden kehitys -sparkline (placeholder) */}
+      {/* 2. Joukkuekaavio — täysleveys */}
       <section className="bg-navy-700/40 border border-navy-600 rounded-lg p-5">
         <SectionHeader
-          title="Kauden kehitys — Veikkausliiga U23 %"
-          hint="kierros kierrokselta"
+          title="U23 peliaika joukkueittain"
+          hint={`${veikkausliiga.length} joukkuetta`}
         />
-        <SeasonTrendSparkline currentPct={vPct} />
-      </section>
-
-      {/* 2. Vasen 60% pylväskaavio + Oikea 40% Top 5 */}
-      <section className="grid grid-cols-1 lg:grid-cols-5 gap-4">
-        <div className="lg:col-span-3 bg-navy-700/40 border border-navy-600 rounded-lg p-5">
-          <SectionHeader
-            title="U23 peliaika joukkueittain"
-            hint={`${veikkausliiga.length} joukkuetta`}
-          />
-          <TeamBarChart teams={veikkausliiga} />
-          <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-4 text-xs text-white/40">
-            <span className="flex items-center gap-1.5">
-              <span className="w-2 h-2 rounded bg-[#22c55e]" /> ≥ 40 %
-            </span>
-            <span className="flex items-center gap-1.5">
-              <span className="w-2 h-2 rounded bg-[#eab308]" /> 25–40 %
-            </span>
-            <span className="flex items-center gap-1.5">
-              <span className="w-2 h-2 rounded bg-[#f97316]" /> 15–25 %
-            </span>
-            <span className="flex items-center gap-1.5">
-              <span className="w-2 h-2 rounded bg-[#ef4444]" /> &lt; 15 %
-            </span>
-          </div>
-        </div>
-
-        <div className="lg:col-span-2 bg-navy-700/40 border border-navy-600 rounded-lg p-5">
-          <SectionHeader
-            title="Top 5 — minuutit"
-            hint={`${u23Players.length} U23 (näytteessä)`}
-          />
-          <Top5List
-            players={[...u23Players].sort((a, b) => b.minutes - a.minutes)}
-          />
+        <TeamBarChart teams={veikkausliiga} />
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-4 text-xs text-white/40">
+          <span className="flex items-center gap-1.5">
+            <span className="w-2 h-2 rounded bg-[#22c55e]" /> ≥ 40 %
+          </span>
+          <span className="flex items-center gap-1.5">
+            <span className="w-2 h-2 rounded bg-[#eab308]" /> 25–40 %
+          </span>
+          <span className="flex items-center gap-1.5">
+            <span className="w-2 h-2 rounded bg-[#f97316]" /> 15–25 %
+          </span>
+          <span className="flex items-center gap-1.5">
+            <span className="w-2 h-2 rounded bg-[#ef4444]" /> &lt; 15 %
+          </span>
         </div>
       </section>
 

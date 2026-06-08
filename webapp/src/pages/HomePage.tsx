@@ -221,7 +221,8 @@ function U21TrendChart() {
       <p className="text-[11px] text-white/40 mt-3">
         Toteutunut U21-osuus kierroksittain (sininen) vs. CIES-tavoite{' '}
         {CIES_TARGET_PCT} % (Tanskan Superliga). U21 = syntynyt 2005 tai
-        myöhemmin · osuus kaikista pelatuista minuuteista.
+        myöhemmin · vain päättyneet ottelut · pelaajat joilla ei ikätietoa
+        eivät vaikuta prosenttiin.
       </p>
     </>
   );

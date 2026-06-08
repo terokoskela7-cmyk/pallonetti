@@ -137,6 +137,24 @@ class DataAggregator {
     return fresh;
   }
 
+  /** Palauta pelaaja-ID → syntymävuosi -Map.
+   *  Käyttää cachettua raakapelaajalistaa — yhdenmukainen getYouthStats:n kanssa.
+   *  Hyödyllinen mm. u21-round-trendille joka tarvitsee ikädatan
+   *  fixture-tason pelaajille ilman erillistä getPlayers-kutsua. */
+  async getPlayerBirthYearMap(season: number): Promise<Map<number, number>> {
+    const players = await this.getRawPlayersCached(season);
+    const map = new Map<number, number>();
+    for (const p of players) {
+      if (p.player.birth?.date) {
+        const year = parseInt(p.player.birth.date.split('-')[0], 10);
+        if (!isNaN(year) && year >= 1960 && year <= season) {
+          map.set(p.player.id, year);
+        }
+      }
+    }
+    return map;
+  }
+
   /** Hae nuorten pelaajien aggregaatio koko liigalle */
   async getYouthAggregation(season: number): Promise<YouthAggregation> {
     // v2: vaihdettu avain invalidoi aiemman bugin myrkyttämän cachen

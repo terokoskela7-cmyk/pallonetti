@@ -602,6 +602,7 @@ app.get('/api/u21-round-trend/:season', async (req, res) => {
     });
   }
 
+  const forceRefresh = req.query.refresh === '1';
   const docRef = admin
     .firestore()
     .collection('u21_round_trend')
@@ -614,33 +615,31 @@ app.get('/api/u21-round-trend/:season', async (req, res) => {
   };
 
   try {
-    // 1. Cache check
-    const cached = await docRef.get();
-    if (cached.exists) {
-      const cachedData = cached.data() as { data: unknown; expiresAt: string };
-      if (new Date(cachedData.expiresAt) > new Date()) {
-        return res.json({
-          success: true,
-          data: cachedData.data,
-          cached: true,
-          source: 'api-football',
-          timestamp: new Date().toISOString(),
-        });
+    // 1. Cache check (ohitetaan jos ?refresh=1)
+    if (!forceRefresh) {
+      const cached = await docRef.get();
+      if (cached.exists) {
+        const cachedData = cached.data() as { data: unknown; expiresAt: string };
+        if (new Date(cachedData.expiresAt) > new Date()) {
+          return res.json({
+            success: true,
+            data: cachedData.data,
+            cached: true,
+            source: 'api-football',
+            timestamp: new Date().toISOString(),
+          });
+        }
       }
     }
 
     // 2. Syntymävuodet U21-luokitusta varten (sama datalähde kuin youth-stats).
     //    U21 = syntynyt season-21 tai myöhemmin (2026 → 2005). Sama joukko kuin
     //    youthPercentageU21-KPI (ikä <= 21).
+    //    Käytetään dataAggregatorin cachettua pelaajalistaa — yhdenmukainen ja
+    //    nopeampi kuin erillinen getPlayers-kutsu.
     const U21_MIN_BIRTH_YEAR = season - 21;
-    const players = await footballApi.getPlayers(season);
-    const birthYearById = new Map<number, number>();
-    for (const p of players) {
-      const year = p.player.birth?.date
-        ? parseInt(p.player.birth.date.split('-')[0], 10)
-        : NaN;
-      if (!isNaN(year)) birthYearById.set(p.player.id, year);
-    }
+    const birthYearById = await dataAggregator.getPlayerBirthYearMap(season);
+    console.log(`[u21-round-trend] birthYear map: ${birthYearById.size} players`);
 
     // 3. Kauden päättyneet ottelut.
     const fixtures = await footballApi.getFixtures(season);
@@ -649,7 +648,9 @@ app.get('/api/u21-round-trend/:season', async (req, res) => {
     // 4. Per ottelu: hae pelaajaminuutit ja summaa kierroksittain.
     //    Rajattu rinnakkaisuus suojaa API-Football-rate-limitiltä ja
     //    Cloud Functions -timeoutilta kun otteluita on kymmeniä.
-    const roundAgg = new Map<number, { u21: number; total: number }>();
+    const roundAgg = new Map<number, { u21: number; total: number; unknown: number }>();
+    let skippedPlayers = 0;
+    let skippedMinutes = 0;
     const CONCURRENCY = 8;
     for (let i = 0; i < finished.length; i += CONCURRENCY) {
       const batch = finished.slice(i, i + CONCURRENCY);
@@ -667,14 +668,24 @@ app.get('/api/u21-round-trend/:season', async (req, res) => {
             );
             return;
           }
-          const acc = roundAgg.get(round) ?? { u21: 0, total: 0 };
+          const acc = roundAgg.get(round) ?? { u21: 0, total: 0, unknown: 0 };
           for (const teamGroup of stats) {
             for (const pl of teamGroup.players) {
               const mins = pl.statistics?.[0]?.games?.minutes ?? 0;
               if (!mins) continue;
-              acc.total += mins;
               const by = birthYearById.get(pl.player.id);
-              if (by !== undefined && by >= U21_MIN_BIRTH_YEAR) acc.u21 += mins;
+              if (by === undefined) {
+                // Pelaajaa ei löytynyt kausirosterista tai syntymävuosi puuttuu.
+                // Ei lasketa mukaan kumpaankaan — yhdenmukainen footballApi.ts:n
+                // getYouthStats:in kanssa joka ohittaa pelaajat joilla ei
+                // kelvollista ikätietoa.
+                acc.unknown += mins;
+                skippedPlayers++;
+                skippedMinutes += mins;
+                continue;
+              }
+              acc.total += mins;
+              if (by >= U21_MIN_BIRTH_YEAR) acc.u21 += mins;
             }
           }
           roundAgg.set(round, acc);
@@ -693,6 +704,11 @@ app.get('/api/u21-round-trend/:season', async (req, res) => {
         totalMins: v.total,
       }));
 
+    console.log(
+      `[u21-round-trend] computed ${trend.length} rounds, ` +
+        `${skippedPlayers} unknown players skipped (${skippedMinutes} min)`,
+    );
+
     // 6. Tallenna cacheen 6 h ajaksi.
     const expiresAt = new Date(Date.now() + 6 * 60 * 60 * 1000);
     await docRef.set({
@@ -700,6 +716,11 @@ app.get('/api/u21-round-trend/:season', async (req, res) => {
       cachedAt: new Date().toISOString(),
       expiresAt: expiresAt.toISOString(),
       source: 'api-football',
+      meta: {
+        skippedPlayers,
+        skippedMinutes,
+        birthYearMapSize: birthYearById.size,
+      },
     });
 
     return res.json({

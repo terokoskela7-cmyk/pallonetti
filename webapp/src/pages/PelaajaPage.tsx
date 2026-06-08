@@ -479,26 +479,10 @@ export default function PelaajaPage() {
   // jäädään estimaattiin.
   const { data: fixturesData, loading: fixturesLoading } = useApi(
     async () => {
-      // eslint-disable-next-line no-console
-      console.log('[PelaajaPage] fixtures fetch — playerId:', playerId);
-      if (!playerId) {
-        // eslint-disable-next-line no-console
-        console.log('[PelaajaPage] no playerId yet — skipping fixtures fetch');
-        return null;
-      }
+      if (!playerId) return null;
       try {
-        const result = await getPlayerFixtures(playerId, SEASON);
-        // eslint-disable-next-line no-console
-        console.log(
-          '[PelaajaPage] fixtures response — count:',
-          result?.length ?? 0,
-          'firstRound:',
-          result?.[0]?.round ?? 'n/a',
-        );
-        return result;
-      } catch (err) {
-        // eslint-disable-next-line no-console
-        console.warn('[PelaajaPage] fixtures fetch failed:', err);
+        return await getPlayerFixtures(playerId, SEASON);
+      } catch {
         return null;
       }
     },

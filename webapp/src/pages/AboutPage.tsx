@@ -78,6 +78,36 @@ export default function AboutPage() {
         </p>
       </Section>
 
+      <Section title="Pohjoinen malli — Tanska edelläkävijänä">
+        <p>
+          Pohjoismaissa Tanska on ottanut selvän johtoroolin nuorten pelaajien
+          kehittämisessä. CIES:n data: Tanskan Superliga on maailman kolmanneksi
+          paras U21-pelaajien peliajan suhteen ({' '}
+          <span className="tabular">11.7 %</span>).
+        </p>
+        <p>
+          <strong className="text-white/80">FC Nordsjælland</strong> on Euroopan #1
+          kehitysseura <span className="tabular">44.7 %</span> U21-minuuteilla.
+          Heidän Right to Dream -mallinsa on Pohjoismaiden vastaus Red Bullille:
+          kehitä nuoria, anna peliaikaa, myy voitolla. Mohammed Kudus ja Mikkel
+          Damsgaard ovat tämän mallin tähtituotteita.
+        </p>
+        <p>
+          <strong className="text-white/80">Norjan Eliteserien</strong> ({' '}
+          <span className="tabular">20.2 %</span> U21-minuutit) ja{' '}
+          <strong className="text-white/80">Ruotsin Allsvenskan</strong> ({' '}
+          <span className="tabular">22.4 %</span>) ovat myös edelläkävijöitä
+          nuorten panostuksessa. Molemmat maat ovat tuottaneet merkittävästi
+          ulkomaille myytyjä pelaajia.
+        </p>
+        <p>
+          Suomen Veikkausliigassa tilanne on ollut pitkään epäselvä — tarkkaa
+          dataa ei ole ollut julkisesti saatavilla. pallonetti.fi muuttaa tämän.
+          Seuraamalla U23-pelaajien peliaikaa teemme kehityksen mitattavaksi ja
+          vertailukelpoiseksi.
+        </p>
+      </Section>
+
       <Section title="Miten U21 ja U23 määritellään?">
         <p>
           <strong className="text-white/80">U21</strong> = syntynyt{' '}

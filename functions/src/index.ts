@@ -37,7 +37,7 @@ if (!admin.apps.length) {
 // API_VERSION: muuta tätä joka deployssa, jotta Firebase tunnistaa muutoksen.
 // RAPIDAPI_KEY-tarkistus on siirretty footballApi-luokan request-interceptoriin,
 // koska module-load-aikana process.env ei välttämättä ole vielä asetettu.
-const API_VERSION = '1.8.0'; // feat: Excel-import pipeline (POST /api/admin/import-excel)
+const API_VERSION = '1.9.0'; // feat: season-players endpoints (Firestore Excel-data, Vaihe B)
 
 // ============================================
 // Express API App
@@ -741,6 +741,148 @@ app.get('/api/u21-round-trend/:season', async (req, res) => {
       error: 'Failed to compute U21 round trend',
       timestamp: new Date().toISOString(),
     });
+  }
+});
+
+// ============================================
+// SEASON PLAYERS (Firestore Excel-import data, Vaihe B)
+// Lähde: seasons/{season}/players ja seasons/{season}/rounds/*/players
+// Julkisia endpointteja (ei admin-key). Cache 1 h.
+// ============================================
+
+/** Firestore-dokumentti → SeasonPlayer-muoto. doc.id on slug. */
+function toSeasonPlayer(id: string, data: admin.firestore.DocumentData | undefined) {
+  const d = data ?? {};
+  return {
+    slug: id,
+    etunimi: (d.etunimi as string) ?? '',
+    sukunimi: (d.sukunimi as string) ?? '',
+    ika: (d.ika as number) ?? 0,
+    joukkue: (d.joukkue as string) ?? '',
+    minTotal: (d.minTotal as number) ?? 0,
+    ottelutTotal: (d.ottelutTotal as number) ?? 0,
+    aloituksetTotal: (d.aloituksetTotal as number) ?? 0,
+    maaliTotal: (d.maaliTotal as number) ?? 0,
+    lastUpdatedRound: (d.lastUpdatedRound as number) ?? 0,
+  };
+}
+
+/** GET /api/season-players/:season — kaikki kauden pelaajat. */
+app.get('/api/season-players/:season', async (req, res) => {
+  const season = parseInt(req.params.season, 10);
+  if (isNaN(season)) {
+    res.status(400).json({ success: false, error: 'season on virheellinen' });
+    return;
+  }
+  try {
+    const snap = await admin
+      .firestore()
+      .collection('seasons')
+      .doc(String(season))
+      .collection('players')
+      .get();
+    const players = snap.docs.map((doc) => toSeasonPlayer(doc.id, doc.data()));
+    res.set('Cache-Control', 'public, max-age=3600');
+    res.json({
+      success: true,
+      data: players,
+      count: players.length,
+      source: 'firestore',
+      timestamp: new Date().toISOString(),
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Tuntematon virhe';
+    console.error('[season-players] failed:', message);
+    res.status(500).json({ success: false, error: message });
+  }
+});
+
+/** GET /api/season-players/:season/:slug/rounds — pelaajan kierrosdata
+ *  kaikilta kierroksilta (kehityskäyrä). Järjestetty round-nousevasti. */
+app.get('/api/season-players/:season/:slug/rounds', async (req, res) => {
+  const season = parseInt(req.params.season, 10);
+  const slug = req.params.slug;
+  if (isNaN(season) || !slug) {
+    res
+      .status(400)
+      .json({ success: false, error: 'season tai slug puuttuu/virheellinen' });
+    return;
+  }
+  try {
+    const roundsSnap = await admin
+      .firestore()
+      .collection('seasons')
+      .doc(String(season))
+      .collection('rounds')
+      .get();
+
+    const entries = await Promise.all(
+      roundsSnap.docs.map(async (rdoc) => {
+        const round = parseInt(rdoc.id, 10);
+        if (isNaN(round)) return null;
+        const pdoc = await rdoc.ref.collection('players').doc(slug).get();
+        if (!pdoc.exists) return null;
+        const d = pdoc.data() ?? {};
+        return {
+          round,
+          cumMin: (d.cumMin as number) ?? (d.min as number) ?? 0,
+          cumMaalit: (d.cumMaalit as number) ?? (d.maalit as number) ?? 0,
+          cumOttelut: (d.cumOttelut as number) ?? (d.ottelut as number) ?? 0,
+        };
+      }),
+    );
+
+    const rounds = entries
+      .filter((e): e is NonNullable<typeof e> => e !== null)
+      .sort((a, b) => a.round - b.round);
+
+    res.set('Cache-Control', 'public, max-age=3600');
+    res.json({
+      success: true,
+      data: rounds,
+      source: 'firestore',
+      timestamp: new Date().toISOString(),
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Tuntematon virhe';
+    console.error('[season-players/rounds] failed:', message);
+    res.status(500).json({ success: false, error: message });
+  }
+});
+
+/** GET /api/season-players/:season/:slug — yksittäinen pelaaja tai 404. */
+app.get('/api/season-players/:season/:slug', async (req, res) => {
+  const season = parseInt(req.params.season, 10);
+  const slug = req.params.slug;
+  if (isNaN(season) || !slug) {
+    res
+      .status(400)
+      .json({ success: false, error: 'season tai slug puuttuu/virheellinen' });
+    return;
+  }
+  try {
+    const doc = await admin
+      .firestore()
+      .collection('seasons')
+      .doc(String(season))
+      .collection('players')
+      .doc(slug)
+      .get();
+    if (!doc.exists) {
+      res.status(404).json({ success: false, error: 'Pelaajaa ei löytynyt' });
+      return;
+    }
+    res.set('Cache-Control', 'public, max-age=3600');
+    res.json({
+      success: true,
+      data: toSeasonPlayer(doc.id, doc.data()),
+      source: 'firestore',
+      timestamp: new Date().toISOString(),
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Tuntematon virhe';
+    console.error('[season-players/:slug] failed:', message);
+    res.status(500).json({ success: false, error: message });
   }
 });
 

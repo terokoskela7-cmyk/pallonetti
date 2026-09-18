@@ -28,48 +28,31 @@ import type {
 import { useApi } from '@/hooks/useApi';
 import {
   getYouthStatsAll,
-  getYouthAggregation,
-  getOfficialStats,
-  getPlayerSeason,
-  getPlayerFixtures,
+  getSeasonPlayers,
+  getPlayerRounds,
   filterReliableTeams,
-  buildU23Players,
   type YouthStats,
-  type U23Player,
-  type ApiFootballPlayerSeason,
-  type PlayerFixture,
+  type SeasonPlayer,
+  type PlayerRound,
 } from '@/services/api';
 import { InsightBar } from '@/components/InsightBar';
 import { InfoTooltip } from '@/components/InfoTooltip';
 
 const SEASON = 2026;
 
-type FilterId =
-  | 'minutes'
-  | 'goals'
-  | 'assists'
-  | 'youngest'
-  | 'u21'
-  | 'u19'
-  | 'u17';
+type FilterId = 'minutes' | 'goals' | 'youngest' | 'u21' | 'u19' | 'u18';
 
 const FILTERS: Array<{ id: FilterId; label: string }> = [
   { id: 'minutes', label: 'Eniten minuutteja' },
   { id: 'goals', label: 'Eniten maaleja' },
-  { id: 'assists', label: 'Eniten syöttöjä' },
   { id: 'youngest', label: 'Nuorin' },
   { id: 'u21', label: 'U21' },
   { id: 'u19', label: 'U19' },
-  { id: 'u17', label: 'U17' },
+  { id: 'u18', label: 'U18' },
 ];
 
-function slugify(name: string): string {
-  return name
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/[̀-ͯ]/g, '')
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '');
+function fullName(p: SeasonPlayer): string {
+  return `${p.etunimi} ${p.sukunimi}`.trim();
 }
 
 function shortenTeamName(name: string): string {
@@ -89,29 +72,22 @@ function calcU23Pct(teams: YouthStats[]): number {
   return totalMinutes > 0 ? (u23Minutes / totalMinutes) * 100 : 0;
 }
 
-function filterAndSort(players: U23Player[], filter: FilterId): U23Player[] {
-  let result = players;
+function filterAndSort(players: SeasonPlayer[], filter: FilterId): SeasonPlayer[] {
+  let result = players.filter((p) => p.minTotal > 0);
 
-  if (filter === 'u21') {
-    result = result.filter((p) => p.age <= 21);
-  } else if (filter === 'u19') {
-    result = result.filter((p) => p.age <= 19);
-  } else if (filter === 'u17') {
-    result = result.filter((p) => p.age <= 17);
-  }
+  if (filter === 'u21') result = result.filter((p) => p.ika <= 21);
+  else if (filter === 'u19') result = result.filter((p) => p.ika <= 19);
+  else if (filter === 'u18') result = result.filter((p) => p.ika <= 18);
 
   const sorted = [...result];
   if (filter === 'goals') {
-    sorted.sort((a, b) => b.goals - a.goals);
-  } else if (filter === 'assists') {
-    sorted.sort((a, b) => b.assists - a.assists);
+    sorted.sort((a, b) => b.maaliTotal - a.maaliTotal);
   } else if (filter === 'youngest') {
-    sorted.sort((a, b) => a.age - b.age);
+    sorted.sort((a, b) => a.ika - b.ika);
   } else {
-    // 'minutes' (default) and all U-suodattimet
-    sorted.sort((a, b) => b.minutes - a.minutes);
+    // 'minutes' (default) + U-suodattimet
+    sorted.sort((a, b) => b.minTotal - a.minTotal);
   }
-
   return sorted;
 }
 
@@ -217,7 +193,6 @@ function LoadingSkeleton() {
           <div key={i} className="h-24 bg-navy-700/30 rounded-lg" />
         ))}
       </div>
-      <div className="h-20 bg-navy-700/30 rounded-lg" />
       <div className="h-80 bg-navy-700/30 rounded-xl" />
     </div>
   );
@@ -263,118 +238,50 @@ function SectionHeader({ title, icon: Icon, hint }: SectionHeaderProps) {
   );
 }
 
-/** Pelaajan kehityskäyrä — käyttää oikeaa fixture-dataa (per-kierros)
- *  jos saatavilla, muuten putoaa takaisin estimaattiin
- *  (getPlayerSeason-datasta jaettuna tasaisesti). */
-interface PlayerProgressionPanelProps {
-  player: U23Player | null;
-  loading: boolean;
-  data: ApiFootballPlayerSeason[] | null;
-  fixtures: PlayerFixture[] | null;
-}
-
-interface FixtureTooltipData {
+interface RoundPoint {
   round: string;
-  minutes: number;
-  goals: number;
-  assists: number;
-  rating: number | null;
-  matchup: string;
-  score: string | null;
+  cumMin: number;
 }
 
-function FixtureTooltip({
-  active,
-  payload,
-}: TooltipProps<ValueType, NameType>) {
+function RoundTooltip({ active, payload }: TooltipProps<ValueType, NameType>) {
   if (!active || !payload || payload.length === 0) return null;
-  const d = payload[0].payload as FixtureTooltipData;
+  const d = payload[0].payload as RoundPoint;
   return (
-    <div className="bg-navy-800 border border-navy-600 rounded-md shadow-xl px-3 py-2 text-xs space-y-0.5">
+    <div className="bg-navy-800 border border-navy-600 rounded-md shadow-xl px-3 py-2 text-sm">
       <div className="text-white/90 font-medium">{d.round}</div>
-      <div className="text-white/60">
-        {d.matchup}
-        {d.score && (
-          <span className="text-white/90 font-mono ml-2">{d.score}</span>
-        )}
-      </div>
-      <div className="text-ice tabular pt-1">{d.minutes} min</div>
-      {(d.goals > 0 || d.assists > 0) && (
-        <div className="text-white/80">
-          {d.goals} M · {d.assists} S
-        </div>
-      )}
-      {d.rating !== null && (
-        <div className="text-aurora">Rating: {d.rating.toFixed(2)}</div>
-      )}
+      <div className="text-ice tabular">{d.cumMin} min (kum.)</div>
     </div>
   );
 }
 
+/** Kehityskäyrä valitulle pelaajalle — kumulatiiviset minuutit per kierros. */
 function PlayerProgressionPanel({
   player,
   loading,
-  data,
-  fixtures,
-}: PlayerProgressionPanelProps) {
-  // 1) Yritä oikealla fixture-datalla
-  const fixtureChartData: FixtureTooltipData[] | null = useMemo(() => {
-    if (!fixtures || fixtures.length === 0) return null;
-    return fixtures.map((f, i) => {
-      const roundNum = f.round.match(/(\d+)\s*$/)?.[1] ?? String(i + 1);
-      return {
-        round: `K${roundNum}`,
-        minutes: f.minutes,
-        goals: f.goals,
-        assists: f.assists,
-        rating: f.rating,
-        matchup: `${f.homeTeam} – ${f.awayTeam}`,
-        score: f.score,
-      };
-    });
-  }, [fixtures]);
-
-  // 2) Fallback-estimaatti getPlayerSeason-datasta
-  const stats =
-    data && data.length > 0
-      ? data[0].statistics.find((s) => s.league.id === 244) ??
-        data[0].statistics[0]
-      : null;
-  const appearances = stats?.games.appearences ?? 0;
-  const officialMin = player?.minutes ?? 0;
-  const apiMin = stats?.games.minutes ?? 0;
-  const totalMin = officialMin || apiMin;
-
-  const estimateData =
-    appearances > 0 && totalMin > 0
-      ? Array.from({ length: appearances }, (_, i) => ({
-          round: 'K' + (i + 1),
-          min: Math.round(totalMin / appearances) * (i + 1),
-        }))
-      : [];
+  rounds,
+}: {
+  player: SeasonPlayer | null;
+  loading: boolean;
+  rounds: PlayerRound[] | null;
+}) {
+  const chartData: RoundPoint[] = useMemo(
+    () =>
+      (rounds ?? []).map((r) => ({ round: `K${r.round}`, cumMin: r.cumMin })),
+    [rounds],
+  );
 
   return (
     <div className="lg:col-span-2 rounded-xl border border-dashed border-navy-600 bg-navy-700/30 p-6 flex flex-col">
-      <div className="text-[10px] uppercase tracking-wider text-white/40 mb-2 flex items-center justify-between gap-2">
-        <span>Kehityskäyrä</span>
-        {fixtureChartData && (
-          <span className="text-ice normal-case tracking-normal">
-            · oikea data ({fixtureChartData.length} ottelua)
-          </span>
-        )}
-        {!fixtureChartData && estimateData.length > 0 && (
-          <span className="text-white/30 normal-case tracking-normal">
-            · estimaatti
-          </span>
-        )}
+      <div className="text-[10px] uppercase tracking-wider text-white/40 mb-2">
+        Kehityskäyrä
       </div>
       <div className="text-base font-medium text-white/90 mb-1">
-        {player ? player.playerName : 'Valitse pelaaja taulukosta'}
+        {player ? fullName(player) : 'Valitse pelaaja taulukosta'}
       </div>
       {player && (
         <div className="text-xs text-white/50 mb-4">
-          {player.teamName} · {player.age} v · {player.minutes} min ·{' '}
-          {player.goals} M · {player.assists} S
+          {player.joukkue} · {player.ika} v · {player.minTotal} min ·{' '}
+          {player.maaliTotal} M
         </div>
       )}
 
@@ -390,13 +297,12 @@ function PlayerProgressionPanel({
           <Loader2 className="w-6 h-6 text-ice animate-spin" />
           <div className="text-sm text-white/50">Ladataan kierrosdataa…</div>
         </div>
-      ) : fixtureChartData && fixtureChartData.length > 0 ? (
-        // Oikea fixture-data — min per kierros 0–90
+      ) : chartData.length > 0 ? (
         <>
           <div style={{ width: '100%', height: 160 }}>
             <ResponsiveContainer width="100%" height="100%">
               <LineChart
-                data={fixtureChartData}
+                data={chartData}
                 margin={{ top: 8, right: 12, bottom: 8, left: 0 }}
               >
                 <CartesianGrid stroke="#1a2640" strokeDasharray="2 4" />
@@ -412,79 +318,35 @@ function PlayerProgressionPanel({
                   tick={{ fontSize: 10, fill: '#A5B4C8' }}
                   tickLine={false}
                   axisLine={false}
-                  domain={[0, 90]}
-                  ticks={[0, 30, 60, 90]}
+                  unit=" min"
                 />
                 <Tooltip
-                  content={<FixtureTooltip />}
+                  content={<RoundTooltip />}
                   cursor={{ stroke: '#00C8FF', strokeOpacity: 0.3 }}
                 />
                 <Line
                   type="monotone"
-                  dataKey="minutes"
+                  dataKey="cumMin"
                   stroke="#06b6d4"
                   strokeWidth={2}
                   dot={{ fill: '#06b6d4', r: 2.5 }}
                   activeDot={{ r: 5 }}
                   isAnimationActive={false}
-                  connectNulls
                 />
               </LineChart>
             </ResponsiveContainer>
           </div>
           <p className="text-[11px] text-white/40 mt-3 text-center">
-            Minuutit per kierros · {fixtureChartData.length} ottelua
+            Kumulatiiviset minuutit · {chartData.length} kierrosta
           </p>
         </>
-      ) : estimateData.length === 0 ? (
+      ) : (
         <div className="flex-1 flex flex-col items-center justify-center text-center space-y-2 py-10">
           <Info className="w-6 h-6 text-white/30" />
           <div className="text-sm text-white/50">
-            Ei vielä otteluita kaudelta.
+            Kierrosdataa ei vielä saatavilla.
           </div>
         </div>
-      ) : (
-        // Fallback-estimaatti
-        <>
-          <div style={{ width: '100%', height: 160 }}>
-            <ResponsiveContainer width="100%" height="100%">
-              <LineChart
-                data={estimateData}
-                margin={{ top: 8, right: 12, bottom: 8, left: 0 }}
-              >
-                <XAxis
-                  dataKey="round"
-                  stroke="#8899AA"
-                  tick={{ fontSize: 11, fill: '#A5B4C8' }}
-                  tickLine={false}
-                  axisLine={{ stroke: '#243350' }}
-                />
-                <YAxis hide />
-                <Tooltip
-                  contentStyle={{
-                    background: '#0F1D32',
-                    border: '1px solid #243350',
-                    borderRadius: 6,
-                    fontSize: 12,
-                  }}
-                  labelStyle={{ color: '#fff' }}
-                  formatter={(v: number) => [v + ' min', 'Kum. minuutit']}
-                />
-                <Line
-                  type="monotone"
-                  dataKey="min"
-                  stroke="#06b6d4"
-                  strokeWidth={2}
-                  dot={false}
-                  isAnimationActive={false}
-                />
-              </LineChart>
-            </ResponsiveContainer>
-          </div>
-          <p className="text-[11px] text-white/40 mt-3 text-center">
-            Estimoitu tasaisesti {appearances} ottelun yli
-          </p>
-        </>
       )}
     </div>
   );
@@ -492,48 +354,34 @@ function PlayerProgressionPanel({
 
 export default function PelaikaPage() {
   const navigate = useNavigate();
-  const [selectedPlayer, setSelectedPlayer] = useState<U23Player | null>(null);
+  const [selectedPlayer, setSelectedPlayer] = useState<SeasonPlayer | null>(null);
   const [activeFilter, setActiveFilter] = useState<FilterId>('minutes');
 
   const {
-    data: statsData,
-    loading: statsLoading,
-    error: statsError,
+    data: seasonPlayers,
+    loading: playersLoading,
+    error: playersError,
     refetch,
-  } = useApi(() => getYouthStatsAll(SEASON), [SEASON]);
+  } = useApi(() => getSeasonPlayers(SEASON), [SEASON]);
 
-  const { data: aggData, loading: aggLoading } = useApi(
-    () => getYouthAggregation(SEASON),
+  // Joukkuekaavio + InsightBar käyttävät edelleen youth-stats-dataa.
+  const { data: statsData, loading: statsLoading } = useApi(
+    () => getYouthStatsAll(SEASON),
     [SEASON],
   );
 
-  const { data: officialData, loading: officialLoading } = useApi(
-    () => getOfficialStats(SEASON),
-    [SEASON],
-  );
-
-  // Pelaajan kausi-detail kehityskäyrää varten. Triggeröityy automaattisesti
-  // kun selectedPlayer.playerId muuttuu (taulukon klikkaus).
-  const selectedPlayerId = selectedPlayer?.playerId;
-  const { data: playerSeasonData, loading: playerSeasonLoading } = useApi(
+  // Valitun pelaajan kierrosdata kehityskäyrää varten.
+  const selectedSlug = selectedPlayer?.slug;
+  const { data: playerRounds, loading: roundsLoading } = useApi(
     async () => {
-      if (!selectedPlayerId) return null;
-      return getPlayerSeason(selectedPlayerId, SEASON);
-    },
-    [selectedPlayerId, SEASON],
-  );
-
-  // Oikea kierroskohtainen fixture-data — jos saatavilla, ohittaa estimaatin.
-  const { data: playerFixtures, loading: playerFixturesLoading } = useApi(
-    async () => {
-      if (!selectedPlayerId) return null;
+      if (!selectedSlug) return null;
       try {
-        return await getPlayerFixtures(selectedPlayerId, SEASON);
+        return await getPlayerRounds(SEASON, selectedSlug);
       } catch {
         return null;
       }
     },
-    [selectedPlayerId, SEASON],
+    [selectedSlug, SEASON],
   );
 
   const veikkausliiga = useMemo(
@@ -541,56 +389,35 @@ export default function PelaikaPage() {
     [statsData],
   );
 
-  // YKSI yhdistetty U23-lista jota käytetään KAIKKIALLA tällä sivulla.
-  // Lähtee aina topYouthPlayers-listasta (varmistettu U23) ja rikastaa
-  // viralliset minuutit/maalit/syötöt sukunimi-matchilla.
-  const u23Players = useMemo(
-    () =>
-      buildU23Players(
-        aggData?.topYouthPlayers ?? [],
-        officialData?.data ?? [],
-      ),
-    [aggData, officialData],
+  const players = useMemo(() => seasonPlayers ?? [], [seasonPlayers]);
+  const withMinutes = useMemo(
+    () => players.filter((p) => p.minTotal > 0),
+    [players],
   );
-
   const filteredPlayers = useMemo(
-    () => filterAndSort(u23Players, activeFilter),
-    [u23Players, activeFilter],
+    () => filterAndSort(players, activeFilter),
+    [players, activeFilter],
   );
 
-  if (statsLoading || aggLoading || officialLoading) return <LoadingSkeleton />;
-  if (statsError || !statsData) {
+  if (playersLoading || statsLoading) return <LoadingSkeleton />;
+  if (playersError || !seasonPlayers) {
     return (
       <ErrorState
-        message={statsError ?? 'Tuntematon virhe'}
+        message={playersError ?? 'Tuntematon virhe'}
         onRetry={refetch}
       />
     );
   }
 
   const vPct = calcU23Pct(veikkausliiga);
-
-  // Eniten minuutteja: u23Players sortattuna minuuttien mukaan → #1.
-  // Tämä takaa että top-pelaaja on TODELLA U23 (ei esim. Kreidl).
-  const topByMinutes = [...u23Players].sort((a, b) => b.minutes - a.minutes)[0];
-
-  // Nuorin debyyttipisteet: pienin ikä u23Players-listasta.
-  const youngest = u23Players.length
-    ? u23Players.reduce((a, b) => (a.age <= b.age ? a : b))
+  const topByMinutes =
+    [...withMinutes].sort((a, b) => b.minTotal - a.minTotal)[0] ?? null;
+  const youngest = withMinutes.length
+    ? withMinutes.reduce((a, b) => (a.ika <= b.ika ? a : b))
     : null;
-
   const teamsOver25 = veikkausliiga.filter(
     (t) => t.youthPercentageU23 >= 25,
   ).length;
-
-  // U23-pelaajamäärä KPI-korttiin: ensisijaisesti YouthStats team-breakdown
-  // (oikea ei-katkaistu luku, ei rajoitu topYouthPlayers:n 20:n cap:iin).
-  // Jos joskus official-datasta saadaan ikä, käytetään sitä tarkennuksena.
-  const u23Count = veikkausliiga.reduce((s, t) => s + t.youthPlayersU23, 0);
-  const officialU23 =
-    officialData?.data?.filter((p) => p.age !== undefined && p.age <= 23) ?? [];
-  const u23CountDisplay = officialU23.length > 0 ? officialU23.length : u23Count;
-  const totalPlayers = officialData?.data?.length ?? 0;
 
   return (
     <div className="px-6 py-10 md:py-14 space-y-8">
@@ -612,71 +439,71 @@ export default function PelaikaPage() {
         </div>
       </header>
 
-      {/* 1. KPI-kortit (5 kpl). Kaikki KPI:t U23-numerot (Eniten minuutteja)
-          tulevat YHDISTETYSTÄ u23Players-listasta — siksi esim. Johannes
-          Kreidl ei näy täällä vaikka hän on Veikkausliigan minuuttijohtaja. */}
+      {/* KPI-kortit */}
       <section className="grid grid-cols-2 lg:grid-cols-5 gap-3">
         <KpiCard
           label="U23 peliaika-%"
           value={`${vPct.toFixed(1)} %`}
           accent="aurora"
-          info="Veikkausliigan kaikista peliminuuteista alle 23-vuotiaiden osuus. Painotettu summa joukkueiden kesken (API-Football). Sulkee pois joukkueet joilla totalMinutes < 1000 (datavaje)."
+          info="Veikkausliigan kaikista peliminuuteista alle 23-vuotiaiden osuus (API-Football, datavaje-suodatettu)."
         />
         <KpiCard
-          label="U23 pelaajia"
-          value={`${u23CountDisplay} / ${totalPlayers}`}
-          hint="Veikkausliigassa"
+          label="Pelaajia peliajalla"
+          value={`${withMinutes.length} / ${players.length}`}
+          hint="peliaikaa saaneet"
           accent="ice"
-          info="Alle 23-vuotiaat peliaikaa saaneet pelaajat / kaikki Veikkausliigan pelaajat. U23-summa lasketaan joukkueiden YouthStats-erittelyistä (oikea ei-katkaistu luku, ei rajoitu Top-20:een)."
+          info="Pelaajat joilla on vähintään yksi pelattu minuutti / kaikki tuodut pelaajat (Firestore-data)."
         />
         <KpiCard
-          label="Eniten minuutteja (U23)"
-          value={topByMinutes ? String(topByMinutes.minutes) : '—'}
+          label="Eniten minuutteja"
+          value={topByMinutes ? String(topByMinutes.minTotal) : '—'}
           hint={
             topByMinutes
-              ? `${topByMinutes.playerName} · ${topByMinutes.teamName}`
+              ? `${fullName(topByMinutes)} · ${topByMinutes.joukkue}`
               : undefined
           }
           accent="ice"
-          info="U23-pelaaja jolla eniten pelattuja minuutteja. Yhdistää API-Footballin (varmistettu U23) ja Veikkausliiga.com:n viralliset minuutit sukunimi-matchilla."
+          info="Pelaaja jolla eniten pelattuja minuutteja tällä kaudella."
         />
         <KpiCard
-          label="Nuorin debyyttipisteet"
-          value={youngest ? `${youngest.age} v` : '—'}
-          hint={youngest ? `${youngest.playerName} · ${youngest.teamName}` : undefined}
-          info="Nuorin pelaaja joka on saanut peliaikaa tällä kaudella. Lasketaan U23-pelaajien (topYouthPlayers) listasta — pelaajat joilla on ikätieto API-Footballissa ja jotka ovat saaneet minuutteja."
+          label="Nuorin"
+          value={youngest ? `${youngest.ika} v` : '—'}
+          hint={youngest ? `${fullName(youngest)} · ${youngest.joukkue}` : undefined}
+          info="Nuorin peliaikaa saanut pelaaja."
         />
         <KpiCard
           label="Joukkueet ≥ 25 %"
           value={`${teamsOver25} / ${veikkausliiga.length}`}
-          info="Joukkueet joiden U23-peliaikaosuus on vähintään 25 % / kaikki Veikkausliigan joukkueet (datavaje-suodatuksen jälkeen). Korkea arvo = liiga antaa laajasti peliaikaa nuorille."
+          info="Joukkueet joiden U23-peliaikaosuus on vähintään 25 % / kaikki (datavaje-suodatettu)."
         />
       </section>
 
-      {/* 2. Joukkuekaavio — täysleveys */}
-      <section className="bg-navy-700/40 border border-navy-600 rounded-lg p-5">
-        <SectionHeader
-          title="U23 peliaika joukkueittain"
-          hint={`${veikkausliiga.length} joukkuetta`}
-        />
-        <TeamBarChart teams={veikkausliiga} />
-        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-4 text-xs text-white/40">
-          <span className="flex items-center gap-1.5">
-            <span className="w-2 h-2 rounded bg-[#22c55e]" /> ≥ 40 %
-          </span>
-          <span className="flex items-center gap-1.5">
-            <span className="w-2 h-2 rounded bg-[#eab308]" /> 25–40 %
-          </span>
-          <span className="flex items-center gap-1.5">
-            <span className="w-2 h-2 rounded bg-[#f97316]" /> 15–25 %
-          </span>
-          <span className="flex items-center gap-1.5">
-            <span className="w-2 h-2 rounded bg-[#ef4444]" /> &lt; 15 %
-          </span>
-        </div>
-      </section>
+      {/* Joukkuekaavio */}
+      {veikkausliiga.length > 0 && (
+        <section className="bg-navy-700/40 border border-navy-600 rounded-lg p-5">
+          <SectionHeader
+            title="U23 peliaika joukkueittain"
+            hint={`${veikkausliiga.length} joukkuetta`}
+          />
+          <TeamBarChart teams={veikkausliiga} />
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-4 text-xs text-white/40">
+            <span className="flex items-center gap-1.5">
+              <span className="w-2 h-2 rounded bg-[#22c55e]" /> ≥ 40 %
+            </span>
+            <span className="flex items-center gap-1.5">
+              <span className="w-2 h-2 rounded bg-[#eab308]" /> 25–40 %
+            </span>
+            <span className="flex items-center gap-1.5">
+              <span className="w-2 h-2 rounded bg-[#f97316]" /> 15–25 %
+            </span>
+            <span className="flex items-center gap-1.5">
+              <span className="w-2 h-2 rounded bg-[#ef4444]" /> &lt; 15 %
+            </span>
+          </div>
+        </section>
+      )}
 
-      {/* 3 + 4. Taulukko vasemmalla, kehityskäyrä oikealla */}
+      {/* Taulukko + kehityskäyrä */}
       <section className="grid grid-cols-1 lg:grid-cols-5 gap-4">
         <div className="lg:col-span-3 bg-navy-700/40 border border-navy-600 rounded-lg p-5">
           <SectionHeader
@@ -684,7 +511,6 @@ export default function PelaikaPage() {
             hint={`${filteredPlayers.length} pelaajaa`}
           />
 
-          {/* Filtteri-/sorttauspilarit */}
           <div className="flex flex-wrap gap-1.5 mb-4">
             {FILTERS.map((f) => {
               const active = activeFilter === f.id;
@@ -718,23 +544,18 @@ export default function PelaikaPage() {
                     <th className="py-2 pr-3">Joukkue</th>
                     <th className="py-2 pr-3 text-right">Min</th>
                     <th className="py-2 pr-3 text-right">M</th>
-                    <th className="py-2 pr-3 text-right">S</th>
-                    <th className="py-2 pr-3 text-right">Rating</th>
+                    <th className="py-2 pr-3 text-right">O</th>
                     <th className="py-2 pl-3 w-8" aria-label="Avaa pelaaja" />
                   </tr>
                 </thead>
                 <tbody>
                   {filteredPlayers.map((p, i) => {
-                    const isSelected =
-                      selectedPlayer?.playerName === p.playerName &&
-                      selectedPlayer?.teamName === p.teamName;
+                    const isSelected = selectedPlayer?.slug === p.slug;
                     return (
                       <tr
-                        key={`${p.playerName}-${p.teamName}-${i}`}
+                        key={p.slug}
                         onClick={() => setSelectedPlayer(p)}
-                        onDoubleClick={() =>
-                          navigate(`/pelaaja/${slugify(p.playerName)}`)
-                        }
+                        onDoubleClick={() => navigate(`/pelaaja/${p.slug}`)}
                         className={`border-b border-navy-700 cursor-pointer transition-colors ${
                           isSelected ? 'bg-ice/10' : 'hover:bg-navy-700/60'
                         }`}
@@ -743,32 +564,29 @@ export default function PelaikaPage() {
                           {i + 1}
                         </td>
                         <td className="py-2 pr-3 font-medium text-white/95">
-                          <span>{p.playerName}</span>
+                          <span>{fullName(p)}</span>
                           <span className="ml-2 text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded bg-ice/15 text-ice font-medium">
-                            {p.age} v
+                            {p.ika} v
                           </span>
                         </td>
-                        <td className="py-2 pr-3 text-white/60">{p.teamName}</td>
+                        <td className="py-2 pr-3 text-white/60">{p.joukkue}</td>
                         <td className="py-2 pr-3 text-right text-ice font-mono tabular">
-                          {p.minutes}
+                          {p.minTotal}
                         </td>
                         <td className="py-2 pr-3 text-right text-white/90 font-mono tabular">
-                          {p.goals}
+                          {p.maaliTotal}
                         </td>
                         <td className="py-2 pr-3 text-right text-white/90 font-mono tabular">
-                          {p.assists}
-                        </td>
-                        <td className="py-2 pr-3 text-right text-aurora font-mono tabular">
-                          {p.rating?.toFixed(1) ?? '—'}
+                          {p.ottelutTotal}
                         </td>
                         <td className="py-2 pl-3 text-right">
                           <button
                             onClick={(e) => {
                               e.stopPropagation();
-                              navigate(`/pelaaja/${slugify(p.playerName)}`);
+                              navigate(`/pelaaja/${p.slug}`);
                             }}
                             className="text-ice/70 hover:text-ice transition-colors"
-                            aria-label={`Avaa ${p.playerName}`}
+                            aria-label={`Avaa ${fullName(p)}`}
                           >
                             <ArrowUpRight className="w-4 h-4" />
                           </button>
@@ -788,29 +606,29 @@ export default function PelaikaPage() {
 
         <PlayerProgressionPanel
           player={selectedPlayer}
-          loading={playerSeasonLoading || playerFixturesLoading}
-          data={playerSeasonData}
-          fixtures={playerFixtures}
+          loading={roundsLoading}
+          rounds={playerRounds}
         />
       </section>
 
-      {/* 5. InsightBar lopussa */}
-      <section>
-        <InsightBar teams={veikkausliiga} />
-      </section>
+      {/* InsightBar */}
+      {veikkausliiga.length > 0 && (
+        <section>
+          <InsightBar teams={veikkausliiga} />
+        </section>
+      )}
 
       <footer className="border-t border-navy-700 pt-5 text-xs text-white/40 flex flex-wrap items-center gap-x-4 gap-y-1">
         <span>Veikkausliiga {SEASON}</span>
         <span className="w-px h-3 bg-white/20" />
         <span>
-          <span className="text-white/70 tabular">{veikkausliiga.length}</span>{' '}
-          joukkuetta
+          <span className="text-white/70 tabular">{players.length}</span>{' '}
+          pelaajaa
         </span>
         <span className="w-px h-3 bg-white/20" />
         <span>
-          Lähteet:{' '}
-          <span className="text-white/60">API-Football</span> ·{' '}
-          <span className="text-white/60">Veikkausliiga.com</span>
+          Lähteet: <span className="text-white/60">Veikkausliiga.com</span> ·{' '}
+          <span className="text-white/60">API-Football</span>
         </span>
       </footer>
     </div>

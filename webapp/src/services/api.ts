@@ -569,3 +569,72 @@ export const getCacheStats = (): Promise<{
   bySource: Record<string, number>;
   expiredEntries: number;
 }> => fetchApi('/admin/cache-stats');
+
+// ============================================
+// SEASON PLAYERS (Firestore Excel-import data — Vaihe B)
+// Lähde: seasons/{season}/players ja rounds/*/players.
+// ============================================
+export interface SeasonPlayer {
+  slug: string;
+  etunimi: string;
+  sukunimi: string;
+  ika: number;
+  joukkue: string;
+  minTotal: number;
+  ottelutTotal: number;
+  aloituksetTotal: number;
+  maaliTotal: number;
+  lastUpdatedRound: number;
+}
+
+export interface PlayerRound {
+  round: number;
+  cumMin: number;
+  cumMaalit: number;
+  cumOttelut: number;
+}
+
+/** Kaikki kauden pelaajat (seasons/{season}/players/*). */
+export const getSeasonPlayers = (season: number): Promise<SeasonPlayer[]> =>
+  fetchApi(`/season-players/${season}`);
+
+/** Yksittäinen pelaaja — null jos 404 (fetchApi heittäisi, joten oma fetch). */
+export async function getSeasonPlayer(
+  season: number,
+  slug: string,
+): Promise<SeasonPlayer | null> {
+  const url = `${API_BASE_URL}/season-players/${season}/${encodeURIComponent(slug)}`;
+  const response = await fetch(url, {
+    headers: { 'Content-Type': 'application/json' },
+  });
+  if (response.status === 404) return null;
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({}));
+    throw new Error(error.error || `API error: ${response.status}`);
+  }
+  const result = (await response.json()) as {
+    success: boolean;
+    data: SeasonPlayer;
+  };
+  if (!result.success) throw new Error('API returned unsuccessful response');
+  return result.data;
+}
+
+/** Pelaajan kierrosdata (kehityskäyrä) — kumulatiiviset arvot per kierros. */
+export const getPlayerRounds = (
+  season: number,
+  slug: string,
+): Promise<PlayerRound[]> =>
+  fetchApi(`/season-players/${season}/${encodeURIComponent(slug)}/rounds`);
+
+/** Sama slug-logiikka kuin backendin toSlug() (excelImport.ts). */
+export function toSlug(etu: string, suku: string): string {
+  return `${etu}-${suku}`
+    .toLowerCase()
+    .replace(/ä/g, 'a')
+    .replace(/ö/g, 'o')
+    .replace(/å/g, 'a')
+    .replace(/[^a-z0-9-]/g, '-')
+    .replace(/-+/g, '-')
+    .trim();
+}

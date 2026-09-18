@@ -22,6 +22,7 @@ import {
   scrapeAllU23Players,
   getAllIndexEntries,
 } from './scrapers/transfermarkt';
+import { debugSofascore } from './scrapers/sofascore';
 
 // Region: kaikki funktiot deployataan europe-west1:een (sama kuin TalentMaster-sisarprojekti)
 const REGION = 'europe-west1';
@@ -34,7 +35,7 @@ if (!admin.apps.length) {
 // API_VERSION: muuta tätä joka deployssa, jotta Firebase tunnistaa muutoksen.
 // RAPIDAPI_KEY-tarkistus on siirretty footballApi-luokan request-interceptoriin,
 // koska module-load-aikana process.env ei välttämättä ole vielä asetettu.
-const API_VERSION = '1.6.1'; // fix: topYouthPlayers-epävakaus (cache poisoning + clearType + ID-join)
+const API_VERSION = '1.7.0'; // feat: Sofascore-diagnostiikka (GET /api/debug/sofascore)
 
 // ============================================
 // Express API App
@@ -1149,6 +1150,38 @@ app.get('/api/transfermarkt/league/:season', async (req, res) => {
     const message = error instanceof Error ? error.message : 'Tuntematon virhe';
     console.error('[tm/league] failed:', message);
     return res.status(500).json({ success: false, error: message });
+  }
+});
+
+// ============================================
+// DEBUG / DIAGNOSTIIKKA
+// ============================================
+
+/** GET /api/debug/sofascore?name=Otto+Ruoppi — admin: testaa toimiiko
+ *  Sofascore-haku Cloud Functions -ympäristöstä. Hakee pelaajan ID:n
+ *  nimellä ja per-ottelu tilastot, palauttaa raakadatan tai virheviestin
+ *  per vaihe. Ei cachea — aina live-kutsu diagnostiikkaa varten. */
+app.get('/api/debug/sofascore', requireAdminKey, async (req, res) => {
+  const name = String(req.query.name ?? '').trim();
+  if (!name) {
+    res.status(400).json({
+      success: false,
+      error: 'name-query puuttuu (esim. ?name=Otto+Ruoppi)',
+    });
+    return;
+  }
+  try {
+    const result = await debugSofascore(name);
+    res.status(result.ok ? 200 : 502).json({
+      success: result.ok,
+      data: result,
+      source: 'sofascore.com',
+      timestamp: new Date().toISOString(),
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Tuntematon virhe';
+    console.error('[debug/sofascore] failed:', message);
+    res.status(500).json({ success: false, error: message });
   }
 });
 

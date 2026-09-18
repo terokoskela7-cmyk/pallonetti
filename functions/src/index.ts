@@ -6,6 +6,7 @@ import * as functions from 'firebase-functions';
 import * as admin from 'firebase-admin';
 import express, { Request, Response, NextFunction } from 'express';
 import cors from 'cors';
+import Busboy from 'busboy';
 import { dataAggregator } from './services/dataAggregator';
 import { cacheService } from './services/cacheService';
 import { footballApi } from './api/footballApi';
@@ -23,6 +24,7 @@ import {
   getAllIndexEntries,
 } from './scrapers/transfermarkt';
 import { debugSofascore } from './scrapers/sofascore';
+import { parseExcelBuffer, writeRoundData } from './services/excelImport';
 
 // Region: kaikki funktiot deployataan europe-west1:een (sama kuin TalentMaster-sisarprojekti)
 const REGION = 'europe-west1';
@@ -35,7 +37,7 @@ if (!admin.apps.length) {
 // API_VERSION: muuta tätä joka deployssa, jotta Firebase tunnistaa muutoksen.
 // RAPIDAPI_KEY-tarkistus on siirretty footballApi-luokan request-interceptoriin,
 // koska module-load-aikana process.env ei välttämättä ole vielä asetettu.
-const API_VERSION = '1.7.0'; // feat: Sofascore-diagnostiikka (GET /api/debug/sofascore)
+const API_VERSION = '1.8.0'; // feat: Excel-import pipeline (POST /api/admin/import-excel)
 
 // ============================================
 // Express API App
@@ -1181,6 +1183,103 @@ app.get('/api/debug/sofascore', requireAdminKey, async (req, res) => {
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Tuntematon virhe';
     console.error('[debug/sofascore] failed:', message);
+    res.status(500).json({ success: false, error: message });
+  }
+});
+
+// ============================================
+// EXCEL-IMPORT (Veikkausliiga kumulatiivinen data)
+// ============================================
+
+/** POST /api/admin/import-excel — admin: tuo .xlsx (multipart/form-data).
+ *  Kentät: file (.xlsx), round (1–27). Parsii + aggregoi sarjan vaiheet ja
+ *  kirjoittaa Firestoreen (seasons/2026/players + seasons/2026/rounds/{round}).
+ *  Idempotentti — saman kierroksen uudelleenajo ylikirjoittaa. */
+app.post('/api/admin/import-excel', requireAdminKey, async (req, res) => {
+  // Cloud Functions on jo lukenut request-bodyn → busboy syötetään
+  // req.rawBody-Bufferista (raakastreamiä ei enää voi lukea).
+  const rawBody = (req as unknown as { rawBody?: Buffer }).rawBody;
+  if (!rawBody) {
+    res.status(400).json({
+      success: false,
+      error: 'rawBody puuttuu — odotettiin multipart/form-data -pyyntöä',
+    });
+    return;
+  }
+
+  let bb: ReturnType<typeof Busboy>;
+  try {
+    bb = Busboy({ headers: req.headers });
+  } catch {
+    res
+      .status(400)
+      .json({ success: false, error: 'Virheellinen multipart/form-data' });
+    return;
+  }
+
+  const fields: Record<string, string> = {};
+  const chunks: Buffer[] = [];
+  let fileBuffer: Buffer | null = null;
+  let fileName = '';
+
+  bb.on('field', (name, val) => {
+    fields[name] = val;
+  });
+  bb.on('file', (_name, stream, info) => {
+    fileName = info.filename ?? '';
+    stream.on('data', (d: Buffer) => chunks.push(d));
+    stream.on('end', () => {
+      fileBuffer = Buffer.concat(chunks);
+    });
+  });
+
+  // busboy v1 emittoi 'close' kun kaikki kentät+tiedostot on käsitelty.
+  // 'finish' kuunnellaan varmuuden vuoksi (vanhemmat versiot).
+  await new Promise<void>((resolve, reject) => {
+    bb.on('close', resolve);
+    bb.on('finish', resolve);
+    bb.on('error', reject);
+    bb.end(rawBody);
+  }).catch((err) => {
+    console.error('[import-excel] busboy error:', err);
+  });
+
+  // Validoi round (1–27)
+  const round = parseInt(String(fields.round ?? ''), 10);
+  if (isNaN(round) || round < 1 || round > 27) {
+    res.status(400).json({
+      success: false,
+      error: 'round puuttuu tai on virheellinen (sallittu 1–27)',
+    });
+    return;
+  }
+
+  // Validoi tiedosto (.xlsx)
+  if (!fileBuffer || !fileName.toLowerCase().endsWith('.xlsx')) {
+    res.status(400).json({
+      success: false,
+      error: 'Tiedosto puuttuu tai ei ole .xlsx-muotoinen',
+    });
+    return;
+  }
+
+  try {
+    const aggMap = parseExcelBuffer(fileBuffer);
+    const players = Array.from(aggMap.values());
+    const { imported, players: summary } = await writeRoundData(
+      2026,
+      round,
+      players,
+    );
+    res.json({
+      success: true,
+      round,
+      imported,
+      players: summary,
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Tuntematon virhe';
+    console.error('[import-excel] failed:', message);
     res.status(500).json({ success: false, error: message });
   }
 });

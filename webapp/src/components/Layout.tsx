@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import type { ReactNode } from 'react';
 import { Link, NavLink } from 'react-router-dom';
 import { Menu, X } from 'lucide-react';
@@ -33,6 +33,20 @@ export function Layout({ children }: LayoutProps) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const closeMobile = () => setMobileOpen(false);
 
+  // Admin-linkki näkyy vain kun URL sisältää ?admin=true (tallennetaan
+  // localStorageen jotta se säilyy navigoinnin yli). Ei näy normaalikäyttäjille.
+  const [showAdmin, setShowAdmin] = useState(false);
+  useEffect(() => {
+    const fromQuery =
+      new URLSearchParams(window.location.search).get('admin') === 'true';
+    if (fromQuery) localStorage.setItem('pn_admin', 'true');
+    setShowAdmin(fromQuery || localStorage.getItem('pn_admin') === 'true');
+  }, []);
+
+  const links = showAdmin
+    ? [...navLinks, { to: '/admin', label: 'admin' }]
+    : navLinks;
+
   return (
     <div className="min-h-screen flex flex-col">
       <header className="border-b border-navy-700 relative z-30">
@@ -53,7 +67,7 @@ export function Layout({ children }: LayoutProps) {
 
           {/* Desktop nav */}
           <nav className="hidden md:flex items-center gap-1 text-sm">
-            {navLinks.map((link) => (
+            {links.map((link) => (
               <NavLink
                 key={link.to}
                 to={link.to}
@@ -121,7 +135,7 @@ export function Layout({ children }: LayoutProps) {
           </button>
         </div>
         <nav className="flex flex-col p-3 gap-1">
-          {navLinks.map((link) => (
+          {links.map((link) => (
             <NavLink
               key={link.to}
               to={link.to}

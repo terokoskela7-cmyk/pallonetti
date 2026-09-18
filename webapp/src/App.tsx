@@ -6,6 +6,7 @@ import NuoretPage from '@/pages/NuoretPage';
 import PelaajatPage from '@/pages/PelaajatPage';
 import PelaajaPage from '@/pages/PelaajaPage';
 import AboutPage from '@/pages/AboutPage';
+import AdminPage from '@/pages/AdminPage';
 
 export default function App() {
   return (
@@ -17,6 +18,7 @@ export default function App() {
         <Route path="/peliaika" element={<PelaikaPage />} />
         <Route path="/pelaaja/:slug" element={<PelaajaPage />} />
         <Route path="/about" element={<AboutPage />} />
+        <Route path="/admin" element={<AdminPage />} />
       </Routes>
     </Layout>
   );

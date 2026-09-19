@@ -30,6 +30,7 @@ import {
   laskeKaudenPelaajat,
   laskeJoukkueet,
   laskeLiigaYhteenveto,
+  laskeTopPelaajat,
   paatteleIkahaarukka,
 } from './services/kausiData';
 import { parseExcelBuffer, writeRoundData } from './services/excelImport';
@@ -573,10 +574,33 @@ app.get('/api/youth-aggregation/:season', async (req, res) => {
   try {
     const { suoritukset, nimittajat } = await lueKausi(admin.firestore(), season);
     const yhteenveto = laskeLiigaYhteenveto(season, suoritukset, nimittajat);
+    const teamBreakdown = laskeJoukkueidenOsuudet(
+      season,
+      suoritukset,
+      nimittajat,
+      new Date().toISOString(),
+    );
     res.set('Cache-Control', 'public, max-age=3600');
     res.json({
       success: true,
-      data: yhteenveto,
+      // Sailytetaan YouthAggregation-sopimus: etusivu lukee topYouthPlayers-
+      // ja teamBreakdown-kentat. U23-kentat jatetaan pois, koska lahde on
+      // suodatettu 17-21-vuotiaisiin — ks. ikahaarukka.
+      data: {
+        season,
+        league: 'Veikkausliiga',
+        totalPlayersAnalyzed: yhteenveto.pelaajia,
+        youthPlayersU21: yhteenveto.pelaajia,
+        totalMinutesPlayed: yhteenveto.kapasiteettiMinuutit,
+        youthMinutesU21: yhteenveto.nuortenMinuutit,
+        youthPercentageU21: yhteenveto.nuortenOsuus,
+        youthPercentageU21Runkosarja: yhteenveto.nuortenOsuusRunkosarja,
+        teamBreakdown,
+        topYouthPlayers: laskeTopPelaajat(season, suoritukset, 20),
+        vaiheet: yhteenveto.vaiheet,
+        ikahaarukka: yhteenveto.ikahaarukka,
+        updatedAt: new Date().toISOString(),
+      },
       dataSaatavilla: nimittajat.length > 0,
       source: 'kausituonti',
       timestamp: new Date().toISOString(),

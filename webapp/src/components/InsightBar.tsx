@@ -20,13 +20,14 @@ interface Insight {
 function computeInsights(teams: YouthStats[]): Insight[] {
   if (teams.length === 0) return [];
 
-  const topU23 = [...teams].sort(
-    (a, b) => b.youthPercentageU23 - a.youthPercentageU23,
+  // Lähde on suodatettu 17–21-vuotiaisiin, joten luvut ovat U21.
+  const topU21 = [...teams].sort(
+    (a, b) => b.youthPercentageU21 - a.youthPercentageU21,
   )[0];
 
   const totalMin = teams.reduce((s, t) => s + t.totalMinutes, 0);
-  const u23Min = teams.reduce((s, t) => s + t.youthMinutesU23, 0);
-  const leagueAvg = totalMin > 0 ? (u23Min / totalMin) * 100 : 0;
+  const u21Min = teams.reduce((s, t) => s + t.youthMinutesU21, 0);
+  const leagueAvg = totalMin > 0 ? (u21Min / totalMin) * 100 : 0;
   const diff = leagueAvg - PREV_SEASON_AVG;
   const trendUp = diff >= 0;
 
@@ -43,8 +44,8 @@ function computeInsights(teams: YouthStats[]): Insight[] {
     {
       icon: Star,
       label: 'Eniten peliaikaa nuorille',
-      title: topU23.teamName,
-      body: `Antaa eniten peliaikaa nuorille — ${topU23.youthPercentageU23.toFixed(1)} % kaikista peliminuuteista menee alle 23-vuotiaille.`,
+      title: topU21.teamName,
+      body: `Antaa eniten peliaikaa nuorille — ${topU21.youthPercentageU21.toFixed(1)} % joukkueen peliminuuteista menee alle 21-vuotiaille.`,
     },
     {
       icon: trendUp ? TrendingUp : TrendingDown,

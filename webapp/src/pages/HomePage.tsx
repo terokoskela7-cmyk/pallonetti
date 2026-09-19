@@ -84,16 +84,25 @@ function GuideCard({ to, icon: Icon, title, body }: GuideCardProps) {
 // ============================================================
 // Apulaskennat
 // ============================================================
-function calcU21Pct(teams: YouthStats[]): number {
+function calcU21Pct(teams: YouthStats[]): number | null {
+  if (teams.length === 0) return null;
   const total = teams.reduce((s, t) => s + t.totalMinutes, 0);
   const u21 = teams.reduce((s, t) => s + t.youthMinutesU21, 0);
-  return total > 0 ? (u21 / total) * 100 : 0;
+  return total > 0 ? (u21 / total) * 100 : null;
 }
 
-function calcU23Pct(teams: YouthStats[]): number {
+/**
+ * U23-osuus, tai null jos lähde ei sisällä 22–23-vuotiaita. Nykyinen lähde
+ * (Veikkausliigan vienti) on suodatettu 17–21-vuotiaisiin, joten U23-lukua
+ * ei ole — sitä ei saa esittää nollana eikä U21:n arvona. Palaa käyttöön
+ * sellaisenaan jos vienti tehdään haarukalla 17–23.
+ */
+function calcU23Pct(teams: YouthStats[]): number | null {
+  if (teams.length === 0) return null;
+  if (teams.some((t) => t.youthMinutesU23 === undefined)) return null;
   const total = teams.reduce((s, t) => s + t.totalMinutes, 0);
-  const u23 = teams.reduce((s, t) => s + t.youthMinutesU23, 0);
-  return total > 0 ? (u23 / total) * 100 : 0;
+  const u23 = teams.reduce((s, t) => s + (t.youthMinutesU23 ?? 0), 0);
+  return total > 0 ? (u23 / total) * 100 : null;
 }
 
 function formatRelativeTime(iso: string): string {
@@ -375,10 +384,15 @@ export default function HomePage() {
 
   // Laskelmat ikäryhmän mukaan
   const pct = isU21 ? calcU21Pct(veikkausliiga) : calcU23Pct(veikkausliiga);
-  const count = isU21
+  // null = ei dataa. U23-kentät puuttuvat nykyisestä lähteestä.
+  const count: number | null = veikkausliiga.length === 0
+    ? null
+    : isU21
     ? veikkausliiga.reduce((s, t) => s + t.youthPlayersU21, 0)
-    : veikkausliiga.reduce((s, t) => s + t.youthPlayersU23, 0);
-  const missing = isU21 ? Math.max(0, U21_PLAYER_TARGET - count) : 0;
+    : veikkausliiga.some((t) => t.youthPlayersU23 === undefined)
+      ? null
+      : veikkausliiga.reduce((s, t) => s + (t.youthPlayersU23 ?? 0), 0);
+  const missing = isU21 && count !== null ? Math.max(0, U21_PLAYER_TARGET - count) : 0;
   const players = isU21 ? u21Players : u23Players;
   const topPlayer = players[0] ?? null;
 
@@ -388,7 +402,7 @@ export default function HomePage() {
     return mv !== null && mv <= MAX_REASONABLE_MV ? sum + mv : sum;
   }, 0);
 
-  const pctVsTarget = isU21 ? pct - CIES_TARGET_PCT : 0;
+  const pctVsTarget = isU21 && pct !== null ? pct - CIES_TARGET_PCT : 0;
 
   return (
     <div className="px-6 py-10 md:py-16 space-y-14">
@@ -414,7 +428,7 @@ export default function HomePage() {
             to="/peliaika"
             icon={BarChart3}
             title="Analyysi"
-            body="Joukkueiden U23-%-kaaviot, pelaajataulukko filttereillä ja kehityskäyrät. Syväsukellus dataan."
+            body="Joukkueiden U21-%-kaaviot, pelaajataulukko filttereillä ja kehityskäyrät. Syväsukellus dataan."
           />
           <GuideCard
             to="/nuoret"
@@ -477,10 +491,10 @@ export default function HomePage() {
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
           <KpiCard
             label={`${ageGroup.toUpperCase()} peliaika-%`}
-            value={`${pct.toFixed(1)} %`}
+            value={pct === null ? 'ei dataa' : `${pct.toFixed(1)} %`}
             accent="aurora"
             compare={
-              isU21
+              isU21 && pct !== null
                 ? {
                     tone: pctVsTarget >= 0 ? 'aurora' : 'red',
                     text:
@@ -493,14 +507,15 @@ export default function HomePage() {
           />
           <KpiCard
             label={`${ageGroup.toUpperCase()} pelaajia`}
-            value={String(count)}
+            value={count === null ? 'ei dataa' : String(count)}
             accent="ice"
             compare={
-              isU21 && missing > 0
-                ? { tone: 'red', text: `${missing} vajaa tavoitteesta ${U21_PLAYER_TARGET}` }
-                : isU21
-                  ? { tone: 'aurora', text: `tavoite ${U21_PLAYER_TARGET} saavutettu` }
-                  : undefined
+              // Ilman dataa ei voi vaittaa tavoitetta saavutetuksi.
+              !isU21 || count === null
+                ? undefined
+                : missing > 0
+                  ? { tone: 'red', text: `${missing} vajaa tavoitteesta ${U21_PLAYER_TARGET}` }
+                  : { tone: 'aurora', text: `tavoite ${U21_PLAYER_TARGET} saavutettu` }
             }
           />
           <KpiCard

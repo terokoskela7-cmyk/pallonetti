@@ -297,6 +297,59 @@ export function laskeKaudenPelaajat(suoritukset: SuoritusDoc[]): KaudenPelaaja[]
     .sort((a, b) => b.minTotal - a.minTotal);
 }
 
+/**
+ * Liigan eniten pelanneet nuoret PlayerStats-yhteensopivassa muodossa.
+ * Etusivu odottaa tätä kenttää youth-aggregation-vastauksessa; se on
+ * osa endpointin sopimusta eikä sitä saa pudottaa pois.
+ */
+export function laskeTopPelaajat(
+  season: number,
+  suoritukset: SuoritusDoc[],
+  maara: number,
+): Array<{
+  playerId: string;
+  playerName: string;
+  teamId: string;
+  teamName: string;
+  season: number;
+  competition: string;
+  appearances: number;
+  minutesPlayed: number;
+  starts: number;
+  substitutes: number;
+  goals: number;
+  assists: number;
+  yellowCards: number;
+  redCards: number;
+  shots: number;
+  shotsOnTarget: number;
+  age: number;
+}> {
+  return laskeKaudenPelaajat(suoritukset)
+    .slice(0, maara)
+    .map((p) => ({
+      playerId: p.slug,
+      playerName: (p.etunimi + ' ' + p.sukunimi).trim(),
+      teamId: joukkueTunniste(p.joukkue),
+      teamName: p.joukkue,
+      season,
+      competition: 'Veikkausliiga',
+      appearances: p.ottelutTotal,
+      minutesPlayed: p.minTotal,
+      starts: p.aloituksetTotal,
+      substitutes: Math.max(0, p.ottelutTotal - p.aloituksetTotal),
+      goals: p.maaliTotal,
+      // Lähde ei sisällä näitä kenttiä — 0 on tässä "ei mitattu", ei nolla
+      // suoritus. Syötöt tulevat Veikkausliiga.com-scrapesta erikseen.
+      assists: 0,
+      yellowCards: 0,
+      redCards: 0,
+      shots: 0,
+      shotsOnTarget: 0,
+      age: p.ika,
+    }));
+}
+
 export function laskeJoukkueet(
   season: number,
   suoritukset: SuoritusDoc[],

@@ -1,3 +1,8 @@
+// HUOM (2026-09-19): tämä tiedosto ei ole reitityksessä — App.tsx ei
+// renderöi sitä eikä mikään reititetty sivu tuo sitä. U23-kentät eivät
+// enää tule kausituonnin lähteestä (vienti suodatettu 17–21-vuotiaisiin),
+// joten ne luetaan tässä nollana vain jotta tiedosto kääntyy. Jos tämä
+// otetaan käyttöön, laskenta on siirrettävä U21-kenttiin.
 import {
   BarChart,
   Bar,
@@ -72,7 +77,7 @@ function CustomTooltip({ active, payload, label }: TooltipProps<ValueType, NameT
 export function AgeDistributionChart({ teams }: AgeDistributionChartProps) {
   // Joukkueet järjestyksessä U23-% mukaan, korkein vasemmalla
   const data = [...teams]
-    .sort((a, b) => b.youthPercentageU23 - a.youthPercentageU23)
+    .sort((a, b) => (b.youthPercentageU23 ?? 0) - (a.youthPercentageU23 ?? 0))
     .map((t) => ({
       team: shortenName(t.teamName),
       fullName: t.teamName,
@@ -80,13 +85,13 @@ export function AgeDistributionChart({ teams }: AgeDistributionChartProps) {
       '18-19v': Math.max(0, t.youthPercentageU19 - t.youthPercentageU18),
       '19-20v': Math.max(0, t.youthPercentageU20 - t.youthPercentageU19),
       '20-21v': Math.max(0, t.youthPercentageU21 - t.youthPercentageU20),
-      '21-23v': Math.max(0, t.youthPercentageU23 - t.youthPercentageU21),
-      'Yli 23v': Math.max(0, 100 - t.youthPercentageU23),
+      '21-23v': Math.max(0, (t.youthPercentageU23 ?? 0) - t.youthPercentageU21),
+      'Yli 23v': Math.max(0, 100 - (t.youthPercentageU23 ?? 0)),
     }));
 
   // Liigan painotettu U23-keskiarvo viittausviivaa varten
   const totalMin = teams.reduce((s, t) => s + t.totalMinutes, 0);
-  const u23Min = teams.reduce((s, t) => s + t.youthMinutesU23, 0);
+  const u23Min = teams.reduce((s, t) => s + (t.youthMinutesU23 ?? 0), 0);
   const leagueAvg = totalMin > 0 ? (u23Min / totalMin) * 100 : 0;
 
   return (

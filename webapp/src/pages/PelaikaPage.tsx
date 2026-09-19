@@ -36,18 +36,20 @@ import {
   type PlayerRound,
 } from '@/services/api';
 import { useValittuKausi } from '@/hooks/useKausi';
+import { IKAKAISTAT, kaistalla, NUORET_LABEL } from '@/constants/ika';
+import { pros } from '@/utils/luvut';
 import { InsightBar } from '@/components/InsightBar';
 import { InfoTooltip } from '@/components/InfoTooltip';
 
-type FilterId = 'minutes' | 'goals' | 'youngest' | 'u21' | 'u19' | 'u18';
+// Suodattimet näyttävät ikävuosia, eivät valmennusjärjestelmän koodeja.
+// Ikäkaistat tulevat yhdestä vakiosta (constants/ika.ts).
+type FilterId = 'minutes' | 'goals' | 'youngest' | string;
 
 const FILTERS: Array<{ id: FilterId; label: string }> = [
   { id: 'minutes', label: 'Eniten minuutteja' },
   { id: 'goals', label: 'Eniten maaleja' },
   { id: 'youngest', label: 'Nuorin' },
-  { id: 'u21', label: 'U21' },
-  { id: 'u19', label: 'U19' },
-  { id: 'u18', label: 'U18' },
+  ...IKAKAISTAT.map((k) => ({ id: k.id, label: k.label })),
 ];
 
 function fullName(p: SeasonPlayer): string {
@@ -71,19 +73,18 @@ function barColor(pct: number): string {
  * luku on U21 eikä U23. Tyhjä lista palauttaa null, ei nollaa: "ei dataa"
  * ja "0 %" ovat eri asioita.
  */
-function calcU21Pct(teams: YouthStats[]): number | null {
+function laskeNuortenOsuus(teams: YouthStats[]): number | null {
   if (teams.length === 0) return null;
   const totalMinutes = teams.reduce((s, t) => s + t.totalMinutes, 0);
-  const u21Minutes = teams.reduce((s, t) => s + t.youthMinutesU21, 0);
-  return totalMinutes > 0 ? (u21Minutes / totalMinutes) * 100 : null;
+  const nuortenMinuutit = teams.reduce((s, t) => s + t.minuutitNuoret, 0);
+  return totalMinutes > 0 ? (nuortenMinuutit / totalMinutes) * 100 : null;
 }
 
 function filterAndSort(players: SeasonPlayer[], filter: FilterId): SeasonPlayer[] {
   let result = players.filter((p) => p.minTotal > 0);
 
-  if (filter === 'u21') result = result.filter((p) => p.ika <= 21);
-  else if (filter === 'u19') result = result.filter((p) => p.ika <= 19);
-  else if (filter === 'u18') result = result.filter((p) => p.ika <= 18);
+  const kaista = IKAKAISTAT.find((k) => k.id === filter);
+  if (kaista) result = result.filter((p) => kaistalla(p.ika, kaista));
 
   const sorted = [...result];
   if (filter === 'goals') {
@@ -134,18 +135,18 @@ function BarChartTooltip({ active, payload }: TooltipProps<ValueType, NameType>)
   return (
     <div className="bg-navy-800 border border-navy-600 rounded-md shadow-xl px-3 py-2 text-sm">
       <div className="font-medium text-white">{entry.fullName}</div>
-      <div className="text-ice tabular">{entry.pct.toFixed(1)} %</div>
+      <div className="text-ice tabular">{pros(entry.pct)}</div>
     </div>
   );
 }
 
 function TeamBarChart({ teams }: { teams: YouthStats[] }) {
   const data = [...teams]
-    .sort((a, b) => b.youthPercentageU21 - a.youthPercentageU21)
+    .sort((a, b) => b.osuusNuoret - a.osuusNuoret)
     .map((t) => ({
       team: shortenTeamName(t.teamName),
       fullName: t.teamName,
-      pct: t.youthPercentageU21,
+      pct: t.osuusNuoret,
     }));
 
   return (
@@ -416,14 +417,14 @@ export default function PelaikaPage() {
     );
   }
 
-  const vPct = calcU21Pct(veikkausliiga);
+  const vPct = laskeNuortenOsuus(veikkausliiga);
   const topByMinutes =
     [...withMinutes].sort((a, b) => b.minTotal - a.minTotal)[0] ?? null;
   const youngest = withMinutes.length
     ? withMinutes.reduce((a, b) => (a.ika <= b.ika ? a : b))
     : null;
   const teamsOver25 = veikkausliiga.filter(
-    (t) => t.youthPercentageU21 >= 25,
+    (t) => t.osuusNuoret >= 25,
   ).length;
 
   return (
@@ -449,8 +450,8 @@ export default function PelaikaPage() {
       {/* KPI-kortit */}
       <section className="grid grid-cols-2 lg:grid-cols-5 gap-3">
         <KpiCard
-          label="Nuorten osuus peliajasta (17–21 v)"
-          value={vPct === null ? 'ei dataa' : `${vPct.toFixed(1)} %`}
+          label={'Nuorten osuus peliajasta (' + NUORET_LABEL + ')'}
+          value={pros(vPct)}
           accent="aurora"
           info="17–21-vuotiaiden osuus joukkueiden minuuttikapasiteetista (ottelut × 90 × 11). Lähde: Veikkausliigan tilastovienti. Huom: tämä ei ole sama kuin CIES:n kansainvälisessä vertailussa käytetty alle 21-vuotiaiden osuus, joka on pienempi."
         />

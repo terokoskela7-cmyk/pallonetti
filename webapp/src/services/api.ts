@@ -189,16 +189,16 @@ export interface YouthStats {
   teamName: string;
   /** Joukkueen koko minuuttikapasiteetti kaudella = Σ ottelut × 90 × 11. */
   totalMinutes: number;
-  youthMinutesU21: number;
-  youthMinutesU20: number;
+  minuutitNuoret: number;
+  minuutitAlle21: number;
   youthMinutesU19: number;
   youthMinutesU18: number;
-  youthPercentageU21: number;
-  youthPercentageU20: number;
+  osuusNuoret: number;
+  osuusAlle21: number;
   youthPercentageU19: number;
   youthPercentageU18: number;
-  youthPlayersU21: number;
-  youthPlayersU20: number;
+  pelaajatNuoret: number;
+  pelaajatAlle21: number;
   /** null = ei luotettavaa keski-ikätietoa. */
   averageAge: number | null;
   updatedAt: string;
@@ -219,15 +219,15 @@ export interface YouthAggregation {
   season: number;
   league: string;
   totalPlayersAnalyzed: number;
-  youthPlayersU21: number;
+  pelaajatNuoret: number;
   totalMinutesPlayed: number;
-  youthMinutesU21: number;
-  youthPercentageU21: number;
+  minuutitNuoret: number;
+  osuusNuoret: number;
   teamBreakdown: YouthStats[];
   topYouthPlayers: PlayerStats[];
   updatedAt: string;
   /** Vain runkosarja — vertailukelpoinen kausien yli (22 ottelua joka kausi). */
-  youthPercentageU21Runkosarja?: number;
+  osuusNuoretRunkosarja?: number;
   /** Mitä ikiä lähde tosiasiassa sisältää. u23Saatavilla=false → ei U23-lukua. */
   ikahaarukka?: { min: number; max: number; u23Saatavilla: boolean };
   // U23 ei ole saatavilla nykyisestä lähteestä — ks. YouthStats.
@@ -318,11 +318,11 @@ export const getYouthAggregation = (season: number): Promise<YouthAggregation> =
 
 /** Kierroskohtainen U21 peliaika-% — backend laskee päättyneistä otteluista.
  *  U21 = syntynyt (season-21) tai myöhemmin (2026 → 2005), sama joukko kuin
- *  youthPercentageU21-KPI. */
+ *  osuusNuoret-KPI. */
 export interface U21RoundTrendPoint {
   round: number;
   u21Pct: number;
-  u21Mins: number;
+  nuortenMins: number;
   totalMins: number;
 }
 
@@ -517,14 +517,19 @@ export function formatMarketValue(
   value: number | null | undefined,
 ): string | null {
   if (value === null || value === undefined || value === 0) return null;
-  if (value >= 1_000_000_000)
-    return `€${(value / 1_000_000_000).toFixed(1)}bn`;
+  // Desimaalierotin on pilkku myös markkina-arvoissa.
+  const fi = (x: number, d: number): string =>
+    x.toLocaleString('fi-FI', {
+      minimumFractionDigits: d,
+      maximumFractionDigits: d,
+    });
+  if (value >= 1_000_000_000) return '€' + fi(value / 1_000_000_000, 1) + 'bn';
   if (value >= 1_000_000) {
     const m = value / 1_000_000;
-    return m >= 10 ? `€${m.toFixed(0)}m` : `€${m.toFixed(1)}m`;
+    return m >= 10 ? '€' + fi(m, 0) + 'm' : '€' + fi(m, 1) + 'm';
   }
-  if (value >= 1_000) return `€${(value / 1_000).toFixed(0)}k`;
-  return `€${value}`;
+  if (value >= 1_000) return '€' + fi(value / 1_000, 0) + 'k';
+  return '€' + fi(value, 0);
 }
 
 // ============================================
@@ -655,6 +660,28 @@ export interface KausiInfo {
  * ei kovakoodattu lista — uusi kausi ilmestyy tuonnin jälkeen itsestään.
  */
 export const getKaudet = (): Promise<KausiInfo[]> => fetchApi('/kaudet');
+
+// ============================================
+// KANSALAISUUDET — minuuteilla painotettu osuus
+// ============================================
+export interface KansalaisuusTiedot {
+  saatavilla: boolean;
+  kausi: number;
+  pelaajia?: number;
+  suomalaisia?: number;
+  osuus1721?: number | null;
+  osuus1721Suomalaiset?: number | null;
+  osuusAlle21?: number | null;
+  /** Suomen kansalaisille mennyt osuus. ALARAJA — ks. backendin kommentti. */
+  osuusAlle21Suomalaiset?: number | null;
+}
+
+/**
+ * Kansalaisuustiedot kaudelle. Kaikilla kausilla ei ole dataa, jolloin
+ * saatavilla on false eikä lukuja esitetä.
+ */
+export const getKansalaisuudet = (season: number): Promise<KansalaisuusTiedot> =>
+  fetchApi(`/kansalaisuudet/${season}`);
 
 /** Sama slug-logiikka kuin backendin toSlug() (excelImport.ts). */
 export function toSlug(etu: string, suku: string): string {

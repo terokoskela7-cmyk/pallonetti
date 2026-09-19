@@ -590,11 +590,11 @@ app.get('/api/youth-aggregation/:season', async (req, res) => {
         season,
         league: 'Veikkausliiga',
         totalPlayersAnalyzed: yhteenveto.pelaajia,
-        youthPlayersU21: yhteenveto.pelaajia,
+        pelaajatNuoret: yhteenveto.pelaajia,
         totalMinutesPlayed: yhteenveto.kapasiteettiMinuutit,
-        youthMinutesU21: yhteenveto.nuortenMinuutit,
-        youthPercentageU21: yhteenveto.nuortenOsuus,
-        youthPercentageU21Runkosarja: yhteenveto.nuortenOsuusRunkosarja,
+        minuutitNuoret: yhteenveto.nuortenMinuutit,
+        osuusNuoret: yhteenveto.nuortenOsuus,
+        osuusNuoretRunkosarja: yhteenveto.nuortenOsuusRunkosarja,
         teamBreakdown,
         topYouthPlayers: laskeTopPelaajat(season, suoritukset, 20),
         vaiheet: yhteenveto.vaiheet,
@@ -805,6 +805,94 @@ function toSeasonPlayer(id: string, data: admin.firestore.DocumentData | undefin
  * ilmestyy valitsimeen tuonnin jälkeen ilman koodimuutosta, eikä listaa
  * tarvitse kovakoodata frontendiin.
  */
+/**
+ * GET /api/kansalaisuudet/:season — minuuteilla painotettu osuus, joka meni
+ * Suomen kansalaisille.
+ *
+ * Lähde on seasons/{kausi}/kansalaisuudet, jonka haeKansalaisuudet-skripti
+ * kirjoittaa Veikkausliigan rekisteristä. Kaikilla kausilla sitä ei ole:
+ * silloin saatavilla on false eikä lukuja esitetä.
+ *
+ * Mukaan lasketaan kaikki joilla suomalainen === 'kylla', myös ne joilla
+ * seura jäi vahvistamatta. Luku on ALARAJA: 'ei tietoa' -pelaajat voivat
+ * myös olla Suomen kansalaisia, eikä yksiarvoinen lähde kerro
+ * kaksoiskansalaisuutta.
+ */
+app.get('/api/kansalaisuudet/:season', async (req, res) => {
+  const season = parseInt(req.params.season, 10);
+  if (isNaN(season)) {
+    res.status(400).json({ success: false, error: 'season on virheellinen' });
+    return;
+  }
+  try {
+    const db = admin.firestore();
+    const kansSnap = await db
+      .collection('seasons')
+      .doc(String(season))
+      .collection('kansalaisuudet')
+      .get();
+
+    if (kansSnap.empty) {
+      res.set('Cache-Control', 'public, max-age=600');
+      res.json({
+        success: true,
+        data: { saatavilla: false, kausi: season },
+        source: 'veikkausliiga-rekisteri',
+        timestamp: new Date().toISOString(),
+      });
+      return;
+    }
+
+    const suomalaiset = new Set(
+      kansSnap.docs
+        .filter((d) => d.data().suomalainen === 'kylla')
+        .map((d) => d.id),
+    );
+
+    const { suoritukset, nimittajat } = await lueKausi(db, season);
+    const kapasiteetti = nimittajat.reduce(
+      (a, n) => a + n.kapasiteetti_min,
+      0,
+    );
+    const minuutit = (ikaRaja: number, vainSuomalaiset: boolean): number =>
+      suoritukset
+        .filter(
+          (s) =>
+            s.ika <= ikaRaja &&
+            (!vainSuomalaiset || suomalaiset.has(s.slug)),
+        )
+        .reduce((a, s) => a + s.minuutit, 0);
+
+    const osuus = (osa: number): number | null =>
+      kapasiteetti > 0 ? Math.round((osa / kapasiteetti) * 1000) / 10 : null;
+
+    res.set('Cache-Control', 'public, max-age=600');
+    res.json({
+      success: true,
+      data: {
+        saatavilla: true,
+        kausi: season,
+        pelaajia: kansSnap.size,
+        suomalaisia: suomalaiset.size,
+        /** 17–21-vuotiaiden osuus kapasiteetista, kaikki pelaajat. */
+        osuus1721: osuus(minuutit(21, false)),
+        /** Sama, vain Suomen kansalaisille menneet minuutit. */
+        osuus1721Suomalaiset: osuus(minuutit(21, true)),
+        /** Alle 21 (ikä ≤ 20) — CIES-vertailun luku, kaikki pelaajat. */
+        osuusAlle21: osuus(minuutit(20, false)),
+        /** Sama, vain Suomen kansalaisille. ALARAJA. */
+        osuusAlle21Suomalaiset: osuus(minuutit(20, true)),
+      },
+      source: 'veikkausliiga-rekisteri',
+      timestamp: new Date().toISOString(),
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Tuntematon virhe';
+    console.error('[kansalaisuudet] failed:', message);
+    res.status(500).json({ success: false, error: message });
+  }
+});
+
 app.get('/api/kaudet', async (_req, res) => {
   try {
     const snap = await admin.firestore().collection('kaudet').get();

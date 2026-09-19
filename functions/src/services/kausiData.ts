@@ -58,16 +58,16 @@ export interface JoukkueenOsuus {
   teamName: string;
   /** Joukkueen koko minuuttikapasiteetti kaudella = Σ ottelut × 90 × 11. */
   totalMinutes: number;
-  youthMinutesU21: number;
-  youthMinutesU20: number;
+  minuutitNuoret: number;
+  minuutitAlle21: number;
   youthMinutesU19: number;
   youthMinutesU18: number;
-  youthPercentageU21: number;
-  youthPercentageU20: number;
+  osuusNuoret: number;
+  osuusAlle21: number;
   youthPercentageU19: number;
   youthPercentageU18: number;
-  youthPlayersU21: number;
-  youthPlayersU20: number;
+  pelaajatNuoret: number;
+  pelaajatAlle21: number;
   averageAge: number | null;
   ottelut: number;
   vaiheet: string[];
@@ -191,16 +191,16 @@ export function laskeJoukkueidenOsuudet(
       teamId: joukkueTunniste(joukkue),
       teamName: joukkue,
       totalMinutes: kap,
-      youthMinutesU21: minIka(21),
-      youthMinutesU20: minIka(20),
+      minuutitNuoret: minIka(21),
+      minuutitAlle21: minIka(20),
       youthMinutesU19: minIka(19),
       youthMinutesU18: minIka(18),
-      youthPercentageU21: osuus(minIka(21), kap),
-      youthPercentageU20: osuus(minIka(20), kap),
+      osuusNuoret: osuus(minIka(21), kap),
+      osuusAlle21: osuus(minIka(20), kap),
       youthPercentageU19: osuus(minIka(19), kap),
       youthPercentageU18: osuus(minIka(18), kap),
-      youthPlayersU21: pelaajatIka(21),
-      youthPlayersU20: pelaajatIka(20),
+      pelaajatNuoret: pelaajatIka(21),
+      pelaajatAlle21: pelaajatIka(20),
       averageAge: painotettuIka,
       ottelut: ottelut.get(joukkue) || 0,
       vaiheet: Array.from(vaiheet.get(joukkue) || []).sort(),

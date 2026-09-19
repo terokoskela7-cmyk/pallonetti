@@ -35,6 +35,7 @@ import * as admin from 'firebase-admin';
 import * as https from 'https';
 import * as tls from 'tls';
 import { execFileSync } from 'child_process';
+import { lueKausi } from '../services/kausiData';
 
 const BASE_URL = 'https://www.veikkausliiga.com';
 
@@ -198,6 +199,9 @@ async function main(): Promise<void> {
   const kausi = argumentti('kausi') || '2026';
   const vahvista = lippu('vahvista');
   const paivita = lippu('paivita');
+  // Raporttitila: profiilivalimuisti taytetaan, mutta
+  // seasons/{kausi}/kansalaisuudet -dataa EI kirjoiteta.
+  const vainRaportti = lippu('vain-raportti');
   const viiveMs = parseInt(argumentti('viive') || '3000', 10);
   const rajaRaaka = argumentti('raja');
   const raja = rajaRaaka ? parseInt(rajaRaaka, 10) : Infinity;
@@ -247,6 +251,17 @@ async function main(): Promise<void> {
   const eiOsumaa: string[] = [];
   const tarkistuslista: string[] = [];
   const kansalaisuusJakauma = new Map<string, number>();
+  // Minuuttiraportin kolme joukkoa. Jako tehdaan REKISTEROIDYN koodin ja
+  // varmennuksen mukaan, ei suomalainen-kentan mukaan:
+  //   FIN            = koodi FIN ja seura vahvistettu
+  //   ulkomaa        = muu koodi ja seura vahvistettu
+  //   ei tietoa      = profiilia ei loydy, koodi puuttuu, tai seura
+  //                    vahvistamatta
+  // Nama kolme kattavat kaikki pelaajat, joten osuudet summautuvat
+  // ikaryhman kokonaisosuudeksi.
+  const finSlugit = new Set<string>();
+  const ulkomaaSlugit = new Set<string>();
+  const eiTietoaSlugit = new Set<string>();
 
   // Toiset lähteet. Rakenne on avoin: Palloliiton nuorten maajoukkue-
   // valinnat liitetään tähän samalla muodolla, kun speksi on valmis.
@@ -310,11 +325,13 @@ async function main(): Promise<void> {
 
     if (ehdokkaat.length === 0) {
       eiTietoa++;
+      eiTietoaSlugit.add(p.slug);
       eiOsumaa.push(p.nimi + ' (' + p.joukkue + ', ' + p.ika + ' v) — ei nimi+seura-osumaa');
       continue;
     }
     if (ehdokkaat.length > 1) {
       epavarma++;
+      eiTietoaSlugit.add(p.slug);
       epavarmat.push(
         p.nimi + ' (' + p.joukkue + ') — ' + ehdokkaat.length + ' ehdokasta listalla',
       );
@@ -333,10 +350,11 @@ async function main(): Promise<void> {
     } else {
       try {
         profiili = await haeProfiili(rivi.polku, rivi.vlId);
-        if (vahvista) await cacheRef.set(profiili);
+        if (vahvista || vainRaportti) await cacheRef.set(profiili);
         await sleep(viiveMs);
       } catch (e) {
         eiTietoa++;
+        eiTietoaSlugit.add(p.slug);
         eiOsumaa.push(
           p.nimi + ' — profiilin haku epäonnistui: ' +
             (e instanceof Error ? e.message : String(e)),
@@ -353,6 +371,7 @@ async function main(): Promise<void> {
         : null;
     if (ikaProfiilista === null || ikaProfiilista !== p.ika) {
       epavarma++;
+      eiTietoaSlugit.add(p.slug);
       epavarmat.push(
         p.nimi +
           ' (' + p.joukkue + ') — ikä ei täsmää: Excel ' + p.ika +
@@ -364,6 +383,7 @@ async function main(): Promise<void> {
 
     if (profiili.kansalaisuudet.length === 0) {
       eiTietoa++;
+      eiTietoaSlugit.add(p.slug);
       eiOsumaa.push(p.nimi + ' — profiilissa ei kansalaisuutta');
       continue;
     }
@@ -427,6 +447,14 @@ async function main(): Promise<void> {
       );
     }
 
+    // Seura vahvistamatta -> ei tietoa, kunnes seura on vahvistettu.
+    if (seuraTuntematon) {
+      eiTietoaSlugit.add(p.slug);
+    } else if (vlKansalaisuus === 'FIN') {
+      finSlugit.add(p.slug);
+    } else {
+      ulkomaaSlugit.add(p.slug);
+    }
     luokat[suomalainen]++;
     if (varmuus === 'kaksi lahdetta') kaksiLahdetta++;
     kansalaisuusJakauma.set(
@@ -435,7 +463,7 @@ async function main(): Promise<void> {
     );
     varma++;
 
-    if (vahvista) {
+    if (vahvista && !vainRaportti) {
       // Oma kokoelma, EI seasons/{kausi}/players - projektio ylikirjoitetaan
       // jokaisessa tuonnissa, ja johdettu tieto katoaisi sen mukana.
       await db
@@ -515,9 +543,52 @@ async function main(): Promise<void> {
     console.log('EI OSUMAA (' + eiOsumaa.length + '):');
     for (const e of eiOsumaa) console.log('  · ' + e);
   }
+  // ---------- Minuuteilla painotettu, kolme osaa samassa yksikossa ----------
+  // Kaikki osuudet ovat % LIIGAN MINUUTTIKAPASITEETISTA, jotta osat
+  // summautuvat ikaryhman kokonaisosuudeksi eika eri nimittajia sekoiteta.
+  const { suoritukset, nimittajat } = await lueKausi(db, parseInt(kausi, 10));
+  const kapasiteetti = nimittajat.reduce((a, n) => a + n.kapasiteetti_min, 0);
+  const minJoukossa = (ikaRaja: number, joukko: Set<string>): number =>
+    suoritukset
+      .filter((x) => x.ika <= ikaRaja && joukko.has(x.slug))
+      .reduce((a, x) => a + x.minuutit, 0);
+  const minKaikki = (ikaRaja: number): number =>
+    suoritukset.filter((x) => x.ika <= ikaRaja).reduce((a, x) => a + x.minuutit, 0);
+  const pr = (osa: number): string =>
+    kapasiteetti > 0
+      ? (osa / kapasiteetti * 100).toFixed(1).replace('.', ',') + ' %'
+      : '-';
+
+  console.log('');
+  console.log('MINUUTIT % LIIGAN KAPASITEETISTA — kausi ' + kausi);
+  for (const [otsikko, raja] of [
+    ['17–21-vuotiaat', 21],
+    ['alle 21-vuotiaat', 20],
+  ] as [string, number][]) {
+    const yht = minKaikki(raja);
+    const fin = minJoukossa(raja, finSlugit);
+    const ulk = minJoukossa(raja, ulkomaaSlugit);
+    const eiT = minJoukossa(raja, eiTietoaSlugit);
+    console.log('  ' + otsikko + ' yhteensa ' + pr(yht));
+    console.log('    FIN (Suomen kansalaisuus):    ' + pr(fin));
+    console.log('    ulkomaan koodi:               ' + pr(ulk));
+    console.log('    ei tietoa:                    ' + pr(eiT));
+    console.log('    summa tarkistus:              ' + pr(fin + ulk + eiT) +
+      (Math.abs(fin + ulk + eiT - yht) < 1 ? '  ✓' : '  ✗ EI TASMAA'));
+  }
+  const a = 20;
+  console.log('  RIVI\t' + kausi + '\t' +
+    pr(minKaikki(21)) + '\t' + pr(minJoukossa(21, finSlugit)) + '\t' +
+    pr(minJoukossa(21, ulkomaaSlugit)) + '\t' + pr(minJoukossa(21, eiTietoaSlugit)) + '\t' +
+    pr(minKaikki(a)) + '\t' + pr(minJoukossa(a, finSlugit)) + '\t' +
+    pr(minJoukossa(a, ulkomaaSlugit)) + '\t' + pr(minJoukossa(a, eiTietoaSlugit)));
+
   if (!vahvista) {
     console.log('');
     console.log('Kuivaharjoitus — mitään ei tallennettu. Kirjoitus vaatii --vahvista.');
+  } else if (vainRaportti) {
+    console.log('');
+    console.log('Raporttitila — kansalaisuusdataa EI kirjoitettu, vain profiilivälimuisti.');
   }
 }
 

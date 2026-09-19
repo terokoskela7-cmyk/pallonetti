@@ -138,12 +138,7 @@ export default function AboutPage() {
           <SourceItem
             name="Veikkausliiga.com"
             url="https://www.veikkausliiga.com/"
-            description="Viralliset tilastot: minuutit, maalit, syötöt. Rikastaa API-Footballin dataa tarkemmilla luvuilla."
-          />
-          <SourceItem
-            name="Transfermarkt"
-            url="https://www.transfermarkt.com/"
-            description="Markkina-arvot, sopimustiedot, pelipaikat. Näytetään vain kun sukunimi-matchi on luotettava (≤ 5M€)."
+            description="Viralliset tilastot: minuutit, maalit, syötöt, ottelut ja vaiheet. Kausivienti on sivuston päälähde."
           />
         </div>
       </Section>
@@ -196,7 +191,7 @@ export default function AboutPage() {
         <ul className="list-disc list-inside space-y-1">
           <li>Naisten Kansallinen Liiga ei vielä mukana</li>
           <li>Veikkausliiga on ainoa pääsarja (Ykkösliiga ja Ykkönen tulossa)</li>
-          <li>Transfermarkt-data riippuu sukunimi-matchin luotettavuudesta</li>
+          
           <li>Pelaajat ilman ikätietoa eivät näy ikäryhmätilastoissa</li>
         </ul>
       </Section>

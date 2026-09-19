@@ -1,4 +1,4 @@
-import { TrendingUp, TrendingDown, Users, Star, ArrowUpRight, type LucideIcon } from 'lucide-react';
+import { TrendingUp, TrendingDown, Users, Star, type LucideIcon } from 'lucide-react';
 import type { YouthStats } from '@/services/api';
 import { pros, luku } from '@/utils/luvut';
 
@@ -7,9 +7,6 @@ interface InsightBarProps {
 }
 
 const PREV_SEASON_AVG = 18.0;
-// Wirén (2026): 10 pp käyttöasteen nousu → +4,3 pp siirtotodennäköisyys (FI)
-const WIREN_COEFFICIENT = 0.43;
-const FI_BASE_TRANSFER_PROB = 14.0;
 
 interface Insight {
   icon: LucideIcon;
@@ -36,11 +33,6 @@ function computeInsights(teams: YouthStats[]): Insight[] {
     (a, b) => b.pelaajatAlle21 - a.pelaajatAlle21,
   )[0];
 
-  // Wirén-kytkös: lasketaan liigan käyttöasteen perusteella
-  // arvioitu siirtotodennäköisyys verrattuna pohjoismaiden keskiarvoon (18,5%)
-  const wirenDeltaPP = (leagueAvg - 18.5) / 10 * WIREN_COEFFICIENT;
-  const estimatedTransferProb = Math.max(0, FI_BASE_TRANSFER_PROB + wirenDeltaPP);
-
   return [
     {
       icon: Star,
@@ -66,12 +58,6 @@ function computeInsights(teams: YouthStats[]): Insight[] {
       body:
         luku(mostU20.pelaajatAlle21) +
         ' alle 21-vuotiasta pelaajaa on saanut peliaikaa tällä kaudella.',
-    },
-    {
-      icon: ArrowUpRight,
-      label: 'Siirtopotentiaali · Wirén 2026',
-      title: '~' + pros(estimatedTransferProb) + ' siirtotodennäköisyys',
-      body: `Tämän kauden käyttöasteen perusteella arvioitu todennäköisyys ulkomaan siirrolle. Suomen lähtötaso on 14 % — jokainen +10 pp nostaa todennäköisyyttä 4,3 pp.`,
     },
   ];
 }

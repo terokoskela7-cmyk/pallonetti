@@ -1578,21 +1578,34 @@ app.get('/api/debug/sofascore', requireAdminKey, async (req, res) => {
  */
 async function haeUusienKansalaisuudet(
   db: admin.firestore.Firestore,
-  tulos: { kaudet: Array<{ kausi: string }>; projektiot: Array<{ kausi: string; slug: string; pelaajaAvain: string; joukkue: string; joukkueet: string[]; ika: number; etunimi: string; sukunimi: string }> },
-): Promise<{ haettu: number; onnistui: number; eiTietoa: number; jaljella: number }> {
+  tulos: { kaudet: Array<{ kausi: string }>; projektiot: Array<{ kausi: string; slug: string; pelaajaAvain: string; joukkue: string; joukkueet: string[]; ika: number; etunimi: string; sukunimi: string; minTotal: number }> },
+): Promise<{
+  haettu: number;
+  onnistui: number;
+  eiTietoa: number;
+  jaljella: number;
+  ohitettuNollaMinuuttia: number;
+}> {
   const RAJA = 15;
   const VIIVE_MS = 1200;
   let haettu = 0;
   let onnistui = 0;
   let eiTietoa = 0;
   let jaljella = 0;
+  let ohitettuNollaMinuuttia = 0;
 
   try {
     asetaAgent(await luoAgent());
   } catch (e) {
     console.error('[kansalaisuus] agentin luonti epaonnistui:', e);
     // Koko haku ohitetaan; tuonti on jo kirjoitettu.
-    return { haettu: 0, onnistui: 0, eiTietoa: 0, jaljella: -1 };
+    return {
+      haettu: 0,
+      onnistui: 0,
+      eiTietoa: 0,
+      jaljella: -1,
+      ohitettuNollaMinuuttia: 0,
+    };
   }
 
   for (const k of tulos.kaudet) {
@@ -1601,9 +1614,22 @@ async function haeUusienKansalaisuudet(
       .doc(k.kausi)
       .collection('kansalaisuudet');
     const on = new Set((await kansKok.get()).docs.map((d) => d.id));
-    const uudet = tulos.projektiot.filter(
+    // Pelaaja jolla on 0 minuuttia EI ole Veikkausliigan tilastolistalla,
+    // koska lista sisaltaa vain pelanneet. Hanta ei siis voi varmentaa, ja
+    // ilman tata rajausta han kuluttaisi hakubudjettia joka tuonnilla
+    // ikuisesti - kaudella 2026 heita on 40 / 146.
+    //
+    // Kun pelaaja saa minuutteja, han tulee mukaan seuraavassa tuonnissa.
+    const kaikkiUudet = tulos.projektiot.filter(
       (p) => p.kausi === k.kausi && !on.has(p.slug),
     );
+    ohitettuNollaMinuuttia += kaikkiUudet.filter((p) => p.minTotal === 0).length;
+
+    // Eniten pelanneet ensin: budjetti kannattaa kayttaa niihin, joiden
+    // minuutit painavat eniten kolmijaossa.
+    const uudet = kaikkiUudet
+      .filter((p) => p.minTotal > 0)
+      .sort((a, b) => b.minTotal - a.minTotal);
     if (uudet.length === 0) continue;
 
     let lista: Awaited<ReturnType<typeof haeLista>>;
@@ -1678,7 +1704,7 @@ async function haeUusienKansalaisuudet(
       }
     }
   }
-  return { haettu, onnistui, eiTietoa, jaljella };
+  return { haettu, onnistui, eiTietoa, jaljella, ohitettuNollaMinuuttia };
 }
 
 // ============================================

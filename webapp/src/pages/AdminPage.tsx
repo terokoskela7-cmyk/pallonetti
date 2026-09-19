@@ -53,6 +53,7 @@ interface Tallennettu {
     onnistui: number;
     eiTietoa: number;
     jaljella: number;
+    ohitettuNollaMinuuttia: number;
   };
   valimuistiTyhjennetty: string[];
 }
@@ -357,12 +358,21 @@ export default function AdminPage() {
                 tila.data.kansalaisuus.onnistui,
               )}, ei tietoa ${luku(tila.data.kansalaisuus.eiTietoa)})`}
             />
+            {tila.data.kansalaisuus.ohitettuNollaMinuuttia > 0 && (
+              <div className="text-xs text-white/50 flex items-start gap-2 mt-1">
+                <Info className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+                {luku(tila.data.kansalaisuus.ohitettuNollaMinuuttia)} pelaajaa
+                ohitettiin: 0 minuuttia, joten he eivät ole Veikkausliigan
+                tilastolistalla. He tulevat mukaan kun saavat peliaikaa.
+              </div>
+            )}
             {tila.data.kansalaisuus.jaljella > 0 && (
               <div className="text-xs text-white/50 flex items-start gap-2 mt-1">
                 <Info className="w-3.5 h-3.5 shrink-0 mt-0.5" />
                 {luku(tila.data.kansalaisuus.jaljella)} pelaajaa jäi hakematta
-                tämän ajon budjetista. He ovat toistaiseksi &quot;ei
-                tietoa&quot; -tilassa.
+                tämän ajon budjetista. Seuraava tuonti jatkaa heistä
+                automaattisesti — haku kohdistuu aina vain pelaajiin, joilla
+                ei vielä ole kansalaisuustietoa.
               </div>
             )}
             {tila.data.kansalaisuus.jaljella === -1 && (

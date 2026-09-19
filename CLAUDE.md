@@ -135,6 +135,27 @@ Cloud Functions on stateless → Map-pohjainen rate limiter nollautuu jokaisen k
 
 ---
 
+## 3.5. TUOTANTOON KIRJOITTAMINEN — PAKOLLINEN SÄÄNTÖ
+
+**Tuotannon Firestoreen kirjoitetaan vain kahdella ehdolla yhtä aikaa:**
+
+1. **Kahden lipun skriptillä.** Kirjoitus vaatii `--vahvista` ja lisäksi
+   `--tuotanto`. Oikeisiin kokoelmanimiin kirjoittaminen vaatii vielä
+   kolmannen, tahallisen lipun `--oikeat-kokoelmat`; ilman sitä kohde on
+   `--etuliite`-kokoelma. Lippuja ei ohiteta eikä vartijoita löysätä.
+2. **Käyttäjän chatissa antamalla hyväksynnällä.** Luvut näytetään ennen
+   jokaista kirjoitusvaihetta, ja kirjoitus tehdään vasta kun käyttäjä on
+   hyväksynyt ne. Aiempi hyväksyntä ei kata seuraavaa ajoa.
+
+Poistot ovat aina ihmisen päätös. Tuonti merkitsee lähteestä poistuneet
+vanhentuneiksi, ei poista niitä. Poistettavan dokumentin sisältö kirjataan
+ennen poistoa (commit-viesti tai loki), jotta poisto on jäljitettävissä.
+
+Sama koskee ad hoc -skriptejä: jos skripti kirjoittaa tuotantoon, sillä on
+oltava sama kahden lipun vartija ja sama esikatselu kuin kausituonnilla.
+
+---
+
 ## 4. DEPLOY
 
 ### Manuaalinen deploy (paikalliselta koneelta)

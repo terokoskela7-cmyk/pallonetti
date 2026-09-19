@@ -1,0 +1,527 @@
+// ============================================
+// KANSALAISUUDET KAUDEN PELAAJILLE
+//
+// Ensisijainen lähde on Veikkausliiga.com, koska:
+//   - pelaajan profiili-ID tulee suoraan tilastotaulukon linkistä, joten
+//     nimihakua ei tarvita eikä väärää osumaa voi syntyä haun kautta
+//   - nimet ovat samasta lähteestä kuin Excel-vienti
+//   - profiilissa on syntymäaika, jolla ikä voidaan varmentaa
+// Transfermarkt on varalähde (ks. haeTransfermarkt.ts).
+//
+// TÄSMÄYTYS: nimi normalisoituina nimiosien joukkoina (pienet kirjaimet,
+// ei välimerkkejä, järjestys ei ratkaise) JA seura JA ikä. Kaikki kolme
+// ovat pakollisia. Epävarma tai puuttuva on "ei tietoa", ei arvausta.
+//
+// vlKansalaisuus = Veikkausliigan ilmoittama YKSI koodi. Emme tiedä varmasti,
+// mitä kenttä kertoo: Jalloh on VL:n mukaan DNK, tosiasiassa Sierra Leone
+// (laina Tanskasta). Siksi kentän nimi ei väitä sen olevan kansalaisuus.
+//
+// Luokittelu: suomalainen = kyllä | ei | ei tietoa, varmuus = kaksi lähdettä |
+// yksi lähde. Yksi lähde ei riitä kieltävään päätelmään, koska VL ei osaa
+// kertoa kaksoiskansalaisuutta. Ristiriita → ei tietoa + tarkistuslista.
+// Aggregaatit luetaan välinä: alaraja = kyllä, yläraja = kyllä + ei tietoa.
+// Kenttä EI ole maajoukkuekelpoisuus — ks. raportti FIFA:n säännöistä.
+//
+// Välimuisti: profiili haetaan kerran per Veikkausliiga-ID. Uusintaan
+// tarvitaan --paivita.
+//
+// Käyttö:
+//   node lib/scripts/haeKansalaisuudet.js --kausi 2026            (kuivaharjoitus)
+//   node lib/scripts/haeKansalaisuudet.js --kausi 2026 --vahvista
+// ============================================
+import axios from 'axios';
+import * as cheerio from 'cheerio';
+import * as admin from 'firebase-admin';
+import * as https from 'https';
+import * as tls from 'tls';
+import { execFileSync } from 'child_process';
+
+const BASE_URL = 'https://www.veikkausliiga.com';
+
+/**
+ * veikkausliiga.com lähettää vain lehtisertifikaatin ilman välisertifikaattia.
+ * Selain ja curl hakevat puuttuvan palan sertifikaatin AIA-laajennuksesta,
+ * Node ei. Haetaan se samoin ajon alussa.
+ *
+ * Tämä ei heikennä varmennusta: haettu välisertifikaatti joutuu silti
+ * ketjuttumaan Noden luottamaan juureen, joten väärennetty ei kelpaa.
+ */
+const AIA_URL = 'http://crt.sectigo.com/ZeroSSLECCDVSSLCA2.crt';
+
+async function luoAgent(): Promise<https.Agent> {
+  const res = await axios.get<ArrayBuffer>(AIA_URL, {
+    responseType: 'arraybuffer',
+    timeout: 20000,
+  });
+  // DER → PEM. openssl on käytettävissä samassa ympäristössä kuin ajo.
+  const pem = execFileSync(
+    'openssl',
+    ['x509', '-inform', 'DER', '-outform', 'PEM'],
+    { input: Buffer.from(res.data) },
+  ).toString();
+  return new https.Agent({ ca: [...tls.rootCertificates, pem] });
+}
+
+let agent: https.Agent | undefined;
+const HEADERS = {
+  'User-Agent':
+    'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 ' +
+    '(KHTML, like Gecko) Chrome/120.0 Safari/537.36',
+  'Accept-Language': 'fi-FI,fi;q=0.9,en;q=0.8',
+};
+
+function argumentti(nimi: string): string | undefined {
+  const i = process.argv.indexOf('--' + nimi);
+  return i >= 0 ? process.argv[i + 1] : undefined;
+}
+
+function lippu(nimi: string): boolean {
+  return process.argv.indexOf('--' + nimi) >= 0;
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((r) => setTimeout(r, ms));
+}
+
+/** Nimiosien joukko: pienet kirjaimet, ei diakriittejä, ei välimerkkejä. */
+function nimiOsat(s: string): Set<string> {
+  const puhdas = (s || '')
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  return new Set(puhdas.split(' ').filter(Boolean));
+}
+
+/**
+ * Nimivertailu joukkoina: järjestys ei ratkaise, joten "Sukunimi, Etunimi"
+ * ja "Etunimi Sukunimi" täsmäävät. Vaaditaan että pienempi joukko sisältyy
+ * suurempaan — lisänimet (toinen etunimi) eivät kaada osumaa.
+ */
+function nimetTasmaavat(a: string, b: string): boolean {
+  const A = nimiOsat(a);
+  const B = nimiOsat(b);
+  if (A.size === 0 || B.size === 0) return false;
+  const [pieni, suuri] = A.size <= B.size ? [A, B] : [B, A];
+  for (const osa of pieni) if (!suuri.has(osa)) return false;
+  return true;
+}
+
+/** Seuranimet normalisoidaan kevyesti — lähteissä on pieniä eroja. */
+function seuraAvain(s: string): string {
+  return (s || '')
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, '');
+}
+
+interface ListaRivi {
+  nimi: string;
+  seura: string;
+  vlId: string;
+  polku: string;
+}
+
+/** Tilastotaulukko: nimi, seura ja profiililinkki samalta riviltä. */
+async function haeLista(kausi: string): Promise<ListaRivi[]> {
+  const url =
+    BASE_URL + '/tilastot/' + kausi + '/veikkausliiga/pelaajat/?sort-v=A&sort=A';
+  const res = await axios.get<string>(url, {
+    timeout: 25000,
+    headers: HEADERS,
+    httpsAgent: agent,
+  });
+  const $ = cheerio.load(res.data);
+  const rivit: ListaRivi[] = [];
+  $('tr').each((_, tr) => {
+    const linkki = $(tr).find('a[href*="/pelaajat/"]').first();
+    const href = linkki.attr('href') || '';
+    const m = href.match(/^\/pelaajat\/(\d+)\//);
+    if (!m) return;
+    const solut = $(tr).find('td');
+    const nimi = linkki.text().trim();
+    // Seura on nimeä seuraava solu; haetaan ensimmäinen ei-tyhjä teksti.
+    let seura = '';
+    solut.each((i, td) => {
+      const t = $(td).text().trim();
+      if (!seura && t && t !== nimi && !/^\d+$/.test(t)) seura = t;
+    });
+    if (nimi) rivit.push({ nimi, seura, vlId: m[1], polku: href });
+  });
+  return rivit;
+}
+
+interface Profiili {
+  vlId: string;
+  nimi: string;
+  syntynyt: string | null;
+  syntymavuosi: number | null;
+  kansalaisuudet: string[];
+  pelipaikka: string | null;
+  haettu: string;
+}
+
+async function haeProfiili(polku: string, vlId: string): Promise<Profiili> {
+  const res = await axios.get<string>(BASE_URL + polku, {
+    timeout: 25000,
+    headers: HEADERS,
+    httpsAgent: agent,
+  });
+  const $ = cheerio.load(res.data);
+  const teksti = $('body').text().replace(/\s+/g, ' ');
+
+  const nimiM = teksti.match(/#\d+\s+([A-Za-zÀ-ÿ'\-. ]+?)\s+\d+\s+Joukkue/);
+  const syntM = teksti.match(/Syntynyt\s*(\d{1,2}\.\d{1,2}\.(\d{4}))/);
+  const kansM = teksti.match(/Kansalaisuus\s*([A-Z]{3}(?:\s*[/,]\s*[A-Z]{3})*)/);
+  const paikkaM = teksti.match(/Pelipaikka\s*([A-Za-zÀ-ÿ]+)/);
+
+  return {
+    vlId,
+    nimi: nimiM ? nimiM[1].trim() : '',
+    syntynyt: syntM ? syntM[1] : null,
+    syntymavuosi: syntM ? parseInt(syntM[2], 10) : null,
+    kansalaisuudet: kansM
+      ? kansM[1]
+          .split(/[/,]/)
+          .map((x) => x.trim())
+          .filter(Boolean)
+      : [],
+    pelipaikka: paikkaM ? paikkaM[1] : null,
+    haettu: new Date().toISOString(),
+  };
+}
+
+async function main(): Promise<void> {
+  const kausi = argumentti('kausi') || '2026';
+  const vahvista = lippu('vahvista');
+  const paivita = lippu('paivita');
+  const viiveMs = parseInt(argumentti('viive') || '3000', 10);
+  const rajaRaaka = argumentti('raja');
+  const raja = rajaRaaka ? parseInt(rajaRaaka, 10) : Infinity;
+
+  agent = await luoAgent();
+
+  admin.initializeApp({ projectId: process.env.GCLOUD_PROJECT || 'pallonetti-fi' });
+  const db = admin.firestore();
+
+  const snap = await db
+    .collection('seasons')
+    .doc(kausi)
+    .collection('players')
+    .get();
+  const pelaajat = snap.docs
+    .filter((d) => d.data().vanhentunut !== true)
+    .map((d) => {
+      const x = d.data();
+      return {
+        slug: d.id,
+        nimi: ((x.etunimi as string) + ' ' + (x.sukunimi as string)).trim(),
+        joukkue: (x.joukkue as string) || '',
+        joukkueet: (x.joukkueet as string[]) || [],
+        ika: (x.ika as number) || 0,
+      };
+    })
+    .sort((a, b) => a.slug.localeCompare(b.slug));
+
+  console.log('='.repeat(70));
+  console.log('KANSALAISUUDET — ' + (vahvista ? 'KIRJOITUS' : 'KUIVAHARJOITUS'));
+  console.log('Kausi ' + kausi + ', pelaajia ' + pelaajat.length);
+  console.log('Lähde: Veikkausliiga.com · viive ' + viiveMs + ' ms');
+  console.log('='.repeat(70));
+
+  const lista = await haeLista(kausi);
+  console.log('Tilastotaulukossa ' + lista.length + ' riviä.');
+  console.log('');
+
+  const valimuisti = db.collection('veikkausliiga_profiilit');
+  let varma = 0;
+  let epavarma = 0;
+  let eiTietoa = 0;
+  let valimuistista = 0;
+  let kaksiLahdetta = 0;
+  const luokat = { kylla: 0, ei: 0, 'ei tietoa': 0 } as Record<string, number>;
+  const epavarmat: string[] = [];
+  const eiOsumaa: string[] = [];
+  const tarkistuslista: string[] = [];
+  const kansalaisuusJakauma = new Map<string, number>();
+
+  // Toiset lähteet. Rakenne on avoin: Palloliiton nuorten maajoukkue-
+  // valinnat liitetään tähän samalla muodolla, kun speksi on valmis.
+  // --toinen-lahde tm käyttää jo haettua transfermarkt_players-dataa;
+  // Transfermarktiin EI tehdä uusia pyyntöjä (403 ja käyttöehdot).
+  interface ToinenLahde {
+    lahde: string;
+    id: string | null;
+    arvo: string;
+    suomi: boolean;
+  }
+  const toisetLahteet = new Map<string, ToinenLahde[]>();
+  if (argumentti('toinen-lahde') === 'tm') {
+    const tmSnap = await db.collection('transfermarkt_players').get();
+    for (const p of pelaajat) {
+      const osuma = tmSnap.docs.find((d) =>
+        nimetTasmaavat(p.nimi, (d.data().name as string) || ''),
+      );
+      if (!osuma) continue;
+      const kansat = (osuma.data().nationality as string[]) || [];
+      if (kansat.length === 0) continue;
+      toisetLahteet.set(p.slug, [
+        {
+          lahde: 'transfermarkt (talletettu)',
+          id: osuma.id,
+          arvo: kansat.join('/'),
+          suomi: kansat.includes('Finland'),
+        },
+      ]);
+    }
+    console.log('Toinen lähde: talletettu Transfermarkt-data, ' +
+      toisetLahteet.size + ' osumaa (ei uusia pyyntöjä).');
+  }
+
+  const kohteet = pelaajat.slice(0, raja === Infinity ? undefined : raja);
+
+  for (let i = 0; i < kohteet.length; i++) {
+    const p = kohteet[i];
+
+    // 1) Nimi + seura listasivulta. Seura on pakollinen.
+    const omatSeurat = new Set(
+      [p.joukkue, ...p.joukkueet].filter(Boolean).map(seuraAvain),
+    );
+    const nimiOsumat = lista.filter((r) => nimetTasmaavat(p.nimi, r.nimi));
+    let ehdokkaat = nimiOsumat.filter((r) => omatSeurat.has(seuraAvain(r.seura)));
+
+    // Seurasarake on "-" pelaajalla joka on lähtenyt seurasta kesken kauden.
+    // Silloin seura ei ole ristiriidassa vaan tuntematon, eikä sitä voi
+    // käyttää erottelijana. Ikä varmennetaan silti, mutta osuma jää
+    // epävarmaksi eikä sitä tallenneta ilman ihmisen tarkistusta.
+    let seuraTuntematon = false;
+    if (ehdokkaat.length === 0) {
+      const tuntemattomat = nimiOsumat.filter(
+        (r) => !r.seura || r.seura === '-' || r.seura === '–',
+      );
+      if (tuntemattomat.length > 0) {
+        ehdokkaat = tuntemattomat;
+        seuraTuntematon = true;
+      }
+    }
+
+    if (ehdokkaat.length === 0) {
+      eiTietoa++;
+      eiOsumaa.push(p.nimi + ' (' + p.joukkue + ', ' + p.ika + ' v) — ei nimi+seura-osumaa');
+      continue;
+    }
+    if (ehdokkaat.length > 1) {
+      epavarma++;
+      epavarmat.push(
+        p.nimi + ' (' + p.joukkue + ') — ' + ehdokkaat.length + ' ehdokasta listalla',
+      );
+      continue;
+    }
+
+    const rivi = ehdokkaat[0];
+
+    // 2) Profiili välimuistista tai haku. Samaa ID:tä ei haeta kahdesti.
+    const cacheRef = valimuisti.doc(rivi.vlId);
+    let profiili: Profiili | null = null;
+    const cached = await cacheRef.get();
+    if (cached.exists && !paivita) {
+      profiili = cached.data() as Profiili;
+      valimuistista++;
+    } else {
+      try {
+        profiili = await haeProfiili(rivi.polku, rivi.vlId);
+        if (vahvista) await cacheRef.set(profiili);
+        await sleep(viiveMs);
+      } catch (e) {
+        eiTietoa++;
+        eiOsumaa.push(
+          p.nimi + ' — profiilin haku epäonnistui: ' +
+            (e instanceof Error ? e.message : String(e)),
+        );
+        await sleep(viiveMs * 2);
+        continue;
+      }
+    }
+
+    // 3) Ikä on pakollinen varmenne: kausi − syntymävuosi = ikä kaudella.
+    const ikaProfiilista =
+      profiili.syntymavuosi !== null
+        ? parseInt(kausi, 10) - profiili.syntymavuosi
+        : null;
+    if (ikaProfiilista === null || ikaProfiilista !== p.ika) {
+      epavarma++;
+      epavarmat.push(
+        p.nimi +
+          ' (' + p.joukkue + ') — ikä ei täsmää: Excel ' + p.ika +
+          ', profiili ' + (ikaProfiilista === null ? 'ei syntymäaikaa' : ikaProfiilista) +
+          ' (synt. ' + (profiili.syntynyt ?? '?') + ')',
+      );
+      continue;
+    }
+
+    if (profiili.kansalaisuudet.length === 0) {
+      eiTietoa++;
+      eiOsumaa.push(p.nimi + ' — profiilissa ei kansalaisuutta');
+      continue;
+    }
+
+    // ---------- Luokittelu ----------
+    // vlKansalaisuus = Veikkausliigan ilmoittama yksi koodi. Emme tieda
+    // varmasti mita kentta kertoo (Jalloh: VL sanoo DNK, tosiasiassa Sierra
+    // Leone), joten nimi ei vaita enempaa kuin lahde antaa.
+    const vlKansalaisuus = profiili.kansalaisuudet[0];
+    const vlSuomi = vlKansalaisuus === 'FIN';
+
+    // Toinen lahde. Lista on tarkoituksella avoin: Palloliiton nuorten
+    // maajoukkuevalinnat lisataan tahan myohemmin ilman uudelleensuunnittelua.
+    const muutLahteet = toisetLahteet.get(p.slug) ?? [];
+    const toinenSuomi = muutLahteet.some((l) => l.suomi === true);
+    const toinenMuu = muutLahteet.some((l) => l.suomi === false);
+    const toinenOnOlemassa = muutLahteet.length > 0;
+
+    let suomalainen: 'kylla' | 'ei' | 'ei tietoa';
+    let varmuus: 'kaksi lahdetta' | 'yksi lahde';
+    let ristiriita = false;
+
+    if (vlSuomi && toinenSuomi) {
+      suomalainen = 'kylla';
+      varmuus = 'kaksi lahdetta';
+    } else if (vlSuomi && !toinenOnOlemassa) {
+      suomalainen = 'kylla';
+      varmuus = 'yksi lahde';
+    } else if (!vlSuomi && toinenMuu && !toinenSuomi) {
+      suomalainen = 'ei';
+      varmuus = 'kaksi lahdetta';
+    } else if (!vlSuomi && !toinenOnOlemassa) {
+      // Yksi lahde ei riita kieltavaan paatelmaan: VL ei osaa kertoa
+      // kaksoiskansalaisuutta, joten "muu kuin FIN" ei sulje Suomea pois.
+      suomalainen = 'ei tietoa';
+      varmuus = 'yksi lahde';
+    } else {
+      // vlSuomi && toinenMuu, tai !vlSuomi && toinenSuomi
+      suomalainen = 'ei tietoa';
+      varmuus = 'kaksi lahdetta';
+      ristiriita = true;
+    }
+
+    // Seuraa ei voitu varmentaa: Veikkausliiga nayttaa viivan pelaajalle
+    // joka on lahtenyt. Havainto kirjataan, mutta sen varmuutta ei vaiteta
+    // - seura_vahvistettu: false kertoo mita jai varmentamatta.
+    if (seuraTuntematon) {
+      epavarma++;
+      epavarmat.push(
+        p.nimi + ' (' + p.joukkue + ', ' + p.ika + ' v) - seura tuntematon ' +
+          'lahteessa (pelaaja lahtenyt); nimi ja ika tasmaavat, VL sanoo ' +
+          vlKansalaisuus,
+      );
+    }
+
+    if (ristiriita) {
+      tarkistuslista.push(
+        p.nimi + ' (' + p.joukkue + ') - VL=' + vlKansalaisuus +
+          ', muut lahteet=' +
+          muutLahteet.map((l) => l.lahde + ':' + (l.suomi ? 'FIN' : 'muu')).join(', '),
+      );
+    }
+
+    luokat[suomalainen]++;
+    if (varmuus === 'kaksi lahdetta') kaksiLahdetta++;
+    kansalaisuusJakauma.set(
+      vlKansalaisuus,
+      (kansalaisuusJakauma.get(vlKansalaisuus) || 0) + 1,
+    );
+    varma++;
+
+    if (vahvista) {
+      // Oma kokoelma, EI seasons/{kausi}/players - projektio ylikirjoitetaan
+      // jokaisessa tuonnissa, ja johdettu tieto katoaisi sen mukana.
+      await db
+        .collection('seasons')
+        .doc(kausi)
+        .collection('kansalaisuudet')
+        .doc(p.slug)
+        .set({
+          slug: p.slug,
+          nimi: p.nimi,
+          joukkue: p.joukkue,
+          ika: p.ika,
+          /** Veikkausliigan ilmoittama yksi koodi. Ei valttamatta kansalaisuus. */
+          vlKansalaisuus,
+          suomalainen,
+          varmuus,
+          ristiriita,
+          /** Avoin lista: uusi lahde lisataan tahan ilman mallimuutosta. */
+          lahteet: [
+            { lahde: 'veikkausliiga.com', id: rivi.vlId, arvo: vlKansalaisuus },
+            ...muutLahteet.map((l) => ({
+              lahde: l.lahde,
+              id: l.id ?? null,
+              arvo: l.arvo,
+            })),
+          ],
+          /** false = seura jai varmentamatta (VL nayttaa viivan). */
+          seura_vahvistettu: !seuraTuntematon,
+          varmennus: seuraTuntematon ? 'nimi+ika' : 'nimi+seura+ika',
+          syntynyt: profiili.syntynyt,
+          paivitetty: new Date().toISOString(),
+        });
+    }
+  }
+
+  console.log('');
+  console.log('='.repeat(70));
+  console.log('YHTEENVETO — kausi ' + kausi);
+  console.log('  varmennettu (nimi+seura+ikä): ' + varma + ' / ' + kohteet.length);
+  console.log('    joista kahdesta lähteestä:  ' + kaksiLahdetta);
+  console.log('    joista seura vahvistamatta: ' + epavarma);
+  console.log('  ei osumaa:                    ' + eiTietoa);
+  console.log('  välimuistista:                ' + valimuistista);
+  console.log('');
+  console.log('SUOMALAISUUS');
+  console.log('  kyllä:     ' + luokat['kylla']);
+  console.log('  ei:        ' + luokat['ei']);
+  console.log('  ei tietoa: ' + luokat['ei tietoa']);
+  console.log('');
+  const alaraja = luokat['kylla'];
+  const ylaraja = luokat['kylla'] + luokat['ei tietoa'];
+  console.log('  VÄLI: Suomen kansalaisia ' + alaraja + '–' + ylaraja +
+    ' (alaraja = kyllä, yläraja = kyllä + ei tietoa)');
+  console.log('  Ei yhtä pistelukua: yksi lähde ei kerro kaksoiskansalaisuutta.');
+
+  if (kansalaisuusJakauma.size > 0) {
+    console.log('');
+    console.log('VL:N ILMOITTAMA KOODI (ei välttämättä kansalaisuus):');
+    for (const [k, n] of Array.from(kansalaisuusJakauma.entries()).sort(
+      (a, b) => b[1] - a[1],
+    )) {
+      console.log('  ' + k + ': ' + n);
+    }
+  }
+  if (tarkistuslista.length > 0) {
+    console.log('');
+    console.log('TARKISTUSLISTA — lähteet ristiriidassa:');
+    for (const e of tarkistuslista) console.log('  · ' + e);
+  }
+  if (epavarmat.length > 0) {
+    console.log('');
+    console.log('SEURA VAHVISTAMATTA (tallennettu, seura_vahvistettu: false):');
+    for (const e of epavarmat) console.log('  · ' + e);
+  }
+  if (eiOsumaa.length > 0) {
+    console.log('');
+    console.log('EI OSUMAA (' + eiOsumaa.length + '):');
+    for (const e of eiOsumaa) console.log('  · ' + e);
+  }
+  if (!vahvista) {
+    console.log('');
+    console.log('Kuivaharjoitus — mitään ei tallennettu. Kirjoitus vaatii --vahvista.');
+  }
+}
+
+main().catch((err) => {
+  console.error('Ajo epäonnistui:', err instanceof Error ? err.message : err);
+  process.exit(1);
+});

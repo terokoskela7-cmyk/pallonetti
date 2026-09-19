@@ -2,9 +2,45 @@ import { useState, useEffect } from 'react';
 import type { ReactNode } from 'react';
 import { Link, NavLink } from 'react-router-dom';
 import { Menu, X } from 'lucide-react';
+import { useKausi } from '@/hooks/useKausi';
 
 interface LayoutProps {
   children: ReactNode;
+}
+
+/**
+ * Kauden valitsin. Vaihto kirjoittaa ?kausi=YYYY nykyiseen osoitteeseen,
+ * joten sivu ja muut hakuparametrit säilyvät.
+ */
+function KausiValitsin({ mobiili = false }: { mobiili?: boolean }) {
+  const { kausi, kaudet, setKausi, loading } = useKausi();
+
+  if (loading || kaudet.length === 0) {
+    return (
+      <span
+        className={`text-sm text-white/40 tabular ${mobiili ? '' : 'hidden md:inline-flex px-3 py-1.5'}`}
+      >
+        {loading ? 'Kausi …' : 'ei kausia'}
+      </span>
+    );
+  }
+
+  return (
+    <label className={mobiili ? 'block' : 'hidden md:inline-flex items-center'}>
+      <span className="sr-only">Valitse kausi</span>
+      <select
+        value={kausi ?? ''}
+        onChange={(e) => setKausi(Number.parseInt(e.target.value, 10))}
+        className="bg-transparent text-sm text-amber-400 px-3 py-1.5 border border-amber-400/40 rounded-md hover:border-amber-400/70 focus:border-amber-400 focus:outline-none transition-colors tabular cursor-pointer"
+      >
+        {kaudet.map((k) => (
+          <option key={k.kausi} value={k.kausi} className="bg-navy-800">
+            Kausi {k.kausi}
+          </option>
+        ))}
+      </select>
+    </label>
+  );
 }
 
 const navLinks: Array<{ to: string; label: string; end?: boolean }> = [
@@ -81,13 +117,7 @@ export function Layout({ children }: LayoutProps) {
 
           {/* Oikea kulma: kausi-indikaattori + mobiili-toggle */}
           <div className="flex items-center gap-3">
-            <button
-              type="button"
-              className="hidden md:inline-flex items-center gap-1 text-sm text-amber-400 px-3 py-1.5 border border-amber-400/40 rounded-md hover:border-amber-400/70 hover:bg-amber-400/5 transition-colors tabular"
-              aria-label="Vaihda kausi (tulossa)"
-            >
-              2026 ▾
-            </button>
+            <KausiValitsin />
             <button
               type="button"
               className="md:hidden p-2 text-white/80 hover:text-white"
@@ -148,7 +178,7 @@ export function Layout({ children }: LayoutProps) {
           ))}
         </nav>
         <div className="px-5 py-4 mt-2 border-t border-navy-700">
-          <div className="text-amber-400 text-sm tabular">Kausi 2026 ▾</div>
+          <KausiValitsin mobiili />
         </div>
       </aside>
 

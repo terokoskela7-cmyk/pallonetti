@@ -40,10 +40,9 @@ import {
   formatMarketValue,
   type YouthStats,
 } from '@/services/api';
+import { useKausi, useValittuKausi } from '@/hooks/useKausi';
 import { Hero } from '@/components/Hero';
 import { ResearchCard } from '@/components/ResearchCard';
-
-const SEASON = 2026;
 
 // CIES Football Observatory 2025: Tanskan Superliga, alle 21-vuotiaiden osuus
 // peliajasta. Ei tavoite vaan vertailuluku — ja se koskee ALLE 21-vuotiaita,
@@ -138,7 +137,7 @@ interface KpiCardProps {
   label: string;
   value: string;
   hint?: string;
-  compare?: { text: string; tone: 'red' | 'aurora' };
+  compare?: { text: string; tone: 'red' | 'aurora' | 'neutral' };
   accent?: 'aurora' | 'ice' | 'amber' | 'white';
 }
 
@@ -162,7 +161,11 @@ function KpiCard({ label, value, hint, compare, accent = 'white' }: KpiCardProps
       {compare && (
         <div
           className={`text-xs font-medium mt-2 ${
-            compare.tone === 'red' ? 'text-red-400' : 'text-aurora'
+            compare.tone === 'red'
+              ? 'text-red-400'
+              : compare.tone === 'neutral'
+                ? 'text-white/50'
+                : 'text-aurora'
           }`}
         >
           {compare.text}
@@ -204,7 +207,8 @@ function TrendTooltip({ active, payload }: TooltipProps<ValueType, NameType>) {
 }
 
 function U21TrendChart() {
-  const { data, loading } = useApi(() => getU21RoundTrend(SEASON), [SEASON]);
+  const kausi = useValittuKausi();
+  const { data, loading } = useApi(() => getU21RoundTrend(kausi), [kausi]);
 
   const chartData = useMemo<TrendPoint[]>(
     () => (data ?? []).map((d) => ({ round: d.round, pct: d.u21Pct })),
@@ -315,27 +319,33 @@ const MISSIONS = [
 ];
 
 export default function HomePage() {
+  const kausi = useValittuKausi();
+  const { kaudet } = useKausi();
+  // Markkina-arvo on nykyhetken tieto. Menneellä kaudella sitä ei esitetä
+  // kauden arvona, vaan kortti nimetään auki.
+  const uusinKausi = kaudet.length > 0 ? kaudet[0].kausi : kausi;
+  const menneKausi = kausi < uusinKausi;
   const [ageGroup, setAgeGroup] = useState<'u21' | 'u23'>('u21');
   const [infoOpen, setInfoOpen] = useState(false);
 
   // Päädata: kolme sarjaa + U23-aggregaatti + viralliset minuutit.
   const { data, loading, error } = useApi(async () => {
     const [stats, agg, official] = await Promise.all([
-      getYouthStatsAll(SEASON),
-      getYouthAggregation(SEASON),
-      getOfficialStats(SEASON),
+      getYouthStatsAll(kausi),
+      getYouthAggregation(kausi),
+      getOfficialStats(kausi),
     ]);
     return { stats, agg, official };
-  }, [SEASON]);
+  }, [kausi]);
 
   // Markkina-arvot rinnakkain — sivu ei jää odottamaan.
   const { data: tmEntries } = useApi(async () => {
     try {
-      return await getTransfermarktLeague(SEASON);
+      return await getTransfermarktLeague(kausi);
     } catch {
       return [] as Awaited<ReturnType<typeof getTransfermarktLeague>>;
     }
-  }, [SEASON]);
+  }, [kausi]);
 
   // Sukunimi → markkina-arvo (sama logiikka kuin NuoretPage).
   const marketValueBySurname = useMemo(() => {
@@ -417,7 +427,7 @@ export default function HomePage() {
     <div className="px-6 py-10 md:py-16 space-y-14">
       {/* ---------- Osio 1 — Hero ---------- */}
       <Hero
-        eyebrow={`Veikkausliiga · Kausi ${SEASON}`}
+        eyebrow={`Veikkausliiga · Kausi ${kausi}`}
         title={
           <>
             Peliaika on <span className="text-aurora font-medium">kaikki</span>
@@ -513,9 +523,14 @@ export default function HomePage() {
               !isU21
                 ? undefined
                 : alle21Pct === null || alle21VsTanska === null
-                  ? { tone: 'aurora', text: 'alle 21-vuotiaat: ei dataa' }
+                  ? { tone: 'neutral', text: 'alle 21-vuotiaat: ei dataa' }
                   : {
-                      tone: alle21VsTanska >= 0 ? 'aurora' : 'red',
+                      // Suomen luku on YLÄRAJA, joten vertailu on
+                      // epäsymmetrinen. Jos yläraja jää Tanskan alle, Suomi on
+                      // varmasti perässä — se saa punaisen. Jos yläraja ylittää
+                      // Tanskan, siitä EI seuraa että Suomi olisi edellä, joten
+                      // sävy on neutraali eikä myönteinen.
+                      tone: alle21VsTanska < 0 ? 'red' : 'neutral',
                       text:
                         'alle 21-vuotiaat: enintään ' +
                         alle21Pct.toFixed(1) +
@@ -541,9 +556,11 @@ export default function HomePage() {
           />
           <KpiCard
             label={
-              isU21
-                ? 'Nuorten yhteismarkkina-arvo (17–21 v)'
-                : 'Nuorten yhteismarkkina-arvo (17–23 v)'
+              // Markkina-arvo on nykyhetken tieto, ei kauden aikainen.
+              (menneKausi
+                ? 'Nuorten nykyinen yhteismarkkina-arvo'
+                : 'Nuorten yhteismarkkina-arvo') +
+              (isU21 ? ' (17–21 v)' : ' (17–23 v)')
             }
             value={formatMarketValue(totalMv) ?? 'ei dataa'}
             accent="amber"
@@ -573,7 +590,7 @@ export default function HomePage() {
           <h2 className="text-base font-medium flex items-center gap-2">
             <TrendingUp className="w-4 h-4 text-ice" />
             Nuorten osuus peliajasta (17–21 v) kierroksittain — Veikkausliiga{' '}
-            {SEASON}
+            {kausi}
           </h2>
         </div>
         <U21TrendChart />
@@ -639,7 +656,7 @@ export default function HomePage() {
       </section>
 
       <footer className="border-t border-navy-700 pt-5 text-xs text-white/40 flex flex-wrap items-center gap-x-4 gap-y-1">
-        <span>Veikkausliiga {SEASON}</span>
+        <span>Veikkausliiga {kausi}</span>
         <span className="w-px h-3 bg-white/20" />
         <span>
           Lähteet: <span className="text-white/60">API-Football</span> ·{' '}

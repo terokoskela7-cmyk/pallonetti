@@ -8,9 +8,9 @@ import {
   formatMarketValue,
   type SeasonPlayer,
 } from '@/services/api';
+import { useKausi, useValittuKausi } from '@/hooks/useKausi';
 import { Hero } from '@/components/Hero';
 
-const SEASON = 2026;
 const AVATAR_COLORS = ['#00D4FF', '#00FF88', '#6366f1', '#f59e0b', '#ef4444'];
 
 type AgeFilter = 'all' | 'u18' | 'u19' | 'u21';
@@ -36,9 +36,16 @@ interface PlayerCardProps {
   player: SeasonPlayer;
   index: number;
   marketValue: number | null;
+  /** Tosi kun katsotaan mennyttä kautta: arvo on tämänhetkinen, ei kauden. */
+  menneKausi: boolean;
 }
 
-function PlayerCard({ player, index, marketValue }: PlayerCardProps) {
+function PlayerCard({
+  player,
+  index,
+  marketValue,
+  menneKausi,
+}: PlayerCardProps) {
   const initials = getInitials(player);
   const avatarColor = AVATAR_COLORS[index % AVATAR_COLORS.length];
 
@@ -105,7 +112,7 @@ function PlayerCard({ player, index, marketValue }: PlayerCardProps) {
       {marketValue !== null && (
         <div className="flex items-baseline justify-between border-t border-navy-600 pt-2 -mb-1">
           <span className="text-[10px] uppercase tracking-wider text-white/40">
-            Markkina-arvo
+            {menneKausi ? 'Nykyinen arvo' : 'Markkina-arvo'}
           </span>
           <span className="text-sm font-bold text-amber-400 font-mono tabular">
             {formatMarketValue(marketValue)}
@@ -131,11 +138,18 @@ function LoadingSkeleton() {
 }
 
 export default function NuoretPage() {
+  const kausi = useValittuKausi();
+  const { kaudet } = useKausi();
+  // Markkina-arvo on nykyhetken tieto, ei kauden aikainen. Uusimmalla
+  // kaudella se kuvaa kautta riittävän hyvin; menneillä kausilla se on
+  // nimettävä auki, ettei sitä lueta kyseisen kauden arvona.
+  const uusinKausi = kaudet.length > 0 ? kaudet[0].kausi : kausi;
+  const menneKausi = kausi < uusinKausi;
   const [filter, setFilter] = useState<AgeFilter>('all');
 
   const { data, loading, error } = useApi(
-    () => getSeasonPlayers(SEASON),
-    [SEASON],
+    () => getSeasonPlayers(kausi),
+    [kausi],
   );
 
   // Transfermarkt-markkina-arvot ladataan rinnakkain — jos endpoint palauttaa
@@ -143,12 +157,12 @@ export default function NuoretPage() {
   const { data: tmEntries } = useApi(
     async () => {
       try {
-        return await getTransfermarktLeague(SEASON);
+        return await getTransfermarktLeague(kausi);
       } catch {
         return [] as Awaited<ReturnType<typeof getTransfermarktLeague>>;
       }
     },
-    [SEASON],
+    [kausi],
   );
 
   // Sukunimi → marketValue -Map (viimeinen sana, lowercase). Sama logiikka
@@ -205,11 +219,11 @@ export default function NuoretPage() {
   return (
     <div className="px-6 py-10 md:py-16 space-y-8">
       <Hero
-        eyebrow={`Veikkausliiga · Kausi ${SEASON}`}
+        eyebrow={`Veikkausliiga · Kausi ${kausi}`}
         title={
           <>
             Nuoret pelaajat —{' '}
-            <span className="text-aurora font-medium">Veikkausliiga {SEASON}</span>
+            <span className="text-aurora font-medium">Veikkausliiga {kausi}</span>
           </>
         }
         subtitle={`${tracked.length} pelaajaa seurannassa`}
@@ -254,6 +268,7 @@ export default function NuoretPage() {
               player={player}
               index={i}
               marketValue={lookupMarketValue(player)}
+              menneKausi={menneKausi}
             />
           ))}
         </div>

@@ -35,10 +35,9 @@ import {
   type SeasonPlayer,
   type PlayerRound,
 } from '@/services/api';
+import { useValittuKausi } from '@/hooks/useKausi';
 import { InsightBar } from '@/components/InsightBar';
 import { InfoTooltip } from '@/components/InfoTooltip';
-
-const SEASON = 2026;
 
 type FilterId = 'minutes' | 'goals' | 'youngest' | 'u21' | 'u19' | 'u18';
 
@@ -361,6 +360,7 @@ function PlayerProgressionPanel({
 
 export default function PelaikaPage() {
   const navigate = useNavigate();
+  const kausi = useValittuKausi();
   const [selectedPlayer, setSelectedPlayer] = useState<SeasonPlayer | null>(null);
   const [activeFilter, setActiveFilter] = useState<FilterId>('minutes');
 
@@ -369,12 +369,12 @@ export default function PelaikaPage() {
     loading: playersLoading,
     error: playersError,
     refetch,
-  } = useApi(() => getSeasonPlayers(SEASON), [SEASON]);
+  } = useApi(() => getSeasonPlayers(kausi), [kausi]);
 
   // Joukkuekaavio + InsightBar käyttävät edelleen youth-stats-dataa.
   const { data: statsData, loading: statsLoading } = useApi(
-    () => getYouthStatsAll(SEASON),
-    [SEASON],
+    () => getYouthStatsAll(kausi),
+    [kausi],
   );
 
   // Valitun pelaajan kierrosdata kehityskäyrää varten.
@@ -383,12 +383,12 @@ export default function PelaikaPage() {
     async () => {
       if (!selectedSlug) return null;
       try {
-        return await getPlayerRounds(SEASON, selectedSlug);
+        return await getPlayerRounds(kausi, selectedSlug);
       } catch {
         return null;
       }
     },
-    [selectedSlug, SEASON],
+    [selectedSlug, kausi],
   );
 
   const veikkausliiga = useMemo(
@@ -434,7 +434,7 @@ export default function PelaikaPage() {
         <div className="absolute -bottom-16 -left-12 w-56 h-56 rounded-full bg-ice/10 blur-3xl" />
         <div className="relative">
           <div className="text-xs uppercase tracking-[0.2em] text-ice mb-3 font-medium">
-            Veikkausliiga · Kausi {SEASON}
+            Veikkausliiga · Kausi {kausi}
           </div>
           <h1 className="text-3xl md:text-4xl font-light tracking-tight leading-tight">
             Peliaika —{' '}
@@ -634,7 +634,7 @@ export default function PelaikaPage() {
       )}
 
       <footer className="border-t border-navy-700 pt-5 text-xs text-white/40 flex flex-wrap items-center gap-x-4 gap-y-1">
-        <span>Veikkausliiga {SEASON}</span>
+        <span>Veikkausliiga {kausi}</span>
         <span className="w-px h-3 bg-white/20" />
         <span>
           {players.length === 0 ? (

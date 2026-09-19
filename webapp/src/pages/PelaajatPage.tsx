@@ -3,9 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import { Search, Info } from 'lucide-react';
 import { useApi } from '@/hooks/useApi';
 import { getOfficialStats, type OfficialPlayer } from '@/services/api';
+import { useValittuKausi } from '@/hooks/useKausi';
 import { Hero } from '@/components/Hero';
-
-const SEASON = 2026;
 
 /** Yksinkertainen slugify joka säilyttää ascii:n. Käytetään tulevan
  *  /pelaaja/:id-reitin parametriksi (placeholder-navigointi). */
@@ -19,9 +18,10 @@ function slugify(name: string): string {
 }
 
 export default function PelaajatPage() {
+  const kausi = useValittuKausi();
   const { data, loading, error } = useApi(
-    () => getOfficialStats(SEASON),
-    [SEASON],
+    () => getOfficialStats(kausi),
+    [kausi],
   );
   const [search, setSearch] = useState('');
   const [teamFilter, setTeamFilter] = useState('');
@@ -65,7 +65,7 @@ export default function PelaajatPage() {
   return (
     <div className="px-6 py-10 md:py-16 space-y-6">
       <Hero
-        eyebrow={`Veikkausliiga · Kausi ${SEASON}`}
+        eyebrow={`Veikkausliiga · Kausi ${kausi}`}
         title={
           <>
             Pelaajat —{' '}

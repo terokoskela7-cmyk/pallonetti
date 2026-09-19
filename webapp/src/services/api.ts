@@ -639,6 +639,23 @@ export const getPlayerRounds = (
 ): Promise<PlayerRound[]> =>
   fetchApi(`/season-players/${season}/${encodeURIComponent(slug)}/rounds`);
 
+// ============================================
+// KAUDET — valitsimen lähde
+// ============================================
+export interface KausiInfo {
+  kausi: number;
+  sarja: string;
+  pelaajat: number | null;
+  joukkueet: number | null;
+  tuotuPvm: string | null;
+}
+
+/**
+ * Saatavilla olevat kaudet, uusin ensin. Lähde on backendin kaudet-kokoelma,
+ * ei kovakoodattu lista — uusi kausi ilmestyy tuonnin jälkeen itsestään.
+ */
+export const getKaudet = (): Promise<KausiInfo[]> => fetchApi('/kaudet');
+
 /** Sama slug-logiikka kuin backendin toSlug() (excelImport.ts). */
 export function toSlug(etu: string, suku: string): string {
   return `${etu}-${suku}`

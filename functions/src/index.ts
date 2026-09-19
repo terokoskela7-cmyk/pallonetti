@@ -798,6 +798,54 @@ function toSeasonPlayer(id: string, data: admin.firestore.DocumentData | undefin
   };
 }
 
+/**
+ * GET /api/kaudet — saatavilla olevat kaudet, uusin ensin.
+ *
+ * Lähde on kaudet-kokoelma, jonka kausituonti kirjoittaa. Näin uusi kausi
+ * ilmestyy valitsimeen tuonnin jälkeen ilman koodimuutosta, eikä listaa
+ * tarvitse kovakoodata frontendiin.
+ */
+app.get('/api/kaudet', async (_req, res) => {
+  try {
+    const snap = await admin.firestore().collection('kaudet').get();
+    const kaudet = snap.docs
+      .map((doc) => {
+        const d = doc.data();
+        // tuotu_pvm on Firestore-Timestamp. Ilman muunnosta se serialisoituu
+        // muodossa {_seconds, _nanoseconds}, jota frontend ei osaa lukea.
+        const tuotu = d.tuotu_pvm;
+        const tuotuPvm =
+          tuotu && typeof tuotu.toDate === 'function'
+            ? (tuotu.toDate() as Date).toISOString()
+            : typeof tuotu === 'string'
+              ? tuotu
+              : null;
+        return {
+          kausi: (d.vuosi as number) ?? parseInt(doc.id, 10),
+          sarja: (d.sarja as string) ?? 'Veikkausliiga',
+          pelaajat: (d.pelaajat as number) ?? null,
+          joukkueet: (d.joukkueet as number) ?? null,
+          tuotuPvm,
+        };
+      })
+      .filter((k) => !isNaN(k.kausi))
+      .sort((a, b) => b.kausi - a.kausi);
+
+    res.set('Cache-Control', 'public, max-age=300');
+    res.json({
+      success: true,
+      data: kaudet,
+      oletus: kaudet.length > 0 ? kaudet[0].kausi : null,
+      source: 'kausituonti',
+      timestamp: new Date().toISOString(),
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Tuntematon virhe';
+    console.error('[kaudet] failed:', message);
+    res.status(500).json({ success: false, error: message });
+  }
+});
+
 /** GET /api/season-players/:season — kaikki kauden pelaajat. */
 app.get('/api/season-players/:season', async (req, res) => {
   const season = parseInt(req.params.season, 10);
@@ -812,7 +860,13 @@ app.get('/api/season-players/:season', async (req, res) => {
       .doc(String(season))
       .collection('players')
       .get();
-    const players = snap.docs.map((doc) => toSeasonPlayer(doc.id, doc.data()));
+    // Vanhentuneiksi merkityt projektiot on tuotu aiemmin mutta ne eivät
+    // enää ole lähdeaineistossa. Suodatus tehdään muistissa, ei where-
+    // kyselyllä: valtaosalta dokumenteista kenttä puuttuu kokonaan, ja
+    // puuttuva kenttä tarkoittaa "ei vanhentunut".
+    const players = snap.docs
+      .filter((doc) => doc.data().vanhentunut !== true)
+      .map((doc) => toSeasonPlayer(doc.id, doc.data()));
     res.set('Cache-Control', 'public, max-age=3600');
     res.json({
       success: true,
@@ -899,7 +953,9 @@ app.get('/api/season-players/:season/:slug', async (req, res) => {
       .collection('players')
       .doc(slug)
       .get();
-    if (!doc.exists) {
+    // Vanhentunut projektio käsitellään kuin puuttuvaa: pelaaja ei ole
+    // tämän kauden aineistossa, jolloin käyttöliittymä kertoo sen.
+    if (!doc.exists || doc.data()?.vanhentunut === true) {
       res.status(404).json({ success: false, error: 'Pelaajaa ei löytynyt' });
       return;
     }

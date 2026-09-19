@@ -1,4 +1,5 @@
 import { Routes, Route } from 'react-router-dom';
+import { KausiProvider, KausiPortti } from '@/hooks/useKausi';
 import { Layout } from '@/components/Layout';
 import HomePage from '@/pages/HomePage';
 import PelaikaPage from '@/pages/PelaikaPage';
@@ -10,16 +11,20 @@ import AdminPage from '@/pages/AdminPage';
 
 export default function App() {
   return (
-    <Layout>
-      <Routes>
-        <Route path="/" element={<HomePage />} />
-        <Route path="/nuoret" element={<NuoretPage />} />
-        <Route path="/pelaajat" element={<PelaajatPage />} />
-        <Route path="/peliaika" element={<PelaikaPage />} />
-        <Route path="/pelaaja/:slug" element={<PelaajaPage />} />
-        <Route path="/about" element={<AboutPage />} />
-        <Route path="/admin" element={<AdminPage />} />
-      </Routes>
-    </Layout>
+    <KausiProvider>
+      <Layout>
+        <KausiPortti>
+          <Routes>
+          <Route path="/" element={<HomePage />} />
+          <Route path="/nuoret" element={<NuoretPage />} />
+          <Route path="/pelaajat" element={<PelaajatPage />} />
+          <Route path="/peliaika" element={<PelaikaPage />} />
+          <Route path="/pelaaja/:slug" element={<PelaajaPage />} />
+          <Route path="/about" element={<AboutPage />} />
+          <Route path="/admin" element={<AdminPage />} />
+          </Routes>
+        </KausiPortti>
+      </Layout>
+    </KausiProvider>
   );
 }

@@ -12,10 +12,9 @@ import {
   filterReliableTeams,
   type YouthStats,
 } from '@/services/api';
+import { useValittuKausi } from '@/hooks/useKausi';
 import { Hero } from '@/components/Hero';
 import { TeamRankingBar } from '@/components/TeamRankingBar';
-
-const SEASON = 2026;
 
 function getInitials(teamName: string): string {
   const words = teamName.split(/\s+/).filter((w) => w.length > 0);
@@ -179,9 +178,10 @@ function ErrorState({
 }
 
 export default function JoukkueetPage() {
+  const kausi = useValittuKausi();
   const { data, loading, error, refetch } = useApi(
-    () => getYouthStatsAll(SEASON),
-    [SEASON],
+    () => getYouthStatsAll(kausi),
+    [kausi],
   );
 
   if (loading) return <LoadingSkeleton />;
@@ -199,7 +199,7 @@ export default function JoukkueetPage() {
   return (
     <div className="px-6 py-10 md:py-16 space-y-8">
       <Hero
-        eyebrow={`Veikkausliiga · Kausi ${SEASON}`}
+        eyebrow={`Veikkausliiga · Kausi ${kausi}`}
         title={
           <>
             Joukkueet —{' '}

@@ -1,7 +1,6 @@
 import { Link } from 'react-router-dom';
 import { ExternalLink, Mail, Database, Users } from 'lucide-react';
-
-const SEASON = 2026;
+import { useValittuKausi } from '@/hooks/useKausi';
 
 function Section({
   title,
@@ -49,6 +48,7 @@ function SourceItem({
 }
 
 export default function AboutPage() {
+  const kausi = useValittuKausi();
   return (
     <div className="px-6 py-10 md:py-16 max-w-3xl mx-auto space-y-10">
       {/* Hero */}
@@ -111,13 +111,13 @@ export default function AboutPage() {
       <Section title="Miten U21 ja U23 määritellään?">
         <p>
           <strong className="text-white/80">U21</strong> = syntynyt{' '}
-          <span className="tabular">{SEASON - 21}</span> tai myöhemmin.
-          Esimerkiksi kaudella {SEASON} U21-pelaaja on syntynyt vuonna{' '}
-          {SEASON - 21} tai sen jälkeen.
+          <span className="tabular">{kausi - 21}</span> tai myöhemmin.
+          Esimerkiksi kaudella {kausi} U21-pelaaja on syntynyt vuonna{' '}
+          {kausi - 21} tai sen jälkeen.
         </p>
         <p>
           <strong className="text-white/80">U23</strong> = syntynyt{' '}
-          <span className="tabular">{SEASON - 23}</span> tai myöhemmin.
+          <span className="tabular">{kausi - 23}</span> tai myöhemmin.
         </p>
         <p>
           Ikä lasketaan syntymävuodesta (ei kalenteri-ikä), jolloin määritelmä

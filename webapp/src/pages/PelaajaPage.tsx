@@ -24,8 +24,7 @@ import {
   type SeasonPlayer,
   type PlayerRound,
 } from '@/services/api';
-
-const SEASON = 2026;
+import { useKausi, useValittuKausi } from '@/hooks/useKausi';
 
 function fullName(p: SeasonPlayer): string {
   return `${p.etunimi} ${p.sukunimi}`.trim();
@@ -49,13 +48,28 @@ function LoadingState() {
   );
 }
 
-function NotFoundState({ slug }: { slug: string }) {
+/**
+ * Pelaajaa ei ole valitulla kaudella. Tämä ei ole virhe vaan tavallinen
+ * tilanne kautta vaihdettaessa: pelaaja on voinut pelata toisella kaudella.
+ * Siksi kausi sanotaan auki eikä näytetä tyhjää sivua.
+ */
+function NotFoundState({ slug, kausi }: { slug: string; kausi: number }) {
+  const nimi = slug
+    .split('-')
+    .filter(Boolean)
+    .map((osa) => osa.charAt(0).toUpperCase() + osa.slice(1))
+    .join(' ');
   return (
     <div className="px-6 py-16 max-w-md mx-auto text-center space-y-4">
       <Info className="w-10 h-10 text-white/40 mx-auto" />
-      <div className="text-white/90 font-medium">Pelaajaa ei löytynyt</div>
+      <div className="text-white/90 font-medium">
+        {nimi || 'Pelaaja'} ei pelannut kaudella {kausi}
+      </div>
       <div className="text-sm text-white/60">
-        Slug: <span className="font-mono text-white/80">{slug}</span>
+        Valitse toinen kausi yläpalkista, tai palaa listaukseen.
+      </div>
+      <div className="text-xs text-white/40">
+        Slug: <span className="font-mono text-white/60">{slug}</span>
       </div>
       <div className="flex items-center justify-center gap-3 pt-2">
         <Link
@@ -208,11 +222,16 @@ function ProgressionChart({ rounds }: { rounds: PlayerRound[] }) {
 export default function PelaajaPage() {
   const params = useParams<{ slug: string }>();
   const slug = params.slug ?? '';
+  const kausi = useValittuKausi();
+  const { kaudet } = useKausi();
+  // Markkina-arvo on nykyhetken tieto. Menneellä kaudella sitä ei esitetä
+  // kyseisen kauden arvona vaan nimetään auki.
+  const menneKausi = kausi < (kaudet.length > 0 ? kaudet[0].kausi : kausi);
 
   // Pääasiallinen lähde: Firestore-pelaaja slug:lla.
   const { data: player, loading, error } = useApi(
-    () => getSeasonPlayer(SEASON, slug),
-    [slug, SEASON],
+    () => getSeasonPlayer(kausi, slug),
+    [slug, kausi],
   );
 
   // Kierrosdata kehityskäyrää varten.
@@ -220,12 +239,12 @@ export default function PelaajaPage() {
     async () => {
       if (!slug) return [] as PlayerRound[];
       try {
-        return await getPlayerRounds(SEASON, slug);
+        return await getPlayerRounds(kausi, slug);
       } catch {
         return [] as PlayerRound[];
       }
     },
-    [slug, SEASON],
+    [slug, kausi],
   );
 
   const name = player ? fullName(player) : '';
@@ -236,12 +255,12 @@ export default function PelaajaPage() {
     async () => {
       if (!name) return null;
       try {
-        return await getTransfermarktPlayer(name, SEASON);
+        return await getTransfermarktPlayer(name, kausi);
       } catch {
         return null;
       }
     },
-    [name, SEASON],
+    [name, kausi],
   );
 
   const safeMarketValue = useMemo(() => {
@@ -262,7 +281,7 @@ export default function PelaajaPage() {
       </div>
     );
   }
-  if (!player) return <NotFoundState slug={slug} />;
+  if (!player) return <NotFoundState slug={slug} kausi={kausi} />;
 
   const photoUrl = tmData?.imageUrl ?? null;
   const position = tmData?.position ?? null;
@@ -292,7 +311,7 @@ export default function PelaajaPage() {
         <PlayerAvatar photoUrl={photoUrl} name={name} size={80} />
         <div className="min-w-0 flex-1">
           <div className="text-xs uppercase tracking-[0.2em] text-ice mb-1 font-medium">
-            Veikkausliiga · Kausi {SEASON}
+            Veikkausliiga · Kausi {kausi}
           </div>
           <h1 className="text-2xl md:text-3xl font-light tracking-tight leading-tight">
             {name}
@@ -331,11 +350,16 @@ export default function PelaajaPage() {
           <div className="flex items-start gap-6">
             <div className="flex-1">
               <div className="text-xs uppercase tracking-wider text-white/40 mb-1">
-                Markkina-arvo
+                {menneKausi ? 'Nykyinen arvo' : 'Markkina-arvo'}
               </div>
               <div className="text-3xl md:text-4xl font-bold text-ice font-mono tabular leading-none">
                 {formatMarketValue(safeMarketValue) ?? '—'}
               </div>
+              {menneKausi && (
+                <div className="text-[11px] text-white/40 mt-1">
+                  Tämänhetkinen arvo, ei kauden {kausi} arvo.
+                </div>
+              )}
               {tmData.contractExpires && (
                 <div className="text-xs text-white/50 mt-3">
                   Sopimus voimassa:{' '}

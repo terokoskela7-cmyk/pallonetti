@@ -30,6 +30,7 @@ import type {
 } from 'recharts/types/component/DefaultTooltipContent';
 import { useApi } from '@/hooks/useApi';
 import {
+  getKansalaisuudet,
   getYouthStatsAll,
   getYouthAggregation,
   getOfficialStats,
@@ -41,6 +42,13 @@ import {
   type YouthStats,
 } from '@/services/api';
 import { useKausi, useValittuKausi } from '@/hooks/useKausi';
+import {
+  NUORET_LABEL,
+  NUORET_MAX,
+  ALLE_21_LABEL,
+  NUORET_LABEL_PITKA,
+} from '@/constants/ika';
+import { pros } from '@/utils/luvut';
 import { Hero } from '@/components/Hero';
 import { ResearchCard } from '@/components/ResearchCard';
 
@@ -82,10 +90,10 @@ function GuideCard({ to, icon: Icon, title, body }: GuideCardProps) {
 // ============================================================
 // Apulaskennat
 // ============================================================
-function calcU21Pct(teams: YouthStats[]): number | null {
+function laskeNuortenOsuus(teams: YouthStats[]): number | null {
   if (teams.length === 0) return null;
   const total = teams.reduce((s, t) => s + t.totalMinutes, 0);
-  const u21 = teams.reduce((s, t) => s + t.youthMinutesU21, 0);
+  const u21 = teams.reduce((s, t) => s + t.minuutitNuoret, 0);
   return total > 0 ? (u21 / total) * 100 : null;
 }
 
@@ -99,24 +107,10 @@ function calcU21Pct(teams: YouthStats[]): number | null {
  */
 function calcAlle21Pct(teams: YouthStats[]): number | null {
   if (teams.length === 0) return null;
-  if (teams.some((t) => t.youthMinutesU20 === undefined)) return null;
+  if (teams.some((t) => t.minuutitAlle21 === undefined)) return null;
   const total = teams.reduce((s, t) => s + t.totalMinutes, 0);
-  const alle21 = teams.reduce((s, t) => s + (t.youthMinutesU20 ?? 0), 0);
+  const alle21 = teams.reduce((s, t) => s + (t.minuutitAlle21 ?? 0), 0);
   return total > 0 ? (alle21 / total) * 100 : null;
-}
-
-/**
- * U23-osuus, tai null jos lähde ei sisällä 22–23-vuotiaita. Nykyinen lähde
- * (Veikkausliigan vienti) on suodatettu 17–21-vuotiaisiin, joten U23-lukua
- * ei ole — sitä ei saa esittää nollana eikä U21:n arvona. Palaa käyttöön
- * sellaisenaan jos vienti tehdään haarukalla 17–23.
- */
-function calcU23Pct(teams: YouthStats[]): number | null {
-  if (teams.length === 0) return null;
-  if (teams.some((t) => t.youthMinutesU23 === undefined)) return null;
-  const total = teams.reduce((s, t) => s + t.totalMinutes, 0);
-  const u23 = teams.reduce((s, t) => s + (t.youthMinutesU23 ?? 0), 0);
-  return total > 0 ? (u23 / total) * 100 : null;
 }
 
 function formatRelativeTime(iso: string): string {
@@ -200,7 +194,7 @@ function TrendTooltip({ active, payload }: TooltipProps<ValueType, NameType>) {
     <div className="bg-navy-800 border border-navy-600 rounded-md shadow-xl px-3 py-2 text-xs">
       <div className="text-white/90 font-medium">Kierros {d.round}</div>
       <div className="text-ice tabular">
-        {d.pct.toFixed(1)} %
+        {pros(d.pct)}
       </div>
     </div>
   );
@@ -325,7 +319,6 @@ export default function HomePage() {
   // kauden arvona, vaan kortti nimetään auki.
   const uusinKausi = kaudet.length > 0 ? kaudet[0].kausi : kausi;
   const menneKausi = kausi < uusinKausi;
-  const [ageGroup, setAgeGroup] = useState<'u21' | 'u23'>('u21');
   const [infoOpen, setInfoOpen] = useState(false);
 
   // Päädata: kolme sarjaa + U23-aggregaatti + viralliset minuutit.
@@ -336,6 +329,18 @@ export default function HomePage() {
       getOfficialStats(kausi),
     ]);
     return { stats, agg, official };
+  }, [kausi]);
+
+  // Kansalaisuustiedot: vain osalla kausista. Epäonnistuminen ei kaada
+  // sivua, mutta se ei myöskään saa näyttää nollalta — silloin rivi pysyy
+  // nykyisessä "enintään X %" -muodossa.
+  const { data: kansalaisuus } = useApi(async () => {
+    try {
+      return await getKansalaisuudet(kausi);
+    } catch (e) {
+      console.error('[etusivu] kansalaisuustietojen haku epäonnistui:', e);
+      return null;
+    }
   }, [kausi]);
 
   // Markkina-arvot rinnakkain — sivu ei jää odottamaan.
@@ -363,7 +368,7 @@ export default function HomePage() {
   }, [tmEntries]);
 
   // U23 = kaikki topYouthPlayers (backend suodattaa jo U23:iin).
-  const u23Players = useMemo(() => {
+  const kaikkiNuoret = useMemo(() => {
     if (!data) return [];
     return buildU23Players(data.agg.topYouthPlayers, data.official.data).sort(
       (a, b) => b.minutes - a.minutes,
@@ -371,9 +376,9 @@ export default function HomePage() {
   }, [data]);
 
   // U21 = U23:sta ikäsuodatettuna.
-  const u21Players = useMemo(
-    () => u23Players.filter((p) => p.age <= 21),
-    [u23Players],
+  const nuoretPelaajat = useMemo(
+    () => kaikkiNuoret.filter((p) => p.age <= NUORET_MAX),
+    [kaikkiNuoret],
   );
 
   if (loading) {
@@ -395,19 +400,13 @@ export default function HomePage() {
   }
 
   const veikkausliiga = filterReliableTeams(data.stats.veikkausliiga);
-  const isU21 = ageGroup === 'u21';
 
-  // Laskelmat ikäryhmän mukaan
-  const pct = isU21 ? calcU21Pct(veikkausliiga) : calcU23Pct(veikkausliiga);
-  // null = ei dataa. U23-kentät puuttuvat nykyisestä lähteestä.
-  const count: number | null = veikkausliiga.length === 0
-    ? null
-    : isU21
-    ? veikkausliiga.reduce((s, t) => s + t.youthPlayersU21, 0)
-    : veikkausliiga.some((t) => t.youthPlayersU23 === undefined)
+  const pct = laskeNuortenOsuus(veikkausliiga);
+  const count: number | null =
+    veikkausliiga.length === 0
       ? null
-      : veikkausliiga.reduce((s, t) => s + (t.youthPlayersU23 ?? 0), 0);
-  const players = isU21 ? u21Players : u23Players;
+      : veikkausliiga.reduce((s, t) => s + t.pelaajatNuoret, 0);
+  const players = nuoretPelaajat;
   const topPlayer = players[0] ?? null;
 
   const totalMv = players.reduce((sum, p) => {
@@ -422,6 +421,32 @@ export default function HomePage() {
   const alle21Pct = calcAlle21Pct(veikkausliiga);
   const alle21VsTanska: number | null =
     alle21Pct === null ? null : alle21Pct - CIES_TANSKA_PCT;
+
+  // Vertailurivin teksti. Kun kansalaisuusdataa on, Suomen kansalaisille
+  // mennyt osuus näytetään erikseen. Se on ALARAJA, joten sanamuoto on
+  // "noin" ja luku pyöristetään kokonaisluvuksi — tarkempi esitys
+  // väittäisi tarkkuutta jota lähteessä ei ole.
+  const suomalaistenOsuus = kansalaisuus?.saatavilla
+    ? kansalaisuus.osuusAlle21Suomalaiset ?? null
+    : null;
+  const vertailuTeksti =
+    alle21Pct === null
+      ? ALLE_21_LABEL + ': ei dataa'
+      : suomalaistenOsuus !== null
+        ? ALLE_21_LABEL +
+          ': ' +
+          pros(alle21Pct) +
+          ' · Suomen kansalaisille noin ' +
+          pros(Math.round(suomalaistenOsuus), 0) +
+          ' · Tanska ' +
+          pros(CIES_TANSKA_PCT) +
+          ' (CIES 2025)'
+        : ALLE_21_LABEL +
+          ': enintään ' +
+          pros(alle21Pct) +
+          ' · Tanska ' +
+          pros(CIES_TANSKA_PCT) +
+          ' (CIES 2025)';
 
   return (
     <div className="px-6 py-10 md:py-16 space-y-14">
@@ -447,13 +472,13 @@ export default function HomePage() {
             to="/peliaika"
             icon={BarChart3}
             title="Analyysi"
-            body="Joukkueiden U21-%-kaaviot, pelaajataulukko filttereillä ja kehityskäyrät. Syväsukellus dataan."
+            body="Joukkueiden nuorten osuudet, pelaajataulukko filttereillä ja kehityskäyrät. Syväsukellus dataan."
           />
           <GuideCard
             to="/nuoret"
             icon={Users}
-            title="U21-pelaajat"
-            body="Alle 21-vuotiaiden spotlight: pelaajakortit, markkina-arvot ja CIES-vertailu."
+            title="Nuoret"
+            body="17–21-vuotiaiden spotlight: pelaajakortit, markkina-arvot ja kansainvälinen vertailu."
           />
           <GuideCard
             to="/pelaajat"
@@ -465,83 +490,37 @@ export default function HomePage() {
             to="/about"
             icon={HelpCircle}
             title="Tietoa"
-            body="Datalähteet, metodologia, U21/U23-määritelmät ja tekijän yhteystiedot."
+            body="Datalähteet, metodologia, ikähaarukan määritelmä ja tekijän yhteystiedot."
           />
         </div>
       </section>
 
-      {/* ---------- Osio 3 — Ikäryhmä-valitsin + KPI ---------- */}
+      {/* ---------- Osio 3 — KPI-kortit ---------- */}
       <section className="space-y-4">
-        {/* Toggle */}
-        <div className="flex items-center gap-3">
-          <span className="text-xs uppercase tracking-wider text-white/40">
-            Ikäryhmä
-          </span>
-          <div className="inline-flex bg-navy-700 border border-navy-600 rounded-md overflow-hidden">
-            <button
-              onClick={() => setAgeGroup('u21')}
-              className={`px-3 py-1.5 text-xs font-medium transition-colors ${
-                isU21
-                  ? 'bg-ice/15 text-ice'
-                  : 'text-white/60 hover:text-white hover:bg-navy-600'
-              }`}
-            >
-              U21
-            </button>
-            <button
-              onClick={() => setAgeGroup('u23')}
-              className={`px-3 py-1.5 text-xs font-medium transition-colors ${
-                !isU21
-                  ? 'bg-ice/15 text-ice'
-                  : 'text-white/60 hover:text-white hover:bg-navy-600'
-              }`}
-            >
-              U23
-            </button>
-          </div>
-          {isU21 && (
-            <span className="text-[11px] text-white/40">
-              Vertailu: Tanska {CIES_TANSKA_PCT} % (CIES 2025, alle
-              21-vuotiaat)
-            </span>
-          )}
-        </div>
-
         {/* KPI-kortit */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
           <KpiCard
-            label={
-              isU21
-                ? 'Nuorten osuus peliajasta (17–21 v)'
-                : 'Nuorten osuus peliajasta (17–23 v)'
-            }
-            value={pct === null ? 'ei dataa' : `${pct.toFixed(1)} %`}
+            label={'Nuorten osuus peliajasta (' + NUORET_LABEL + ')'}
+            value={pros(pct)}
             accent="aurora"
             compare={
               // Vertailu Tanskaan tehdään alle 21 -luvulla, ei tämän kortin
               // 17–21-luvulla. Puuttuva arvo → "ei dataa", ei nollaa.
-              !isU21
-                ? undefined
-                : alle21Pct === null || alle21VsTanska === null
-                  ? { tone: 'neutral', text: 'alle 21-vuotiaat: ei dataa' }
-                  : {
-                      // Suomen luku on YLÄRAJA, joten vertailu on
-                      // epäsymmetrinen. Jos yläraja jää Tanskan alle, Suomi on
-                      // varmasti perässä — se saa punaisen. Jos yläraja ylittää
-                      // Tanskan, siitä EI seuraa että Suomi olisi edellä, joten
-                      // sävy on neutraali eikä myönteinen.
+              alle21Pct === null || alle21VsTanska === null
+                ? { tone: 'neutral', text: ALLE_21_LABEL + ': ei dataa' }
+                : {
+                      // Sävy on epäsymmetrinen ja perustuu YLÄRAJAAN. Jos
+                      // yläraja jää Tanskan alle, Suomi on varmasti perässä —
+                      // punainen. Jos yläraja ylittää Tanskan, siitä EI seuraa
+                      // että Suomi olisi edellä: Suomen kansalaisten osuus on
+                      // alaraja, ja Tanskan luku jää näiden väliin. Neutraali.
                       tone: alle21VsTanska < 0 ? 'red' : 'neutral',
-                      text:
-                        'alle 21-vuotiaat: enintään ' +
-                        alle21Pct.toFixed(1) +
-                        ' % · Tanska ' +
-                        CIES_TANSKA_PCT +
-                        ' %',
+                      text: vertailuTeksti,
                     }
             }
           />
           <KpiCard
-            label={isU21 ? 'Nuoria pelaajia (17–21 v)' : 'Nuoria pelaajia (17–23 v)'}
+            label={'Nuoria pelaajia (' + NUORET_LABEL + ')'}
             value={count === null ? 'ei dataa' : String(count)}
             accent="ice"
             hint={
@@ -549,7 +528,7 @@ export default function HomePage() {
             }
           />
           <KpiCard
-            label={isU21 ? 'Eniten minuutteja (17–21 v)' : 'Eniten minuutteja (17–23 v)'}
+            label={'Eniten minuutteja (' + NUORET_LABEL + ')'}
             value={topPlayer ? String(topPlayer.minutes) : '—'}
             accent="ice"
             hint={topPlayer ? `${topPlayer.playerName} · ${topPlayer.teamName}` : undefined}
@@ -560,7 +539,7 @@ export default function HomePage() {
               (menneKausi
                 ? 'Nuorten nykyinen yhteismarkkina-arvo'
                 : 'Nuorten yhteismarkkina-arvo') +
-              (isU21 ? ' (17–21 v)' : ' (17–23 v)')
+              ' (' + NUORET_LABEL + ')'
             }
             value={formatMarketValue(totalMv) ?? 'ei dataa'}
             accent="amber"
@@ -573,15 +552,24 @@ export default function HomePage() {
           />
         </div>
 
-        {isU21 && (
-          <p className="text-[11px] text-white/40 mt-3 max-w-3xl leading-relaxed">
-            Sivuston päämittari on 17–21-vuotiaiden osuus peliajasta.
-            Kansainvälinen vertailu tehdään erikseen alle 21-vuotiaiden
-            luvulla, joka on pienempi. Suomen luku on yläraja: CIES laskee
-            osuuden vain maajoukkuekelpoisista pelaajista, kun taas tässä ovat
-            mukana kaikki alle 21-vuotiaat.
-          </p>
-        )}
+        <p className="text-[11px] text-white/40 mt-3 max-w-3xl leading-relaxed">
+          Sivuston päämittari on {NUORET_LABEL_PITKA} osuus peliajasta.
+          Kansainvälinen vertailu tehdään erikseen alle 21-vuotiaiden luvulla,
+          joka on pienempi.{' '}
+          {suomalaistenOsuus !== null ? (
+            <>
+              Suomen kansalaisten osuus perustuu Veikkausliigan rekisteriin:
+              kaksoiskansalaisuus ei näy siinä, joten luku on alaraja. CIES
+              laskee osuuden vain maajoukkuekelpoisista pelaajista.
+            </>
+          ) : (
+            <>
+              Suomen luku on yläraja: CIES laskee osuuden vain
+              maajoukkuekelpoisista pelaajista, kun taas tässä ovat mukana
+              kaikki alle 21-vuotiaat.
+            </>
+          )}
+        </p>
       </section>
 
       {/* ---------- Osio 4 — Kierrostrendi ---------- */}

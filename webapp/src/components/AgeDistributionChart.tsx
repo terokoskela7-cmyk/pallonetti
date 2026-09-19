@@ -83,9 +83,9 @@ export function AgeDistributionChart({ teams }: AgeDistributionChartProps) {
       fullName: t.teamName,
       'U18': t.youthPercentageU18,
       '18-19v': Math.max(0, t.youthPercentageU19 - t.youthPercentageU18),
-      '19-20v': Math.max(0, t.youthPercentageU20 - t.youthPercentageU19),
-      '20-21v': Math.max(0, t.youthPercentageU21 - t.youthPercentageU20),
-      '21-23v': Math.max(0, (t.youthPercentageU23 ?? 0) - t.youthPercentageU21),
+      '19-20v': Math.max(0, t.osuusAlle21 - t.youthPercentageU19),
+      '20-21v': Math.max(0, t.osuusNuoret - t.osuusAlle21),
+      '21-23v': Math.max(0, (t.youthPercentageU23 ?? 0) - t.osuusNuoret),
       'Yli 23v': Math.max(0, 100 - (t.youthPercentageU23 ?? 0)),
     }));
 

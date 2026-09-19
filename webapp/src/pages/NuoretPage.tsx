@@ -9,17 +9,17 @@ import {
   type SeasonPlayer,
 } from '@/services/api';
 import { useKausi, useValittuKausi } from '@/hooks/useKausi';
+import { IKAKAISTAT, kaistalla } from '@/constants/ika';
 import { Hero } from '@/components/Hero';
 
 const AVATAR_COLORS = ['#00D4FF', '#00FF88', '#6366f1', '#f59e0b', '#ef4444'];
 
-type AgeFilter = 'all' | 'u18' | 'u19' | 'u21';
+// Suodattimet näyttävät ikävuosia, eivät koodeja. Kaistat yhdestä vakiosta.
+type AgeFilter = string;
 
-const FILTERS: Array<{ id: AgeFilter; label: string; max: number }> = [
-  { id: 'all', label: 'Kaikki', max: Infinity },
-  { id: 'u18', label: 'U18', max: 18 },
-  { id: 'u19', label: 'U19', max: 19 },
-  { id: 'u21', label: 'U21', max: 21 },
+const FILTERS: Array<{ id: AgeFilter; label: string }> = [
+  { id: 'all', label: 'Kaikki' },
+  ...IKAKAISTAT.map((k) => ({ id: k.id, label: k.label })),
 ];
 
 function fullName(p: SeasonPlayer): string {
@@ -196,9 +196,9 @@ export default function NuoretPage() {
   );
 
   const players = useMemo(() => {
-    const max = FILTERS.find((f) => f.id === filter)?.max ?? Infinity;
+    const kaista = IKAKAISTAT.find((k) => k.id === filter);
     return tracked
-      .filter((p) => p.ika <= max)
+      .filter((p) => (kaista ? kaistalla(p.ika, kaista) : true))
       .sort((a, b) => b.minTotal - a.minTotal);
   }, [tracked, filter]);
 

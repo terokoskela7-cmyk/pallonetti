@@ -21,23 +21,23 @@ type SortDir = 'asc' | 'desc';
 
 function getPct(t: YouthStats, ag: AgeGroup): number {
   if (ag === 'u23') return (t.youthPercentageU23 ?? 0);
-  if (ag === 'u21') return t.youthPercentageU21;
-  if (ag === 'u20') return t.youthPercentageU20;
+  if (ag === 'u21') return t.osuusNuoret;
+  if (ag === 'u20') return t.osuusAlle21;
   return t.youthPercentageU19;
 }
 
 function getMinutes(t: YouthStats, ag: AgeGroup): number {
   if (ag === 'u23') return (t.youthMinutesU23 ?? 0);
-  if (ag === 'u21') return t.youthMinutesU21;
-  if (ag === 'u20') return t.youthMinutesU20;
+  if (ag === 'u21') return t.minuutitNuoret;
+  if (ag === 'u20') return t.minuutitAlle21;
   return t.youthMinutesU19;
 }
 
 function getPlayers(t: YouthStats, ag: AgeGroup): number {
   // YouthStats sisältää laskurit vain U23/U21/U20 — U19:lle ei
   if (ag === 'u23') return (t.youthPlayersU23 ?? 0);
-  if (ag === 'u21') return t.youthPlayersU21;
-  if (ag === 'u20') return t.youthPlayersU20;
+  if (ag === 'u21') return t.pelaajatNuoret;
+  if (ag === 'u20') return t.pelaajatAlle21;
   return 0;
 }
 

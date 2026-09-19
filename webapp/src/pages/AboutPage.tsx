@@ -69,7 +69,7 @@ export default function AboutPage() {
         <p>
           CIES Football Observatoryn tutkimus 50 eurooppalaisesta liigasta osoittaa:
           maat joissa nuoret saavat eniten peliaikaa, tuottavat eniten huippupelaajia.
-          Tanskan Superliga johtaa Euroopassa U21-peliajalla (11,7 %).
+          Tanskan Superliga johtaa Euroopassa alle 21-vuotiaiden peliajalla (11,7 %).
         </p>
         <p>
           Suomessa ei ole ollut julkisesti saatavilla työkalua, jolla seurata
@@ -82,43 +82,45 @@ export default function AboutPage() {
         <p>
           Pohjoismaissa Tanska on ottanut selvän johtoroolin nuorten pelaajien
           kehittämisessä. CIES:n data: Tanskan Superliga on maailman kolmanneksi
-          paras U21-pelaajien peliajan suhteen ({' '}
-          <span className="tabular">11.7 %</span>).
+          paras alle 21-vuotiaiden peliajan suhteen ({' '}
+          <span className="tabular">11,7 %</span>).
         </p>
         <p>
           <strong className="text-white/80">FC Nordsjælland</strong> on Euroopan #1
-          kehitysseura <span className="tabular">44.7 %</span> U21-minuuteilla.
+          kehitysseura <span className="tabular">44,7 %</span> alle 21-vuotiaiden minuuteilla.
           Heidän Right to Dream -mallinsa on Pohjoismaiden vastaus Red Bullille:
           kehitä nuoria, anna peliaikaa, myy voitolla. Mohammed Kudus ja Mikkel
           Damsgaard ovat tämän mallin tähtituotteita.
         </p>
         <p>
           <strong className="text-white/80">Norjan Eliteserien</strong> ({' '}
-          <span className="tabular">20.2 %</span> U21-minuutit) ja{' '}
+          <span className="tabular">20,2 %</span> alle 21-vuotiaiden minuutit) ja{' '}
           <strong className="text-white/80">Ruotsin Allsvenskan</strong> ({' '}
-          <span className="tabular">22.4 %</span>) ovat myös edelläkävijöitä
+          <span className="tabular">22,4 %</span>) ovat myös edelläkävijöitä
           nuorten panostuksessa. Molemmat maat ovat tuottaneet merkittävästi
           ulkomaille myytyjä pelaajia.
         </p>
         <p>
           Suomen Veikkausliigassa tilanne on ollut pitkään epäselvä — tarkkaa
           dataa ei ole ollut julkisesti saatavilla. pallonetti.fi muuttaa tämän.
-          Seuraamalla U23-pelaajien peliaikaa teemme kehityksen mitattavaksi ja
+          Seuraamalla 17–21-vuotiaiden peliaikaa teemme kehityksen mitattavaksi ja
           vertailukelpoiseksi.
         </p>
       </Section>
 
-      <Section title="Miten U21 ja U23 määritellään?">
+      <Section title="Miten ikähaarukka määritellään?">
         <p>
-          <strong className="text-white/80">U21</strong> = syntynyt{' '}
+          <strong className="text-white/80">Nuoret (17–21 v)</strong> = sivuston
+          päämittari. Kaudella {kausi} mukana ovat vuosina {kausi - 21}–{kausi - 17}
+          syntyneet.
+        </p>
+        <p>
+          <strong className="text-white/80">Alle 21-vuotiaat</strong> = syntynyt{' '}
           <span className="tabular">{kausi - 21}</span> tai myöhemmin.
-          Esimerkiksi kaudella {kausi} U21-pelaaja on syntynyt vuonna{' '}
-          {kausi - 21} tai sen jälkeen.
+          {kausi - 20} tai myöhemmin. Tätä lukua käytetään vain
+          kansainvälisessä CIES-vertailussa, ja se on päämittaria pienempi.
         </p>
-        <p>
-          <strong className="text-white/80">U23</strong> = syntynyt{' '}
-          <span className="tabular">{kausi - 23}</span> tai myöhemmin.
-        </p>
+
         <p>
           Ikä lasketaan syntymävuodesta (ei kalenteri-ikä), jolloin määritelmä
           on yhdenmukainen kansainvälisten jalkapallotilastojen kanssa.
@@ -195,7 +197,7 @@ export default function AboutPage() {
           <li>Naisten Kansallinen Liiga ei vielä mukana</li>
           <li>Veikkausliiga on ainoa pääsarja (Ykkösliiga ja Ykkönen tulossa)</li>
           <li>Transfermarkt-data riippuu sukunimi-matchin luotettavuudesta</li>
-          <li>Pelaajat ilman ikätietoa API-Footballissa eivät näy U21/U23-tilastoissa</li>
+          <li>Pelaajat ilman ikätietoa eivät näy ikäryhmätilastoissa</li>
         </ul>
       </Section>
 

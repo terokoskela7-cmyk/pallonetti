@@ -46,7 +46,7 @@ function KausiValitsin({ mobiili = false }: { mobiili?: boolean }) {
 const navLinks: Array<{ to: string; label: string; end?: boolean }> = [
   { to: '/', label: 'etusivu', end: true },
   { to: '/peliaika', label: 'analyysi' },
-  { to: '/nuoret', label: 'U21-pelaajat' },
+  { to: '/nuoret', label: 'nuoret' },
   { to: '/pelaajat', label: 'kaikki pelaajat' },
   { to: '/about', label: 'tietoa' },
 ];

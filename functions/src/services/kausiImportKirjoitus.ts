@@ -91,6 +91,12 @@ export interface KirjoitusYhteenveto {
   batchejaAjettu: number;
   /** Kirjoitetut tilannekuvat: 'seasons/2026/tilannekuvat/2026-09-19'. */
   tilannekuvat: string[];
+  /**
+   * Tilannekuvat jotka jätettiin kirjoittamatta, koska sisältö oli sama kuin
+   * edellisessä. Kaksi identtistä tilannekuvaa eri päivinä antaisi käyrälle
+   * nollan pituisen välin ja vihjaisi että pelejä on pelattu, vaikkei ole.
+   */
+  tilannekuvatOhitettu: string[];
 }
 
 /** Esikatselun luvut: montako dokumenttia syntyy, päivittyy, vanhentuu. */
@@ -148,6 +154,79 @@ export async function arvioiMuutokset(
   };
 }
 
+/** Pelaajarivi tilannekuvassa — vertailua ja kirjoitusta varten. */
+interface TilannekuvaPelaaja {
+  slug: string;
+  minTotal: number;
+  ottelutTotal: number;
+  seurat: Record<string, { min: number; ottelut: number }>;
+}
+
+/**
+ * Tiivistää tilannekuvan sisällön vertailukelpoiseksi merkkijonoksi.
+ * Mukana on vain se mikä kertoo pelitilanteesta: seurojen ottelumäärät ja
+ * pelaajien minuutit seuroittain. Tuonti-id, lähdetiedosto ja aikaleima
+ * jätetään pois — ne muuttuvat joka ajossa vaikkei data muuttuisi.
+ */
+function tilannekuvanTiiviste(
+  seurat: Record<string, number>,
+  pelaajat: TilannekuvaPelaaja[],
+): string {
+  const seuraOsa = Object.keys(seurat)
+    .sort()
+    .map((k) => k + ':' + seurat[k])
+    .join(',');
+  const pelaajaOsa = pelaajat
+    .slice()
+    .sort((a, b) => a.slug.localeCompare(b.slug))
+    .map((p) => {
+      const perSeura = Object.keys(p.seurat)
+        .sort()
+        .map((s) => s + '=' + p.seurat[s].min + '/' + p.seurat[s].ottelut)
+        .join(';');
+      return p.slug + ':' + p.minTotal + '/' + p.ottelutTotal + '[' + perSeura + ']';
+    })
+    .join(',');
+  return seuraOsa + '||' + pelaajaOsa;
+}
+
+/**
+ * Onko uusi tilannekuva sisällöltään sama kuin viimeisin olemassa oleva?
+ * Päivämäärä-ID:t järjestyvät leksikograafisesti, joten viimeisin saadaan
+ * laskevalla järjestyksellä. Saman päivän tilannekuva ohitetaan vertailusta
+ * vain jos sen sisältö on sama — muuten se korvataan.
+ */
+async function onkoSamaKuinEdellinen(
+  tilannekuvat: firestore.CollectionReference,
+  pvm: string,
+  seurat: Record<string, number>,
+  pelaajat: TilannekuvaPelaaja[],
+): Promise<boolean> {
+  const edelliset = await tilannekuvat.orderBy('pvm', 'desc').limit(1).get();
+  if (edelliset.empty) return false;
+
+  const edellinen = edelliset.docs[0];
+  const edellisenSeurat = (edellinen.data().seurat ?? {}) as Record<string, number>;
+  const pelaajaSnap = await edellinen.ref.collection('pelaajat').get();
+  const edellisenPelaajat = pelaajaSnap.docs.map((d) => {
+    const x = d.data();
+    return {
+      slug: (x.slug as string) ?? d.id,
+      minTotal: (x.minTotal as number) ?? 0,
+      ottelutTotal: (x.ottelutTotal as number) ?? 0,
+      seurat: (x.seurat ?? {}) as Record<string, { min: number; ottelut: number }>,
+    };
+  });
+
+  // Jos edellinen on eri päivältä mutta sama sisältö, uutta ei kirjoiteta.
+  // Jos edellinen on tältä päivältä ja sisältö eroaa, se korvataan.
+  const sama =
+    tilannekuvanTiiviste(edellisenSeurat, edellisenPelaajat) ===
+    tilannekuvanTiiviste(seurat, pelaajat);
+  if (sama && edellinen.id !== pvm) return true;
+  return sama;
+}
+
 /**
  * Kirjoittaa tuonnin Firestoreen eräkirjoituksina.
  *
@@ -174,6 +253,7 @@ export async function kirjoitaKausituonti(
     vanhentuneetProjektiot: [],
     batchejaAjettu: 0,
     tilannekuvat: [],
+    tilannekuvatOhitettu: [],
   };
 
   // Aikaleima luodaan kerran, jotta koko ajolla on sama tuotu_pvm.
@@ -277,18 +357,65 @@ export async function kirjoitaKausituonti(
       perJoukkue.set(n.joukkue, (perJoukkue.get(n.joukkue) || 0) + n.ottelut);
     }
 
+    // Pelaajan minuutit ja ottelut seuroittain. Kesken kauden siirtyneellä
+    // näitä on useampi, ja minTotal on niiden summa — erittely kertoo mistä
+    // summa koostuu, jottei siirtynyt pelaaja näytä yhden seuran pelaajalta.
+    const seuratPerPelaaja = new Map<
+      string,
+      Map<string, { min: number; ottelut: number }>
+    >();
+    for (const s of tulos.suoritukset) {
+      const avain = s.kausi + '|' + s.slug;
+      if (!seuratPerPelaaja.has(avain)) seuratPerPelaaja.set(avain, new Map());
+      const perSeura = seuratPerPelaaja.get(avain)!;
+      const e = perSeura.get(s.joukkue) || { min: 0, ottelut: 0 };
+      e.min += s.minuutit;
+      e.ottelut += s.ottelut;
+      perSeura.set(s.joukkue, e);
+    }
+
     for (const kausi of tulos.kaudet.map((k) => k.kausi)) {
       const projektiot = tulos.projektiot.filter((p) => p.kausi === kausi);
       const seurat = Object.fromEntries(
         otteluitaPerKausiJaJoukkue.get(kausi) ?? new Map<string, number>(),
       );
 
-      const tilannekuvaRef = db
+      const pelaajaDokumentit = projektiot.map((p) => ({
+        slug: p.slug,
+        pelaajaAvain: p.pelaajaAvain,
+        ika: p.ika,
+        joukkue: p.joukkue,
+        seurat: Object.fromEntries(
+          seuratPerPelaaja.get(kausi + '|' + p.slug) ??
+            new Map<string, { min: number; ottelut: number }>(),
+        ),
+        minTotal: p.minTotal,
+        ottelutTotal: p.ottelutTotal,
+        aloituksetTotal: p.aloituksetTotal,
+        maaliTotal: p.maaliTotal,
+      }));
+
+      const tilannekuvat = db
         .collection((asetukset.kokoelmaEtuliite || '') + 'seasons')
         .doc(kausi)
-        .collection('tilannekuvat')
-        .doc(pvm);
+        .collection('tilannekuvat');
 
+      // Sama sisältö kahtena eri päivänä antaisi käyrälle välin, jolla ei
+      // ole pelattu mitään — se vihjaisi tapahtumasta jota ei tapahtunut.
+      const muuttumaton = await onkoSamaKuinEdellinen(
+        tilannekuvat,
+        pvm,
+        seurat,
+        pelaajaDokumentit,
+      );
+      if (muuttumaton) {
+        yhteenveto.tilannekuvatOhitettu.push(
+          'seasons/' + kausi + '/tilannekuvat/' + pvm,
+        );
+        continue;
+      }
+
+      const tilannekuvaRef = tilannekuvat.doc(pvm);
       await tilannekuvaRef.set({
         pvm,
         kausi,
@@ -299,22 +426,12 @@ export async function kirjoitaKausituonti(
         luotu: tuotuPvm,
       });
 
-      // Pelaajakohtaiset kumulatiiviset minuutit tämän päivän tilanteessa.
       await kirjoitaErissa(
         db,
-        projektiot,
+        pelaajaDokumentit,
         yhteenveto,
-        (batch, p: KausiProjektio) => {
-          batch.set(tilannekuvaRef.collection('pelaajat').doc(p.slug), {
-            slug: p.slug,
-            pelaajaAvain: p.pelaajaAvain,
-            ika: p.ika,
-            joukkue: p.joukkue,
-            minTotal: p.minTotal,
-            ottelutTotal: p.ottelutTotal,
-            aloituksetTotal: p.aloituksetTotal,
-            maaliTotal: p.maaliTotal,
-          });
+        (batch, p: (typeof pelaajaDokumentit)[number]) => {
+          batch.set(tilannekuvaRef.collection('pelaajat').doc(p.slug), p);
         },
       );
 

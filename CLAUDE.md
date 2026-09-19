@@ -135,6 +135,27 @@ Cloud Functions on stateless → Map-pohjainen rate limiter nollautuu jokaisen k
 
 ---
 
+## 3.4. COMMITOINTI — PAKOLLINEN SÄÄNTÖ
+
+**Ei `git add -A` eikä `git add .`.** Tiedostot lisätään nimeltä.
+
+Ennen jokaista commitia ajetaan `git diff --cached --stat`, ja listan on
+vastattava PR:n aihetta. Jos listalla on tiedosto, joka ei kuulu aiheeseen,
+sitä ei commitoida mukaan.
+
+**Työpuussa commitoimatta olevaa muutosta ei jätetä roikkumaan.** Se joko
+commitoidaan omaan haaraansa tai siitä raportoidaan käyttäjälle. Roikkuva
+muutos päätyy seuraavaan committiin riippumatta siitä, mihin se kuuluu.
+
+**Miksi:** 2026-09-19 commit `fdb379d` ("markkina-arvot piiloon") vei mainiin
+109 riviä `haeKansalaisuudet.ts`:ään — maakoodien normalisoinnin, raporttitilan
+ja minuuttiluokittelun — koska ne olivat työpuussa committoimatta ja
+`git add -A` pyyhkäisi ne mukaan. Seuraukset: PR:n kuvaus ei vastannut sen
+sisältöä, katselmointi kohdistui väärään asiaan, ja seuraava haara joutui
+konfliktiin muutoksesta, jota sen ei pitänyt koskea.
+
+---
+
 ## 3.5. TUOTANTOON KIRJOITTAMINEN — PAKOLLINEN SÄÄNTÖ
 
 **Tuotannon Firestoreen kirjoitetaan vain kahdella ehdolla yhtä aikaa:**

@@ -49,6 +49,31 @@ const BASE_URL = 'https://www.veikkausliiga.com';
  */
 const AIA_URL = 'http://crt.sectigo.com/ZeroSSLECCDVSSLCA2.crt';
 
+/**
+ * Veikkausliiga sekoittaa ISO 3166-1 alpha-2- ja alpha-3-koodeja samassa
+ * kentässä: uudemmissa profiileissa "FIN", vanhemmissa "FI". Molemmat
+ * tarkoittavat samaa. Ilman normalisointia alpha-2-pelaajat putoaisivat
+ * kokonaan pois, ja juuri niitä on vanhoilla kausilla eniten.
+ */
+const ALPHA2_ALPHA3: Record<string, string> = {
+  FI: 'FIN', SE: 'SWE', NO: 'NOR', DK: 'DNK', EE: 'EST', LV: 'LVA',
+  LT: 'LTU', RU: 'RUS', PL: 'POL', DE: 'DEU', NL: 'NLD', BE: 'BEL',
+  FR: 'FRA', ES: 'ESP', PT: 'PRT', IT: 'ITA', GB: 'GBR', IE: 'IRL',
+  IS: 'ISL', US: 'USA', BR: 'BRA', AR: 'ARG', CO: 'COL', CL: 'CHL',
+  NG: 'NGA', GH: 'GHA', CI: 'CIV', SN: 'SEN', GM: 'GMB', CM: 'CMR',
+  ML: 'MLI', ZM: 'ZMB', ZW: 'ZWE', SL: 'SLE', KE: 'KEN', MA: 'MAR',
+  SK: 'SVK', CZ: 'CZE', HU: 'HUN', HR: 'HRV', RS: 'SRB', BA: 'BIH',
+  XK: 'XKX', AL: 'ALB', TR: 'TUR', UA: 'UKR', AU: 'AUS', JP: 'JPN',
+  CA: 'CAN', CH: 'CHE', AT: 'AUT', GR: 'GRC', RO: 'ROU', BG: 'BGR',
+};
+
+/** Normalisoi maakoodin kolmikirjaimiseksi. Tuntematon palautetaan isoin. */
+function normalisoiMaakoodi(koodi: string): string {
+  const iso = koodi.trim().toUpperCase();
+  if (iso.length === 2) return ALPHA2_ALPHA3[iso] ?? iso;
+  return iso;
+}
+
 async function luoAgent(): Promise<https.Agent> {
   const res = await axios.get<ArrayBuffer>(AIA_URL, {
     responseType: 'arraybuffer',
@@ -173,18 +198,20 @@ interface Profiili {
   haettu: string;
 }
 
-async function haeProfiili(polku: string, vlId: string): Promise<Profiili> {
-  const res = await axios.get<string>(BASE_URL + polku, {
-    timeout: 25000,
-    headers: HEADERS,
-    httpsAgent: agent,
-  });
-  const $ = cheerio.load(res.data);
+/**
+ * Jasentaa profiilisivun HTML:n. Eriytetty verkkohausta, jotta sen voi
+ * testata tallennetuilla sivuilla ilman pyyntoja.
+ */
+export function parsiProfiili(html: string, vlId: string): Profiili {
+  const $ = cheerio.load(html);
   const teksti = $('body').text().replace(/\s+/g, ' ');
 
-  const nimiM = teksti.match(/#\d+\s+([A-Za-zÀ-ÿ'\-. ]+?)\s+\d+\s+Joukkue/);
+  const nimiM = teksti.match(/#?\d+\s+([A-Za-zÀ-ÿ'\-. ]+?)\s+\d+\s+Joukkue/);
   const syntM = teksti.match(/Syntynyt\s*(\d{1,2}\.\d{1,2}\.(\d{4}))/);
-  const kansM = teksti.match(/Kansalaisuus\s*([A-Z]{3}(?:\s*[/,]\s*[A-Z]{3})*)/);
+  // Koodi voi olla alpha-2 tai alpha-3, ja kirjainkoko vaihtelee ("Fi").
+  const kansM = teksti.match(
+    /Kansalaisuus\s*([A-Za-z]{2,3}(?:\s*[/,]\s*[A-Za-z]{2,3})*)\s*(?:Paino|Pituus|Pelipaikka|$)/,
+  );
   const paikkaM = teksti.match(/Pelipaikka\s*([A-Za-zÀ-ÿ]+)/);
 
   // Kauden tilastorivit: "2026 AC Oulu 25 2250 ...". Parsinta ankkuroidaan
@@ -213,13 +240,23 @@ async function haeProfiili(polku: string, vlId: string): Promise<Profiili> {
     kansalaisuudet: kansM
       ? kansM[1]
           .split(/[/,]/)
-          .map((x) => x.trim())
+          .map((x) => normalisoiMaakoodi(x))
           .filter(Boolean)
       : [],
     pelipaikka: paikkaM ? paikkaM[1] : null,
     kaudenSeurat,
     haettu: new Date().toISOString(),
   };
+}
+
+async function haeProfiili(polku: string, vlId: string): Promise<Profiili> {
+  const res = await axios.get<string>(BASE_URL + polku, {
+    timeout: 25000,
+    headers: HEADERS,
+    httpsAgent: agent,
+  });
+  return parsiProfiili(res.data, vlId);
+
 }
 
 async function main(): Promise<void> {

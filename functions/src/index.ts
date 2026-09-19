@@ -38,6 +38,14 @@ import { parseExcelBuffer, writeRoundData } from './services/excelImport';
 // Region: kaikki funktiot deployataan europe-west1:een (sama kuin TalentMaster-sisarprojekti)
 const REGION = 'europe-west1';
 
+/**
+ * Markkina-arvojen paivitys pois kaytosta. Lahde on kuollut
+ * (transfermarkt-api.vercel.app -> 402 DEPLOYMENT_DISABLED) ja suora
+ * Transfermarkt-haku rikkoo kayttoehtoja. Kokoelmaa transfermarkt_players
+ * EI poisteta, joten palautus ei vaadi datan uudelleenhakua.
+ */
+const MARKKINA_ARVOJEN_PAIVITYS_KAYTOSSA = false;
+
 // Initialize Firebase Admin (guard prevents double-init when container reuses module)
 if (!admin.apps.length) {
   admin.initializeApp();
@@ -1425,6 +1433,23 @@ app.get('/api/transfermarkt/player/:name', async (req, res) => {
  *    POST /api/transfermarkt/refresh?season=2026&limit=5&offset=5  ...
  *  Ilman limit/offset käsittelee koko U23-listan (max 20). */
 app.post('/api/transfermarkt/refresh', requireAdminKey, async (req, res) => {
+  // Runko ohitetaan, funktiota ei poisteta — sama malli kuin
+  // AJASTETTU_REFRESH_KAYTOSSA. Markkina-arvojen haku on pysaytetty:
+  // transfermarkt-api.vercel.app on kuollut (402 DEPLOYMENT_DISABLED) ja
+  // suora haku rikkoo Transfermarktin kayttoehtoja (403). Palautetaan
+  // kun luvallinen lahde loytyy.
+  if (!MARKKINA_ARVOJEN_PAIVITYS_KAYTOSSA) {
+    console.log(
+      '[transfermarkt/refresh] ohitettu — kytketty pois 2026-09-20, ' +
+        'ks. MARKKINA_ARVOJEN_PAIVITYS_KAYTOSSA',
+    );
+    return res.status(503).json({
+      success: false,
+      error:
+        'Markkina-arvojen paivitys on pysaytetty: lahteelle ei ole lupaa. ' +
+        'Ks. MARKKINA_ARVOJEN_PAIVITYS_KAYTOSSA.',
+    });
+  }
   const seasonRaw =
     (req.body && req.body.season) ?? req.query.season ?? new Date().getFullYear();
   const season = parseInt(String(seasonRaw), 10);

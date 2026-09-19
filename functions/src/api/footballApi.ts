@@ -20,6 +20,34 @@ import {
   Position,
 } from '../types';
 
+/**
+ * API-Football signaloi virheet 200-vastauksen errors-kentässä, joka voi
+ * olla taulukko tai objekti (esim. { token: "Invalid API key" }).
+ * Normalisoidaan luettavaksi listaksi.
+ */
+function virhelista(errors: unknown): string[] {
+  if (!errors) return [];
+  if (Array.isArray(errors)) return errors.map((e) => String(e));
+  if (typeof errors === 'object') {
+    return Object.entries(errors as Record<string, unknown>).map(
+      ([avain, arvo]) => avain + ': ' + String(arvo),
+    );
+  }
+  return [String(errors)];
+}
+
+/** Erotettavissa muista virheistä, jotta kutsuja voi raportoida lähteen. */
+export class ApiFootballError extends Error {
+  readonly endpoint: string;
+  readonly virheet: string[];
+  constructor(endpoint: string, virheet: string[]) {
+    super('API-Football palautti virheen (' + endpoint + '): ' + virheet.join('; '));
+    this.name = 'ApiFootballError';
+    this.endpoint = endpoint;
+    this.virheet = virheet;
+  }
+}
+
 // API-Football league IDs (verified 2026-05-17 via /leagues?country=Finland)
 const VEIKKAUSLIIGA_ID = 244;
 const YKKOSLIIGA_ID = 1087;       // NOT 245 — 245 is Ykkönen
@@ -83,8 +111,13 @@ class FootballApiService {
   private async fetch<T>(endpoint: string, params?: Record<string, unknown>): Promise<T> {
     try {
       const response = await this.client.get<ApiFootballResponse<T>>(endpoint, { params });
-      if (response.data.errors && Array.isArray(response.data.errors) && response.data.errors.length > 0) {
-        console.error(`API-Football error: ${JSON.stringify(response.data.errors)}`);
+      // API-Football vastaa HTTP 200:lla myös virheeseen (vanhentunut avain,
+      // katkennut tilaus, virheellinen parametri) ja jättää responsen
+      // tyhjäksi. Jos virhe vain lokitetaan ja tyhjä palautetaan, kutsuja saa
+      // 200 { data: [] } eikä erota sitä aidosta "ei dataa" -tilanteesta.
+      const virheet = virhelista(response.data.errors);
+      if (virheet.length > 0) {
+        throw new ApiFootballError(endpoint, virheet);
       }
       return response.data.response;
     } catch (error) {
@@ -108,16 +141,22 @@ class FootballApiService {
         const response = await this.client.get<ApiFootballResponse<T[]>>(endpoint, {
           params: { ...params, page: currentPage },
         });
-        if (response.data.errors && Array.isArray(response.data.errors) && response.data.errors.length > 0) {
-          console.error(`API-Football error (${endpoint} page ${currentPage}): ${JSON.stringify(response.data.errors)}`);
+        const virheet = virhelista(response.data.errors);
+        if (virheet.length > 0) {
+          throw new ApiFootballError(endpoint + ' (sivu ' + currentPage + ')', virheet);
         }
         const items = response.data.response || [];
         all.push(...items);
         totalPages = response.data.paging?.total || 1;
         currentPage++;
       } catch (error) {
-        console.error(`API-Football paginate error for ${endpoint} page ${currentPage}:`, error);
-        break;
+        // Ei break: kesken jäänyt sivutus palauttaisi vaillinaisen listan,
+        // joka näyttää kutsujalle täydelliseltä.
+        console.error(
+          'API-Football paginate error for ' + endpoint + ' page ' + currentPage + ':',
+          error,
+        );
+        throw error;
       }
     } while (currentPage <= totalPages);
 

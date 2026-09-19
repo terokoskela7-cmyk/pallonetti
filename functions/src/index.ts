@@ -24,6 +24,14 @@ import {
   getAllIndexEntries,
 } from './scrapers/transfermarkt';
 import { debugSofascore } from './scrapers/sofascore';
+import {
+  lueKausi,
+  laskeJoukkueidenOsuudet,
+  laskeKaudenPelaajat,
+  laskeJoukkueet,
+  laskeLiigaYhteenveto,
+  paatteleIkahaarukka,
+} from './services/kausiData';
 import { parseExcelBuffer, writeRoundData } from './services/excelImport';
 
 // Region: kaikki funktiot deployataan europe-west1:een (sama kuin TalentMaster-sisarprojekti)
@@ -127,38 +135,31 @@ app.get('/api/standings/:season', async (req, res) => {
 
 /** GET /api/teams/:season - List teams */
 app.get('/api/teams/:season', async (req, res) => {
+  const season = parseInt(req.params.season, 10);
+  if (isNaN(season)) {
+    res.status(400).json({ success: false, error: 'season on virheellinen' });
+    return;
+  }
   try {
-    const season = parseInt(req.params.season);
-    const teams = await footballApi.getTeams(season);
+    const { suoritukset, nimittajat } = await lueKausi(admin.firestore(), season);
+    const teams = laskeJoukkueet(season, suoritukset, nimittajat);
+    res.set('Cache-Control', 'public, max-age=3600');
     res.json({
       success: true,
-      data: teams.map((t) => ({
-        id: String(t.team.id),
-        name: t.team.name,
-        shortName: t.team.code,
-        tla: t.team.code,
-        venue: t.venue.name,
-        founded: t.team.founded,
-        clubColors: '',
-        website: '',
-        crestUrl: t.team.logo,
-        address: t.venue.address,
-      })),
-      cached: false,
-      source: 'api-football',
+      data: teams,
+      // Tyhjä ei ole nolla: frontend näyttää "ei dataa" eikä laske 0 %.
+      dataSaatavilla: teams.length > 0,
+      count: teams.length,
+      source: 'kausituonti',
       timestamp: new Date().toISOString(),
     });
   } catch (error) {
-    console.error('Teams error:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Failed to fetch teams',
-      timestamp: new Date().toISOString(),
-    });
+    const message = error instanceof Error ? error.message : 'Tuntematon virhe';
+    console.error('[teams] failed:', message);
+    res.status(500).json({ success: false, error: message });
   }
 });
 
-/** GET /api/teams/:season/:teamId/players - Team players */
 app.get('/api/teams/:season/:teamId/players', async (req, res) => {
   try {
     const season = parseInt(req.params.season);
@@ -185,50 +186,51 @@ app.get('/api/teams/:season/:teamId/players', async (req, res) => {
 // PLAYERS
 // ============================================
 
-/** GET /api/players/:season - All players with stats */
+/** GET /api/players/:season — kauden pelaajat kausituonnin datasta.
+ *  Kausisumma lasketaan yli vaiheiden JA seurojen; siirtyneen pelaajan
+ *  joukkueet[] säilyttää molemmat seurat. */
 app.get('/api/players/:season', async (req, res) => {
+  const season = parseInt(req.params.season, 10);
+  if (isNaN(season)) {
+    res.status(400).json({ success: false, error: 'season on virheellinen' });
+    return;
+  }
   try {
-    const season = parseInt(req.params.season);
-    const { teamId, position, minAge, maxAge, minMinutes, sortBy, limit } = req.query;
+    const { teamId, minAge, maxAge, minMinutes, limit } = req.query;
+    const { suoritukset } = await lueKausi(admin.firestore(), season);
+    const kaikki = laskeKaudenPelaajat(suoritukset);
 
-    let players = await dataAggregator.getPlayerStats(season, teamId as string);
-
-    // Apply filters
-    if (position) {
-      players = players.filter((p) =>
-        p.teamName.toLowerCase().includes((position as string).toLowerCase())
+    let players = kaikki;
+    if (teamId) {
+      const haettu = String(teamId).toLowerCase();
+      players = players.filter(
+        (p) =>
+          p.joukkue.toLowerCase() === haettu ||
+          p.joukkueet.some((j) => j.toLowerCase() === haettu),
       );
     }
+    if (minAge) players = players.filter((p) => p.ika >= parseInt(String(minAge), 10));
+    if (maxAge) players = players.filter((p) => p.ika <= parseInt(String(maxAge), 10));
     if (minMinutes) {
-      players = players.filter((p) => p.minutesPlayed >= parseInt(minMinutes as string));
+      players = players.filter((p) => p.minTotal >= parseInt(String(minMinutes), 10));
     }
+    // laskeKaudenPelaajat palauttaa jo minuuttijärjestyksessä.
+    const result = limit ? players.slice(0, parseInt(String(limit), 10)) : players;
 
-    // Sort
-    const sortField = (sortBy as string) || 'minutesPlayed';
-    players.sort((a, b) => {
-      const aVal = a[sortField as keyof typeof a] as number;
-      const bVal = b[sortField as keyof typeof b] as number;
-      return (bVal || 0) - (aVal || 0);
-    });
-
-    // Limit
-    const result = limit ? players.slice(0, parseInt(limit as string)) : players;
-
+    res.set('Cache-Control', 'public, max-age=3600');
     res.json({
       success: true,
       data: result,
+      dataSaatavilla: kaikki.length > 0,
       count: result.length,
-      cached: false,
-      source: 'api-football+fbref',
+      ikahaarukka: paatteleIkahaarukka(suoritukset),
+      source: 'kausituonti',
       timestamp: new Date().toISOString(),
     });
   } catch (error) {
-    console.error('Players error:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Failed to fetch players',
-      timestamp: new Date().toISOString(),
-    });
+    const message = error instanceof Error ? error.message : 'Tuntematon virhe';
+    console.error('[players] failed:', message);
+    res.status(500).json({ success: false, error: message });
   }
 });
 
@@ -485,101 +487,104 @@ app.get('/api/team-market-values', async (_req, res) => {
 
 /** GET /api/youth-stats/:season - Youth playing time by team */
 app.get('/api/youth-stats/:season', async (req, res) => {
+  const season = parseInt(req.params.season, 10);
+  if (isNaN(season)) {
+    res.status(400).json({ success: false, error: 'season on virheellinen' });
+    return;
+  }
   try {
-    const season = parseInt(req.params.season);
-    const { ageGroup } = req.query;
-    const stats = await dataAggregator.getYouthStats(season);
-
-    // Filter by age group if specified
-    let result = stats;
-    if (ageGroup) {
-      const ag = ageGroup as string;
-      result = stats.map((s) => ({
-        ...s,
-        // Return only the requested age group's percentage
-        youthPercentage:
-          ag === 'u23'
-            ? s.youthPercentageU23
-            : ag === 'u21'
-            ? s.youthPercentageU21
-            : ag === 'u20'
-            ? s.youthPercentageU20
-            : ag === 'u19'
-            ? s.youthPercentageU19
-            : ag === 'u18'
-            ? s.youthPercentageU18
-            : s.youthPercentageU21,
-      }));
-    }
-
+    const db = admin.firestore();
+    const { suoritukset, nimittajat } = await lueKausi(db, season);
+    const stats = laskeJoukkueidenOsuudet(
+      season,
+      suoritukset,
+      nimittajat,
+      new Date().toISOString(),
+    );
+    res.set('Cache-Control', 'public, max-age=3600');
     res.json({
       success: true,
-      data: result,
-      cached: false,
-      source: 'api-football',
+      data: stats,
+      // Tyhjä lista EI tarkoita nollaa vaan puuttuvaa dataa. Frontend
+      // näyttää tällöin "ei dataa" eikä laske osuudeksi 0,0 %.
+      dataSaatavilla: stats.length > 0,
+      // Lähde on suodatettu 17-21-vuotiaisiin, joten U23-lukua ei ole.
+      // Se palaa sellaisenaan jos vienti tehdään haarukalla 17-23.
+      ikahaarukka: paatteleIkahaarukka(suoritukset),
+      source: 'kausituonti',
       timestamp: new Date().toISOString(),
     });
   } catch (error) {
-    console.error('Youth stats error:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Failed to fetch youth stats',
-      timestamp: new Date().toISOString(),
-    });
+    const message = error instanceof Error ? error.message : 'Tuntematon virhe';
+    console.error('[youth-stats] failed:', message);
+    res.status(500).json({ success: false, error: message });
   }
 });
 
 /**
- * GET /api/youth-stats/:season/all - Youth playing time for 3 leagues
- * Palauttaa Veikkausliiga (244), Ykkösliiga (245), Ykkönen (246) yhtenä objektina.
- * Cache: 3 erillistä cache-avainta (per liiga), TTL 6h.
+ * GET /api/youth-stats/:season/all
+ *
+ * Kausituonnin lahde kattaa vain Veikkausliigan. Ykkosliiga ja Ykkonen
+ * palautetaan tyhjina JA merkitaan erikseen puuttuviksi, jottei tyhjaa
+ * listaa lueta nollaksi.
  */
 app.get('/api/youth-stats/:season/all', async (req, res) => {
+  const season = parseInt(req.params.season, 10);
+  if (isNaN(season)) {
+    res.status(400).json({ success: false, error: 'season on virheellinen' });
+    return;
+  }
   try {
-    const season = parseInt(req.params.season);
-    // League ID:t API-Footballin /leagues?country=Finland -endpointista (2026-05-17):
-    //   Veikkausliiga=244, Ykkösliiga=1087 (NOT 245), Ykkönen=245 (NOT 246)
-    const [veikkausliiga, ykkosliiga, ykkonen] = await Promise.all([
-      dataAggregator.getYouthStats(season, 244),
-      dataAggregator.getYouthStats(season, 1087),
-      dataAggregator.getYouthStats(season, 245),
-    ]);
+    const db = admin.firestore();
+    const { suoritukset, nimittajat } = await lueKausi(db, season);
+    const veikkausliiga = laskeJoukkueidenOsuudet(
+      season,
+      suoritukset,
+      nimittajat,
+      new Date().toISOString(),
+    );
+    res.set('Cache-Control', 'public, max-age=3600');
     res.json({
       success: true,
-      data: { veikkausliiga, ykkosliiga, ykkonen },
-      cached: false,
-      source: 'api-football',
+      data: { veikkausliiga, ykkosliiga: [], ykkonen: [] },
+      dataSaatavilla: {
+        veikkausliiga: veikkausliiga.length > 0,
+        ykkosliiga: false,
+        ykkonen: false,
+      },
+      ikahaarukka: paatteleIkahaarukka(suoritukset),
+      source: 'kausituonti',
       timestamp: new Date().toISOString(),
     });
   } catch (error) {
-    console.error('Youth stats (all leagues) error:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Failed to fetch youth stats for all leagues',
-      timestamp: new Date().toISOString(),
-    });
+    const message = error instanceof Error ? error.message : 'Tuntematon virhe';
+    console.error('[youth-stats/all] failed:', message);
+    res.status(500).json({ success: false, error: message });
   }
 });
 
-/** GET /api/youth-aggregation/:season - League-wide youth summary */
+/** GET /api/youth-aggregation/:season — liigatason yhteenveto kausituonnista. */
 app.get('/api/youth-aggregation/:season', async (req, res) => {
+  const season = parseInt(req.params.season, 10);
+  if (isNaN(season)) {
+    res.status(400).json({ success: false, error: 'season on virheellinen' });
+    return;
+  }
   try {
-    const season = parseInt(req.params.season);
-    const aggregation = await dataAggregator.getYouthAggregation(season);
+    const { suoritukset, nimittajat } = await lueKausi(admin.firestore(), season);
+    const yhteenveto = laskeLiigaYhteenveto(season, suoritukset, nimittajat);
+    res.set('Cache-Control', 'public, max-age=3600');
     res.json({
       success: true,
-      data: aggregation,
-      cached: false,
-      source: 'aggregator',
+      data: yhteenveto,
+      dataSaatavilla: nimittajat.length > 0,
+      source: 'kausituonti',
       timestamp: new Date().toISOString(),
     });
   } catch (error) {
-    console.error('Youth aggregation error:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Failed to fetch youth aggregation',
-      timestamp: new Date().toISOString(),
-    });
+    const message = error instanceof Error ? error.message : 'Tuntematon virhe';
+    console.error('[youth-aggregation] failed:', message);
+    res.status(500).json({ success: false, error: message });
   }
 });
 
@@ -1455,11 +1460,37 @@ app.post('/api/admin/cache-cleanup', async (_req, res) => {
 /** Main API function - handles all /api/* routes */
 export const api = functions.region(REGION).https.onRequest(app);
 
+/**
+ * Kytkin ajastetulle API-Football-refreshille.
+ *
+ * POIS PÄÄLTÄ 2026-09-19. Syy: API-Football palauttaa tyhjää kaikille
+ * endpointeille, ja refreshSeason() aloittaa poistamalla cachen
+ * (clearType) ennen uudelleenhakua. Ajo siis tuhoaa edellisen kelvollisen
+ * cachen kahden tunnin välein eikä korvaa sitä millään. Lisäksi tyhjä
+ * youth-aggregaatio tallentuu cacheen, koska sen "transientti tyhjä"
+ * -suoja laukeaa vain osittaisesta tyhjyydestä, ei täydestä.
+ *
+ * Todennettu tuotannosta: kaikki 10 cache-dokumenttia kirjoitettu
+ * uudelleen tyhjinä, youth_agg_v2_2026 sisältää pelkkiä nollia.
+ *
+ * Funktiota EI poisteta, vain sen runko ohitetaan — kun API-Football
+ * korvataan omilla tilastoilla, tämä joko palautetaan uudella lähteellä
+ * tai poistetaan hallitusti.
+ */
+const AJASTETTU_REFRESH_KAYTOSSA = false;
+
 /** Scheduled: Refresh data every 2 hours during season */
 export const scheduledDataRefresh = functions.region(REGION).pubsub
   .schedule('0 */2 * * *') // Every 2 hours
   .timeZone('Europe/Helsinki')
   .onRun(async (context) => {
+    if (!AJASTETTU_REFRESH_KAYTOSSA) {
+      console.log(
+        '[scheduledDataRefresh] ohitettu — kytketty pois 2026-09-19, ' +
+          'ks. AJASTETTU_REFRESH_KAYTOSSA',
+      );
+      return;
+    }
     console.log('Starting scheduled data refresh:', context.timestamp);
     try {
       // Refresh current season (2026)

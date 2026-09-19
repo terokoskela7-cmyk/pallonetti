@@ -158,6 +158,14 @@ async function haeLista(kausi: string): Promise<ListaRivi[]> {
 interface Profiili {
   vlId: string;
   nimi: string;
+  /**
+   * Kauden tilastorivit profiilista: kausi -> seurat joissa pelasi.
+   * Tama on oikea kentta seuran varmentamiseen. Tilastolistan
+   * seura-sarake nayttaa PAATTYNEELLA kaudella kauden seuran, mutta
+   * KULUVALLA kaudella nykyisen seuran - ja viivan pelaajalle joka on
+   * lahtenyt. Profiilin kauden rivi ei muutu jalkikateen.
+   */
+  kaudenSeurat?: Record<string, string[]>;
   syntynyt: string | null;
   syntymavuosi: number | null;
   kansalaisuudet: string[];
@@ -179,6 +187,24 @@ async function haeProfiili(polku: string, vlId: string): Promise<Profiili> {
   const kansM = teksti.match(/Kansalaisuus\s*([A-Z]{3}(?:\s*[/,]\s*[A-Z]{3})*)/);
   const paikkaM = teksti.match(/Pelipaikka\s*([A-Za-zÀ-ÿ]+)/);
 
+  // Kauden tilastorivit: "2026 AC Oulu 25 2250 ...". Parsinta ankkuroidaan
+  // taulukon viimeisen otsikon (RPM) jalkeen, jottei syntymavuosi tai
+  // otsikkoteksti osu kaavaan. Seuranimi voi sisaltaa valilyonteja, joten
+  // se luetaan ei-ahneesti kahteen perakkaiseen kokonaislukuun asti.
+  const kaudenSeurat: Record<string, string[]> = {};
+  const otsikko = teksti.lastIndexOf(' RPM ');
+  const taulukko = otsikko >= 0 ? teksti.slice(otsikko + 5) : teksti;
+  const riviRe =
+    /(20\d{2})\s+([A-ZÅÄÖ][A-Za-zÅÄÖåäö.'\-]*(?:\s+[A-Za-zÅÄÖåäö.'\-]+){0,3}?)\s+(?=\d+\s+\d+\s)/g;
+  let rm: RegExpExecArray | null;
+  while ((rm = riviRe.exec(taulukko)) !== null) {
+    const kausi = rm[1];
+    const seura = rm[2].trim();
+    if (!seura) continue;
+    if (!kaudenSeurat[kausi]) kaudenSeurat[kausi] = [];
+    if (!kaudenSeurat[kausi].includes(seura)) kaudenSeurat[kausi].push(seura);
+  }
+
   return {
     vlId,
     nimi: nimiM ? nimiM[1].trim() : '',
@@ -191,6 +217,7 @@ async function haeProfiili(polku: string, vlId: string): Promise<Profiili> {
           .filter(Boolean)
       : [],
     pelipaikka: paikkaM ? paikkaM[1] : null,
+    kaudenSeurat,
     haettu: new Date().toISOString(),
   };
 }
@@ -252,10 +279,34 @@ async function main(): Promise<void> {
   console.log('');
 
   const valimuisti = db.collection('veikkausliiga_profiilit');
+  let valimuistista = 0;
+
+  /**
+   * Profiili valimuistista tai haku. Samaa vlId:ta ei haeta kahdesti.
+   * Palauttaa null jos haku epaonnistuu.
+   */
+  async function haeProfiiliValimuistista(
+    rivi: ListaRivi,
+  ): Promise<Profiili | null> {
+    const ref = valimuisti.doc(rivi.vlId);
+    const cached = await ref.get();
+    if (cached.exists && !paivita) {
+      valimuistista++;
+      return cached.data() as Profiili;
+    }
+    try {
+      const prof = await haeProfiili(rivi.polku, rivi.vlId);
+      if (vahvista || vainRaportti) await ref.set(prof);
+      await sleep(viiveMs);
+      return prof;
+    } catch {
+      await sleep(viiveMs * 2);
+      return null;
+    }
+  }
   let varma = 0;
   let epavarma = 0;
   let eiTietoa = 0;
-  let valimuistista = 0;
   let kaksiLahdetta = 0;
   const luokat = { kylla: 0, ei: 0, 'ei tietoa': 0 } as Record<string, number>;
   const epavarmat: string[] = [];
@@ -317,62 +368,60 @@ async function main(): Promise<void> {
       [p.joukkue, ...p.joukkueet].filter(Boolean).map(seuraAvain),
     );
     const nimiOsumat = lista.filter((r) => nimetTasmaavat(p.nimi, r.nimi));
-    let ehdokkaat = nimiOsumat.filter((r) => omatSeurat.has(seuraAvain(r.seura)));
 
-    // Seurasarake on "-" pelaajalla joka on lähtenyt seurasta kesken kauden.
-    // Silloin seura ei ole ristiriidassa vaan tuntematon, eikä sitä voi
-    // käyttää erottelijana. Ikä varmennetaan silti, mutta osuma jää
-    // epävarmaksi eikä sitä tallenneta ilman ihmisen tarkistusta.
-    let seuraTuntematon = false;
-    if (ehdokkaat.length === 0) {
-      const tuntemattomat = nimiOsumat.filter(
-        (r) => !r.seura || r.seura === '-' || r.seura === '–',
+    if (nimiOsumat.length === 0) {
+      eiTietoa++;
+      eiTietoaSlugit.add(p.slug);
+      eiOsumaa.push(
+        p.nimi + ' (' + p.joukkue + ', ' + p.ika + ' v) — ei nimiosumaa',
       );
-      if (tuntemattomat.length > 0) {
-        ehdokkaat = tuntemattomat;
+      continue;
+    }
+
+    // Seura varmennetaan profiilin KAUDEN RIVILTA, ei tilastolistan
+    // seura-sarakkeesta. Lista nayttaa paattyneella kaudella kauden seuran,
+    // mutta kuluvalla kaudella nykyisen seuran - ja viivan pelaajalle joka
+    // on lahtenyt. Kauden rivi ei muutu jalkikateen, joten sama saanto
+    // toimii kaikille kausille.
+    //
+    // Jos pelaajalla on samalla kaudella rivi useassa seurassa, riittaa
+    // etta datan seura loytyy joltain rivilta.
+    const ehdokkaat: typeof nimiOsumat = [];
+    let seuraTuntematon = false;
+    for (const ehdokas of nimiOsumat) {
+      const prof = await haeProfiiliValimuistista(ehdokas);
+      if (prof === null) continue;
+      const profiilinSeurat = (prof.kaudenSeurat?.[kausi] ?? []).map(seuraAvain);
+      if (profiilinSeurat.length === 0) {
+        // Profiilissa ei ole kauden rivia lainkaan - seuraa ei voi varmentaa.
         seuraTuntematon = true;
+        ehdokkaat.push(ehdokas);
+        continue;
+      }
+      if (profiilinSeurat.some((x) => omatSeurat.has(x))) {
+        ehdokkaat.push(ehdokas);
+        seuraTuntematon = false;
+        break;
       }
     }
 
     if (ehdokkaat.length === 0) {
       eiTietoa++;
       eiTietoaSlugit.add(p.slug);
-      eiOsumaa.push(p.nimi + ' (' + p.joukkue + ', ' + p.ika + ' v) — ei nimi+seura-osumaa');
-      continue;
-    }
-    if (ehdokkaat.length > 1) {
-      epavarma++;
-      eiTietoaSlugit.add(p.slug);
-      epavarmat.push(
-        p.nimi + ' (' + p.joukkue + ') — ' + ehdokkaat.length + ' ehdokasta listalla',
+      eiOsumaa.push(
+        p.nimi + ' (' + p.joukkue + ', ' + p.ika + ' v) — seura ei täsmää ' +
+          'profiilin kauden riviin',
       );
       continue;
     }
 
     const rivi = ehdokkaat[0];
-
-    // 2) Profiili välimuistista tai haku. Samaa ID:tä ei haeta kahdesti.
-    const cacheRef = valimuisti.doc(rivi.vlId);
-    let profiili: Profiili | null = null;
-    const cached = await cacheRef.get();
-    if (cached.exists && !paivita) {
-      profiili = cached.data() as Profiili;
-      valimuistista++;
-    } else {
-      try {
-        profiili = await haeProfiili(rivi.polku, rivi.vlId);
-        if (vahvista || vainRaportti) await cacheRef.set(profiili);
-        await sleep(viiveMs);
-      } catch (e) {
-        eiTietoa++;
-        eiTietoaSlugit.add(p.slug);
-        eiOsumaa.push(
-          p.nimi + ' — profiilin haku epäonnistui: ' +
-            (e instanceof Error ? e.message : String(e)),
-        );
-        await sleep(viiveMs * 2);
-        continue;
-      }
+    const profiili = await haeProfiiliValimuistista(rivi);
+    if (profiili === null) {
+      eiTietoa++;
+      eiTietoaSlugit.add(p.slug);
+      eiOsumaa.push(p.nimi + ' — profiilin haku epäonnistui');
+      continue;
     }
 
     // 3) Ikä on pakollinen varmenne: kausi − syntymävuosi = ikä kaudella.

@@ -438,7 +438,7 @@ export default function PelaikaPage() {
           </div>
           <h1 className="text-3xl md:text-4xl font-light tracking-tight leading-tight">
             Peliaika —{' '}
-            <span className="text-aurora font-medium">U21-analyysi</span>
+            <span className="text-aurora font-medium">nuoret pelaajat</span>
           </h1>
           <p className="mt-3 text-sm md:text-base text-white/60 max-w-2xl">
             Miten paljon nuoret pelaavat ja missä joukkueissa?
@@ -449,10 +449,10 @@ export default function PelaikaPage() {
       {/* KPI-kortit */}
       <section className="grid grid-cols-2 lg:grid-cols-5 gap-3">
         <KpiCard
-          label="U21 peliaika-%"
+          label="Nuorten osuus peliajasta (17–21 v)"
           value={vPct === null ? 'ei dataa' : `${vPct.toFixed(1)} %`}
           accent="aurora"
-          info="Alle 21-vuotiaiden osuus joukkueiden minuuttikapasiteetista (ottelut × 90 × 11). Lähde: Veikkausliigan tilastovienti, suodatettu 17–21-vuotiaisiin — siksi U23-lukua ei esitetä."
+          info="17–21-vuotiaiden osuus joukkueiden minuuttikapasiteetista (ottelut × 90 × 11). Lähde: Veikkausliigan tilastovienti. Huom: tämä ei ole sama kuin CIES:n kansainvälisessä vertailussa käytetty alle 21-vuotiaiden osuus, joka on pienempi."
         />
         <KpiCard
           label="Pelaajia peliajalla"
@@ -483,13 +483,13 @@ export default function PelaikaPage() {
           info="Nuorin peliaikaa saanut pelaaja."
         />
         <KpiCard
-          label="Joukkueet ≥ 25 %"
+          label="Joukkueet, joissa nuorilla yli 25 %"
           value={
             veikkausliiga.length === 0
               ? 'ei dataa'
               : `${teamsOver25} / ${veikkausliiga.length}`
           }
-          info="Joukkueet joiden U21-peliaikaosuus on vähintään 25 % / kaikki."
+          info="Joukkueet joissa 17–21-vuotiaiden peliaikaosuus on vähintään 25 % / kaikki joukkueet."
         />
       </section>
 
@@ -497,7 +497,7 @@ export default function PelaikaPage() {
       {veikkausliiga.length > 0 && (
         <section className="bg-navy-700/40 border border-navy-600 rounded-lg p-5">
           <SectionHeader
-            title="U21 peliaika joukkueittain"
+            title="Nuorten peliaika joukkueittain (17–21 v)"
             hint={`${veikkausliiga.length} joukkuetta`}
           />
           <TeamBarChart teams={veikkausliiga} />
@@ -522,7 +522,7 @@ export default function PelaikaPage() {
       <section className="grid grid-cols-1 lg:grid-cols-5 gap-4">
         <div className="lg:col-span-3 bg-navy-700/40 border border-navy-600 rounded-lg p-5">
           <SectionHeader
-            title="Eniten peliaikaa — U21"
+            title="Eniten peliaikaa — 17–21-vuotiaat"
             hint={`${filteredPlayers.length} pelaajaa`}
           />
 

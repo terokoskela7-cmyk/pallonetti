@@ -490,7 +490,11 @@ export default function HomePage() {
         {/* KPI-kortit */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
           <KpiCard
-            label={`${ageGroup.toUpperCase()} peliaika-%`}
+            label={
+              isU21
+                ? 'Nuorten osuus peliajasta (17–21 v)'
+                : 'Nuorten osuus peliajasta (17–23 v)'
+            }
             value={pct === null ? 'ei dataa' : `${pct.toFixed(1)} %`}
             accent="aurora"
             compare={
@@ -506,7 +510,7 @@ export default function HomePage() {
             }
           />
           <KpiCard
-            label={`${ageGroup.toUpperCase()} pelaajia`}
+            label={isU21 ? 'Nuoria pelaajia (17–21 v)' : 'Nuoria pelaajia (17–23 v)'}
             value={count === null ? 'ei dataa' : String(count)}
             accent="ice"
             compare={
@@ -519,13 +523,17 @@ export default function HomePage() {
             }
           />
           <KpiCard
-            label={`Eniten minuutteja (${ageGroup.toUpperCase()})`}
+            label={isU21 ? 'Eniten minuutteja (17–21 v)' : 'Eniten minuutteja (17–23 v)'}
             value={topPlayer ? String(topPlayer.minutes) : '—'}
             accent="ice"
             hint={topPlayer ? `${topPlayer.playerName} · ${topPlayer.teamName}` : undefined}
           />
           <KpiCard
-            label={`${ageGroup.toUpperCase()} yhteismarkkina-arvo`}
+            label={
+              isU21
+                ? 'Nuorten yhteismarkkina-arvo (17–21 v)'
+                : 'Nuorten yhteismarkkina-arvo (17–23 v)'
+            }
             value={formatMarketValue(totalMv) ?? '—'}
             accent="amber"
             hint={`${players.length} pelaajaa seurannassa`}
@@ -538,7 +546,8 @@ export default function HomePage() {
         <div className="flex items-baseline justify-between gap-3 mb-4">
           <h2 className="text-base font-medium flex items-center gap-2">
             <TrendingUp className="w-4 h-4 text-ice" />
-            U21 peliaika-% kierroksittain — Veikkausliiga {SEASON}
+            Nuorten osuus peliajasta (17–21 v) kierroksittain — Veikkausliiga{' '}
+            {SEASON}
           </h2>
         </div>
         <U21TrendChart />

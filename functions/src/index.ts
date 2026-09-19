@@ -20,7 +20,7 @@ import {
 } from './scrapers/veikkausliiga';
 import {
   getOrFetchPlayer as tmGetOrFetchPlayer,
-  scrapeAllU23Players,
+  scrapeAllYouthPlayers,
   getAllIndexEntries,
 } from './scrapers/transfermarkt';
 import { debugSofascore } from './scrapers/sofascore';
@@ -1026,6 +1026,17 @@ app.get('/api/fbref/:season/standings', async (req, res) => {
 // TRANSFERMARKT
 // ============================================
 
+/**
+ * POISTETTAVAKSI MERKITTY (2026-09-19).
+ *
+ * Perustuu transfermarktApi:n kovakoodattuun TEAM_IDS-karttaan ja
+ * transfermarkt-api.vercel.app -valityspalveluun. Palauttaa tuotannossa
+ * tyhjaa. Mikaan ei kutsu tata: frontend kayttaa vain
+ * getTransfermarktPlayer- ja getTransfermarktLeague-reitteja, jotka
+ * lukevat Firestoren transfermarkt_players-kokoelmasta.
+ *
+ * EI korjata — poistetaan API-Football-siivouksen yhteydessa.
+ */
 /** GET /api/transfermarkt/players - All players with market values */
 app.get('/api/transfermarkt/players', async (_req, res) => {
   try {
@@ -1047,6 +1058,17 @@ app.get('/api/transfermarkt/players', async (_req, res) => {
   }
 });
 
+/**
+ * POISTETTAVAKSI MERKITTY (2026-09-19).
+ *
+ * Perustuu transfermarktApi:n kovakoodattuun TEAM_IDS-karttaan ja
+ * transfermarkt-api.vercel.app -valityspalveluun. Palauttaa tuotannossa
+ * tyhjaa. Mikaan ei kutsu tata: frontend kayttaa vain
+ * getTransfermarktPlayer- ja getTransfermarktLeague-reitteja, jotka
+ * lukevat Firestoren transfermarkt_players-kokoelmasta.
+ *
+ * EI korjata — poistetaan API-Football-siivouksen yhteydessa.
+ */
 /** GET /api/transfermarkt/team-values - Team market values */
 app.get('/api/transfermarkt/team-values', async (_req, res) => {
   try {
@@ -1228,7 +1250,7 @@ app.get('/api/transfermarkt/player/:name', async (req, res) => {
   }
 });
 
-/** POST /api/transfermarkt/refresh — admin: ajaa scrapeAllU23Players.
+/** POST /api/transfermarkt/refresh — admin: ajaa scrapeAllYouthPlayers.
  *  Query/body: season (oletus nykyvuosi), limit (esim. 5), offset (esim. 0).
  *  Batchaa työn pieniin osiin jotta Cloud Functions -timeout (60 s) ei osu:
  *    POST /api/transfermarkt/refresh?season=2026&limit=5&offset=0
@@ -1263,7 +1285,7 @@ app.post('/api/transfermarkt/refresh', requireAdminKey, async (req, res) => {
   }
 
   try {
-    const players = await scrapeAllU23Players(season, limit, offset);
+    const players = await scrapeAllYouthPlayers(season, limit, offset);
     return res.json({
       success: true,
       count: players.length,

@@ -1,59 +1,26 @@
 rules_version = '2';
+
+// ============================================================
+// KAIKKI KIINNI SELAIMESTA
+//
+// Frontend ei kayta Firestorea suoraan. Tarkistettu webapp/src:sta:
+//   - package.json:ssa ei ole firebase-riippuvuutta
+//   - ei yhtaan getFirestore / collection( / doc( / onSnapshot -kutsua
+//   - kaikki data haetaan fetch(API_BASE_URL + polku) eli /api:n kautta
+//
+// Backend kayttaa Admin SDK:ta, joka OHITTAA nama saannot. Sivusto toimii
+// siis ennalleen, mutta kukaan ei paase tietokantaan suoraan selaimesta.
+//
+// Jos frontend joskus alkaa lukea Firestorea suoraan, lisataan vain ne
+// kokoelmat ja vain lukuoikeus. Kirjoitusoikeutta ei anneta selaimelle
+// missaan tapauksessa: kaikki kirjoitus kulkee tuonnin ja Admin SDK:n
+// kautta, ks. CLAUDE.md kohta 3.5.
+//
+// Alikokoelmat kattaa {document=**}, joten seasons/{kausi}/players,
+// .../tilannekuvat ja .../kansalaisuudet ovat mukana.
+// ============================================================
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Cache — vain Functions kirjoittaa Admin SDK:lla (ohittaa Rules),
-    // kaikki saavat lukea
-    match /cache/{document=**} {
-      allow read: if true;
-      allow write: if false;
-    }
-    // Veikkausliiga.com -scraped pelaajatilastot — sama periaate
-    match /veikkausliiga_players/{document=**} {
-      allow read: if true;
-      allow write: if false;
-    }
-    // Transfermarkt-scraped pelaajaprofiilit — vain Functions kirjoittaa
-    match /transfermarkt_players/{document=**} {
-      allow read: if true;
-      allow write: if false;
-    }
-    // Transfermarkt name→tmId-indeksi per kausi
-    match /transfermarkt_index/{document=**} {
-      allow read: if true;
-      allow write: if false;
-    }
-    // API-Football pelaajakohtainen cache (24h TTL)
-    match /players_cache/{document=**} {
-      allow read: if true;
-      allow write: if false;
-    }
-    // Pelaajakohtainen fixture-data (kierroskohtaiset minuutit), 24h TTL
-    match /player_fixtures/{document=**} {
-      allow read: if true;
-      allow write: if false;
-    }
-    // ----- Kausituonti (Excel) -----
-    // Lähde on aina Functions Admin SDK:lla (ohittaa Rulesin), selaimesta
-    // vain luku. Frontend lukee nämä tällä hetkellä /api:n kautta, joten
-    // lukuoikeus on defense-in-depth eikä toimintaedellytys.
-
-    // Kausien metatiedot: vuosi, sarja, havaitut vaiheet, tuontitiedot
-    match /kaudet/{document=**} {
-      allow read: if true;
-      allow write: if false;
-    }
-    // Pelaaja x kausi x vaihe x joukkue -suoritusrivit
-    match /suoritukset/{document=**} {
-      allow read: if true;
-      allow write: if false;
-    }
-    // Seuran ottelumäärä vaiheessa + siitä laskettu minuuttikapasiteetti
-    match /nimittajat/{document=**} {
-      allow read: if true;
-      allow write: if false;
-    }
-
-    // Kaikki muu — ei sallita selaimesta
     match /{document=**} {
       allow read, write: if false;
     }

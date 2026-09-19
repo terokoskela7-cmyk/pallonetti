@@ -202,9 +202,20 @@ async function main(): Promise<void> {
   // Raporttitila: profiilivalimuisti taytetaan, mutta
   // seasons/{kausi}/kansalaisuudet -dataa EI kirjoiteta.
   const vainRaportti = lippu('vain-raportti');
+  // CLAUDE.md 3.5: tuotantoon kirjoitetaan vain kahden lipun skriptilla.
+  // Pelkka --vahvista ei riita; kohde on kerrottava erikseen.
+  const tuotanto = lippu('tuotanto');
   const viiveMs = parseInt(argumentti('viive') || '3000', 10);
   const rajaRaaka = argumentti('raja');
   const raja = rajaRaaka ? parseInt(rajaRaaka, 10) : Infinity;
+
+  if (vahvista && !vainRaportti && !tuotanto) {
+    console.error(
+      'Kirjoitus tuotantoon vaatii seka --vahvista etta --tuotanto ' +
+        '(CLAUDE.md 3.5). Ilman --tuotanto aja --vain-raportti.',
+    );
+    process.exit(1);
+  }
 
   agent = await luoAgent();
 

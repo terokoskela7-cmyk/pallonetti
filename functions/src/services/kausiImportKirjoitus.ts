@@ -154,6 +154,64 @@ export async function arvioiMuutokset(
   };
 }
 
+/**
+ * Tilannekuvan sisältö yhdelle kaudelle. Sama funktio palvelee sekä
+ * esikatselua että kirjoitusta, jottei niistä voi tulla eri mieltä.
+ */
+export function rakennaTilannekuva(
+  tulos: TuontiTulos,
+  kausi: string,
+): {
+  seurat: Record<string, number>;
+  pelaajat: Array<{
+    slug: string;
+    pelaajaAvain: string;
+    ika: number;
+    joukkue: string;
+    seurat: Record<string, { min: number; ottelut: number }>;
+    minTotal: number;
+    ottelutTotal: number;
+    aloituksetTotal: number;
+    maaliTotal: number;
+  }>;
+} {
+  const otteluita = new Map<string, number>();
+  for (const n of tulos.nimittajat) {
+    if (n.kausi !== kausi) continue;
+    otteluita.set(n.joukkue, (otteluita.get(n.joukkue) || 0) + n.ottelut);
+  }
+
+  const perPelaaja = new Map<string, Map<string, { min: number; ottelut: number }>>();
+  for (const x of tulos.suoritukset) {
+    if (x.kausi !== kausi) continue;
+    if (!perPelaaja.has(x.slug)) perPelaaja.set(x.slug, new Map());
+    const perSeura = perPelaaja.get(x.slug)!;
+    const e = perSeura.get(x.joukkue) || { min: 0, ottelut: 0 };
+    e.min += x.minuutit;
+    e.ottelut += x.ottelut;
+    perSeura.set(x.joukkue, e);
+  }
+
+  return {
+    seurat: Object.fromEntries(otteluita),
+    pelaajat: tulos.projektiot
+      .filter((p) => p.kausi === kausi)
+      .map((p) => ({
+        slug: p.slug,
+        pelaajaAvain: p.pelaajaAvain,
+        ika: p.ika,
+        joukkue: p.joukkue,
+        seurat: Object.fromEntries(
+          perPelaaja.get(p.slug) ?? new Map<string, { min: number; ottelut: number }>(),
+        ),
+        minTotal: p.minTotal,
+        ottelutTotal: p.ottelutTotal,
+        aloituksetTotal: p.aloituksetTotal,
+        maaliTotal: p.maaliTotal,
+      })),
+  };
+}
+
 /** Pelaajarivi tilannekuvassa — vertailua ja kirjoitusta varten. */
 interface TilannekuvaPelaaja {
   slug: string;
@@ -225,6 +283,135 @@ async function onkoSamaKuinEdellinen(
     tilannekuvanTiiviste(seurat, pelaajat);
   if (sama && edellinen.id !== pvm) return true;
   return sama;
+}
+
+/** Esikatselun tulos — kaikki mita admin-sivu nayttaa ennen vahvistusta. */
+export interface Esikatselu {
+  rivit: {
+    luettu: number;
+    kayttokelpoiset: number;
+    ohitetut: Array<{ rivi: number; syy: string }>;
+  };
+  kaudet: Array<{
+    kausi: string;
+    pelaajat: number;
+    rivit: number;
+    /** 17–21-vuotiaiden osuus. */
+    osuusKokoKausi: number;
+    osuusRunkosarja: number;
+    /** Alle 21 (ikä ≤ 20) — kansainvälisen vertailun luku. */
+    osuusAlle21: number;
+    vaiheet: string[];
+    seurat: Array<{ joukkue: string; ottelut: number }>;
+  }>;
+  muutokset: MuutosArvio;
+  /** Pelaajat joiden minuutit PIENENIVÄT — näytetään korostetusti. */
+  pienentyneet: Array<{ slug: string; ennen: number; jalkeen: number }>;
+  /** Pelaajat jotka katosivat lähteestä. */
+  kadonneet: Array<{ slug: string; minuutit: number }>;
+  tilannekuvat: Array<{ kausi: string; pvm: string; muuttuu: boolean }>;
+  varoitukset: string[];
+}
+
+/**
+ * Laskee kaiken mita esikatselu nayttaa. EI kirjoita mitaan.
+ *
+ * Kayttaa samaa rakennaTilannekuva-funktiota kuin kirjoitus, joten
+ * esikatselu ei voi olla eri mielta kuin tallennus.
+ */
+export async function esikatseleKausituonti(
+  db: firestore.Firestore,
+  tulos: TuontiTulos,
+  asetukset: KirjoitusAsetukset,
+): Promise<Esikatselu> {
+  const muutokset = await arvioiMuutokset(db, tulos, asetukset);
+
+  const pvm =
+    typeof asetukset.tilannekuvaPvm === 'string'
+      ? asetukset.tilannekuvaPvm
+      : new Date().toISOString().slice(0, 10);
+
+  const kaudet: Esikatselu['kaudet'] = [];
+  const tilannekuvat: Esikatselu['tilannekuvat'] = [];
+  const pienentyneet: Esikatselu['pienentyneet'] = [];
+  const kadonneet: Esikatselu['kadonneet'] = [];
+
+  for (const k of tulos.kaudet) {
+    const { seurat, pelaajat } = rakennaTilannekuva(tulos, k.kausi);
+
+    // Alle 21 -osuus lasketaan samasta lahteesta kuin paamittari.
+    const kap = tulos.nimittajat
+      .filter((n) => n.kausi === k.kausi)
+      .reduce((a, n) => a + n.kapasiteetti_min, 0);
+    const minAlle21 = tulos.suoritukset
+      .filter((x) => x.kausi === k.kausi && x.ika <= 20)
+      .reduce((a, x) => a + x.minuutit, 0);
+
+    kaudet.push({
+      kausi: k.kausi,
+      pelaajat: k.pelaajat,
+      rivit: k.rivit,
+      osuusKokoKausi: k.osuus_koko_kausi,
+      osuusRunkosarja: k.osuus_runkosarja,
+      osuusAlle21: kap > 0 ? minAlle21 / kap : 0,
+      vaiheet: Array.from(
+        new Set(
+          tulos.nimittajat.filter((n) => n.kausi === k.kausi).map((n) => n.vaihe),
+        ),
+      ).sort(),
+      seurat: Object.keys(seurat)
+        .sort()
+        .map((joukkue) => ({ joukkue, ottelut: seurat[joukkue] })),
+    });
+
+    // Tilannekuva: syntyyko uusi vai onko sisalto sama kuin edellisessa.
+    const tilannekuvaKokoelma = db
+      .collection((asetukset.kokoelmaEtuliite || '') + 'seasons')
+      .doc(k.kausi)
+      .collection('tilannekuvat');
+    const sama = await onkoSamaKuinEdellinen(
+      tilannekuvaKokoelma,
+      pvm,
+      seurat,
+      pelaajat,
+    );
+    tilannekuvat.push({ kausi: k.kausi, pvm, muuttuu: !sama });
+
+    // Pienentyneet ja kadonneet: verrataan nykyiseen projektioon.
+    // Nama ovat esikatselun tarkein osa - kasvu on odotettua, lasku ei.
+    const nykyiset = await db
+      .collection((asetukset.kokoelmaEtuliite || '') + 'seasons')
+      .doc(k.kausi)
+      .collection('players')
+      .get();
+    const uudet = new Map(pelaajat.map((p) => [p.slug, p.minTotal]));
+    for (const doc of nykyiset.docs) {
+      if (doc.data().vanhentunut === true) continue;
+      const ennen = (doc.data().minTotal as number) ?? 0;
+      const jalkeen = uudet.get(doc.id);
+      if (jalkeen === undefined) {
+        kadonneet.push({ slug: doc.id, minuutit: ennen });
+      } else if (jalkeen < ennen) {
+        pienentyneet.push({ slug: doc.id, ennen, jalkeen });
+      }
+    }
+  }
+
+  return {
+    rivit: {
+      luettu: tulos.rivitLuettu,
+      kayttokelpoiset: tulos.suoritukset.length,
+      ohitetut: tulos.ohitetut,
+    },
+    kaudet,
+    muutokset,
+    pienentyneet,
+    kadonneet,
+    tilannekuvat,
+    varoitukset: tulos.varoitukset?.map((v) =>
+      typeof v === 'string' ? v : JSON.stringify(v),
+    ) ?? [],
+  };
 }
 
 /**
@@ -357,43 +544,12 @@ export async function kirjoitaKausituonti(
       perJoukkue.set(n.joukkue, (perJoukkue.get(n.joukkue) || 0) + n.ottelut);
     }
 
-    // Pelaajan minuutit ja ottelut seuroittain. Kesken kauden siirtyneellä
-    // näitä on useampi, ja minTotal on niiden summa — erittely kertoo mistä
-    // summa koostuu, jottei siirtynyt pelaaja näytä yhden seuran pelaajalta.
-    const seuratPerPelaaja = new Map<
-      string,
-      Map<string, { min: number; ottelut: number }>
-    >();
-    for (const s of tulos.suoritukset) {
-      const avain = s.kausi + '|' + s.slug;
-      if (!seuratPerPelaaja.has(avain)) seuratPerPelaaja.set(avain, new Map());
-      const perSeura = seuratPerPelaaja.get(avain)!;
-      const e = perSeura.get(s.joukkue) || { min: 0, ottelut: 0 };
-      e.min += s.minuutit;
-      e.ottelut += s.ottelut;
-      perSeura.set(s.joukkue, e);
-    }
-
     for (const kausi of tulos.kaudet.map((k) => k.kausi)) {
-      const projektiot = tulos.projektiot.filter((p) => p.kausi === kausi);
-      const seurat = Object.fromEntries(
-        otteluitaPerKausiJaJoukkue.get(kausi) ?? new Map<string, number>(),
+      const { seurat, pelaajat: pelaajaDokumentit } = rakennaTilannekuva(
+        tulos,
+        kausi,
       );
-
-      const pelaajaDokumentit = projektiot.map((p) => ({
-        slug: p.slug,
-        pelaajaAvain: p.pelaajaAvain,
-        ika: p.ika,
-        joukkue: p.joukkue,
-        seurat: Object.fromEntries(
-          seuratPerPelaaja.get(kausi + '|' + p.slug) ??
-            new Map<string, { min: number; ottelut: number }>(),
-        ),
-        minTotal: p.minTotal,
-        ottelutTotal: p.ottelutTotal,
-        aloituksetTotal: p.aloituksetTotal,
-        maaliTotal: p.maaliTotal,
-      }));
+      const projektiot = pelaajaDokumentit;
 
       const tilannekuvat = db
         .collection((asetukset.kokoelmaEtuliite || '') + 'seasons')

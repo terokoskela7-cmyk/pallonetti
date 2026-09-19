@@ -407,6 +407,9 @@ async function main(): Promise<void> {
       ristiriita = true;
     }
 
+    // Seuraa ei voitu varmentaa: Veikkausliiga nayttaa viivan pelaajalle
+    // joka on lahtenyt. Havainto kirjataan, mutta sen varmuutta ei vaiteta
+    // - seura_vahvistettu: false kertoo mita jai varmentamatta.
     if (seuraTuntematon) {
       epavarma++;
       epavarmat.push(
@@ -414,7 +417,6 @@ async function main(): Promise<void> {
           'lahteessa (pelaaja lahtenyt); nimi ja ika tasmaavat, VL sanoo ' +
           vlKansalaisuus,
       );
-      continue;
     }
 
     if (ristiriita) {
@@ -460,7 +462,9 @@ async function main(): Promise<void> {
               arvo: l.arvo,
             })),
           ],
-          varmennus: 'nimi+seura+ika',
+          /** false = seura jai varmentamatta (VL nayttaa viivan). */
+          seura_vahvistettu: !seuraTuntematon,
+          varmennus: seuraTuntematon ? 'nimi+ika' : 'nimi+seura+ika',
           syntynyt: profiili.syntynyt,
           paivitetty: new Date().toISOString(),
         });
@@ -472,7 +476,7 @@ async function main(): Promise<void> {
   console.log('YHTEENVETO — kausi ' + kausi);
   console.log('  varmennettu (nimi+seura+ikä): ' + varma + ' / ' + kohteet.length);
   console.log('    joista kahdesta lähteestä:  ' + kaksiLahdetta);
-  console.log('  epävarma (ei tallennettu):    ' + epavarma);
+  console.log('    joista seura vahvistamatta: ' + epavarma);
   console.log('  ei osumaa:                    ' + eiTietoa);
   console.log('  välimuistista:                ' + valimuistista);
   console.log('');
@@ -503,7 +507,7 @@ async function main(): Promise<void> {
   }
   if (epavarmat.length > 0) {
     console.log('');
-    console.log('EPÄVARMAT (ei tallennettu):');
+    console.log('SEURA VAHVISTAMATTA (tallennettu, seura_vahvistettu: false):');
     for (const e of epavarmat) console.log('  · ' + e);
   }
   if (eiOsumaa.length > 0) {

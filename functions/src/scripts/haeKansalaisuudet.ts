@@ -183,6 +183,14 @@ async function haeLista(kausi: string): Promise<ListaRivi[]> {
 interface Profiili {
   vlId: string;
   nimi: string;
+  /**
+   * Kauden tilastorivit profiilista: kausi -> seurat joissa pelasi.
+   * Tama on oikea kentta seuran varmentamiseen. Tilastolistan
+   * seura-sarake nayttaa PAATTYNEELLA kaudella kauden seuran, mutta
+   * KULUVALLA kaudella nykyisen seuran - ja viivan pelaajalle joka on
+   * lahtenyt. Profiilin kauden rivi ei muutu jalkikateen.
+   */
+  kaudenSeurat?: Record<string, string[]>;
   syntynyt: string | null;
   syntymavuosi: number | null;
   kansalaisuudet: string[];
@@ -190,22 +198,39 @@ interface Profiili {
   haettu: string;
 }
 
-async function haeProfiili(polku: string, vlId: string): Promise<Profiili> {
-  const res = await axios.get<string>(BASE_URL + polku, {
-    timeout: 25000,
-    headers: HEADERS,
-    httpsAgent: agent,
-  });
-  const $ = cheerio.load(res.data);
+/**
+ * Jasentaa profiilisivun HTML:n. Eriytetty verkkohausta, jotta sen voi
+ * testata tallennetuilla sivuilla ilman pyyntoja.
+ */
+export function parsiProfiili(html: string, vlId: string): Profiili {
+  const $ = cheerio.load(html);
   const teksti = $('body').text().replace(/\s+/g, ' ');
 
-  const nimiM = teksti.match(/#\d+\s+([A-Za-zÀ-ÿ'\-. ]+?)\s+\d+\s+Joukkue/);
+  const nimiM = teksti.match(/#?\d+\s+([A-Za-zÀ-ÿ'\-. ]+?)\s+\d+\s+Joukkue/);
   const syntM = teksti.match(/Syntynyt\s*(\d{1,2}\.\d{1,2}\.(\d{4}))/);
   // Koodi voi olla alpha-2 tai alpha-3, ja kirjainkoko vaihtelee ("Fi").
   const kansM = teksti.match(
     /Kansalaisuus\s*([A-Za-z]{2,3}(?:\s*[/,]\s*[A-Za-z]{2,3})*)\s*(?:Paino|Pituus|Pelipaikka|$)/,
   );
   const paikkaM = teksti.match(/Pelipaikka\s*([A-Za-zÀ-ÿ]+)/);
+
+  // Kauden tilastorivit: "2026 AC Oulu 25 2250 ...". Parsinta ankkuroidaan
+  // taulukon viimeisen otsikon (RPM) jalkeen, jottei syntymavuosi tai
+  // otsikkoteksti osu kaavaan. Seuranimi voi sisaltaa valilyonteja, joten
+  // se luetaan ei-ahneesti kahteen perakkaiseen kokonaislukuun asti.
+  const kaudenSeurat: Record<string, string[]> = {};
+  const otsikko = teksti.lastIndexOf(' RPM ');
+  const taulukko = otsikko >= 0 ? teksti.slice(otsikko + 5) : teksti;
+  const riviRe =
+    /(20\d{2})\s+([A-ZÅÄÖ][A-Za-zÅÄÖåäö.'\-]*(?:\s+[A-Za-zÅÄÖåäö.'\-]+){0,3}?)\s+(?=\d+\s+\d+\s)/g;
+  let rm: RegExpExecArray | null;
+  while ((rm = riviRe.exec(taulukko)) !== null) {
+    const kausi = rm[1];
+    const seura = rm[2].trim();
+    if (!seura) continue;
+    if (!kaudenSeurat[kausi]) kaudenSeurat[kausi] = [];
+    if (!kaudenSeurat[kausi].includes(seura)) kaudenSeurat[kausi].push(seura);
+  }
 
   return {
     vlId,
@@ -219,21 +244,42 @@ async function haeProfiili(polku: string, vlId: string): Promise<Profiili> {
           .filter(Boolean)
       : [],
     pelipaikka: paikkaM ? paikkaM[1] : null,
+    kaudenSeurat,
     haettu: new Date().toISOString(),
   };
+}
+
+async function haeProfiili(polku: string, vlId: string): Promise<Profiili> {
+  const res = await axios.get<string>(BASE_URL + polku, {
+    timeout: 25000,
+    headers: HEADERS,
+    httpsAgent: agent,
+  });
+  return parsiProfiili(res.data, vlId);
+
 }
 
 async function main(): Promise<void> {
   const kausi = argumentti('kausi') || '2026';
   const vahvista = lippu('vahvista');
   const paivita = lippu('paivita');
-  // Raporttitila: profiilivalimuisti taytetaan (haku on hidas ja sama
-  // pelaaja esiintyy monella kaudella), mutta seasons/{kausi}/kansalaisuudet
-  // -dataa EI kirjoiteta. Tuotantodatan kirjoitus vaatii oman hyvaksynnan.
+  // Raporttitila: profiilivalimuisti taytetaan, mutta
+  // seasons/{kausi}/kansalaisuudet -dataa EI kirjoiteta.
   const vainRaportti = lippu('vain-raportti');
+  // CLAUDE.md 3.5: tuotantoon kirjoitetaan vain kahden lipun skriptilla.
+  // Pelkka --vahvista ei riita; kohde on kerrottava erikseen.
+  const tuotanto = lippu('tuotanto');
   const viiveMs = parseInt(argumentti('viive') || '3000', 10);
   const rajaRaaka = argumentti('raja');
   const raja = rajaRaaka ? parseInt(rajaRaaka, 10) : Infinity;
+
+  if (vahvista && !vainRaportti && !tuotanto) {
+    console.error(
+      'Kirjoitus tuotantoon vaatii seka --vahvista etta --tuotanto ' +
+        '(CLAUDE.md 3.5). Ilman --tuotanto aja --vain-raportti.',
+    );
+    process.exit(1);
+  }
 
   agent = await luoAgent();
 
@@ -270,24 +316,51 @@ async function main(): Promise<void> {
   console.log('');
 
   const valimuisti = db.collection('veikkausliiga_profiilit');
+  let valimuistista = 0;
+
+  /**
+   * Profiili valimuistista tai haku. Samaa vlId:ta ei haeta kahdesti.
+   * Palauttaa null jos haku epaonnistuu.
+   */
+  async function haeProfiiliValimuistista(
+    rivi: ListaRivi,
+  ): Promise<Profiili | null> {
+    const ref = valimuisti.doc(rivi.vlId);
+    const cached = await ref.get();
+    if (cached.exists && !paivita) {
+      valimuistista++;
+      return cached.data() as Profiili;
+    }
+    try {
+      const prof = await haeProfiili(rivi.polku, rivi.vlId);
+      if (vahvista || vainRaportti) await ref.set(prof);
+      await sleep(viiveMs);
+      return prof;
+    } catch {
+      await sleep(viiveMs * 2);
+      return null;
+    }
+  }
   let varma = 0;
   let epavarma = 0;
   let eiTietoa = 0;
-  let valimuistista = 0;
   let kaksiLahdetta = 0;
   const luokat = { kylla: 0, ei: 0, 'ei tietoa': 0 } as Record<string, number>;
   const epavarmat: string[] = [];
   const eiOsumaa: string[] = [];
   const tarkistuslista: string[] = [];
   const kansalaisuusJakauma = new Map<string, number>();
-  /** Minuuttipainotusta varten: mihin luokkaan kunkin pelaajan minuutit kuuluvat. */
-  const suomalaisetSlugit = new Set<string>();
+  // Minuuttiraportin kolme joukkoa. Jako tehdaan REKISTEROIDYN koodin ja
+  // varmennuksen mukaan, ei suomalainen-kentan mukaan:
+  //   FIN            = koodi FIN ja seura vahvistettu
+  //   ulkomaa        = muu koodi ja seura vahvistettu
+  //   ei tietoa      = profiilia ei loydy, koodi puuttuu, tai seura
+  //                    vahvistamatta
+  // Nama kolme kattavat kaikki pelaajat, joten osuudet summautuvat
+  // ikaryhman kokonaisosuudeksi.
+  const finSlugit = new Set<string>();
+  const ulkomaaSlugit = new Set<string>();
   const eiTietoaSlugit = new Set<string>();
-  /** Pelaajat jotka eivat loytyneet lahteesta lainkaan. Naiden minuutit
-   *  eivat kuulu mihinkaan luokkaan, joten ne on raportoitava erikseen -
-   *  muuten epavarmuus nayttaa pienemmalta kuin se on. */
-  const eiOsumaaSlugit = new Set<string>();
-  const seuraVahvistamattaSlugit = new Set<string>();
 
   // Toiset lähteet. Rakenne on avoin: Palloliiton nuorten maajoukkue-
   // valinnat liitetään tähän samalla muodolla, kun speksi on valmis.
@@ -332,62 +405,60 @@ async function main(): Promise<void> {
       [p.joukkue, ...p.joukkueet].filter(Boolean).map(seuraAvain),
     );
     const nimiOsumat = lista.filter((r) => nimetTasmaavat(p.nimi, r.nimi));
-    let ehdokkaat = nimiOsumat.filter((r) => omatSeurat.has(seuraAvain(r.seura)));
 
-    // Seurasarake on "-" pelaajalla joka on lähtenyt seurasta kesken kauden.
-    // Silloin seura ei ole ristiriidassa vaan tuntematon, eikä sitä voi
-    // käyttää erottelijana. Ikä varmennetaan silti, mutta osuma jää
-    // epävarmaksi eikä sitä tallenneta ilman ihmisen tarkistusta.
-    let seuraTuntematon = false;
-    if (ehdokkaat.length === 0) {
-      const tuntemattomat = nimiOsumat.filter(
-        (r) => !r.seura || r.seura === '-' || r.seura === '–',
+    if (nimiOsumat.length === 0) {
+      eiTietoa++;
+      eiTietoaSlugit.add(p.slug);
+      eiOsumaa.push(
+        p.nimi + ' (' + p.joukkue + ', ' + p.ika + ' v) — ei nimiosumaa',
       );
-      if (tuntemattomat.length > 0) {
-        ehdokkaat = tuntemattomat;
+      continue;
+    }
+
+    // Seura varmennetaan profiilin KAUDEN RIVILTA, ei tilastolistan
+    // seura-sarakkeesta. Lista nayttaa paattyneella kaudella kauden seuran,
+    // mutta kuluvalla kaudella nykyisen seuran - ja viivan pelaajalle joka
+    // on lahtenyt. Kauden rivi ei muutu jalkikateen, joten sama saanto
+    // toimii kaikille kausille.
+    //
+    // Jos pelaajalla on samalla kaudella rivi useassa seurassa, riittaa
+    // etta datan seura loytyy joltain rivilta.
+    const ehdokkaat: typeof nimiOsumat = [];
+    let seuraTuntematon = false;
+    for (const ehdokas of nimiOsumat) {
+      const prof = await haeProfiiliValimuistista(ehdokas);
+      if (prof === null) continue;
+      const profiilinSeurat = (prof.kaudenSeurat?.[kausi] ?? []).map(seuraAvain);
+      if (profiilinSeurat.length === 0) {
+        // Profiilissa ei ole kauden rivia lainkaan - seuraa ei voi varmentaa.
         seuraTuntematon = true;
+        ehdokkaat.push(ehdokas);
+        continue;
+      }
+      if (profiilinSeurat.some((x) => omatSeurat.has(x))) {
+        ehdokkaat.push(ehdokas);
+        seuraTuntematon = false;
+        break;
       }
     }
 
     if (ehdokkaat.length === 0) {
       eiTietoa++;
-      eiOsumaaSlugit.add(p.slug);
-      eiOsumaa.push(p.nimi + ' (' + p.joukkue + ', ' + p.ika + ' v) — ei nimi+seura-osumaa');
-      continue;
-    }
-    if (ehdokkaat.length > 1) {
-      epavarma++;
-      eiOsumaaSlugit.add(p.slug);
-      epavarmat.push(
-        p.nimi + ' (' + p.joukkue + ') — ' + ehdokkaat.length + ' ehdokasta listalla',
+      eiTietoaSlugit.add(p.slug);
+      eiOsumaa.push(
+        p.nimi + ' (' + p.joukkue + ', ' + p.ika + ' v) — seura ei täsmää ' +
+          'profiilin kauden riviin',
       );
       continue;
     }
 
     const rivi = ehdokkaat[0];
-
-    // 2) Profiili välimuistista tai haku. Samaa ID:tä ei haeta kahdesti.
-    const cacheRef = valimuisti.doc(rivi.vlId);
-    let profiili: Profiili | null = null;
-    const cached = await cacheRef.get();
-    if (cached.exists && !paivita) {
-      profiili = cached.data() as Profiili;
-      valimuistista++;
-    } else {
-      try {
-        profiili = await haeProfiili(rivi.polku, rivi.vlId);
-        if (vahvista || vainRaportti) await cacheRef.set(profiili);
-        await sleep(viiveMs);
-      } catch (e) {
-        eiTietoa++;
-        eiOsumaaSlugit.add(p.slug);
-        eiOsumaa.push(
-          p.nimi + ' — profiilin haku epäonnistui: ' +
-            (e instanceof Error ? e.message : String(e)),
-        );
-        await sleep(viiveMs * 2);
-        continue;
-      }
+    const profiili = await haeProfiiliValimuistista(rivi);
+    if (profiili === null) {
+      eiTietoa++;
+      eiTietoaSlugit.add(p.slug);
+      eiOsumaa.push(p.nimi + ' — profiilin haku epäonnistui');
+      continue;
     }
 
     // 3) Ikä on pakollinen varmenne: kausi − syntymävuosi = ikä kaudella.
@@ -397,7 +468,7 @@ async function main(): Promise<void> {
         : null;
     if (ikaProfiilista === null || ikaProfiilista !== p.ika) {
       epavarma++;
-      eiOsumaaSlugit.add(p.slug);
+      eiTietoaSlugit.add(p.slug);
       epavarmat.push(
         p.nimi +
           ' (' + p.joukkue + ') — ikä ei täsmää: Excel ' + p.ika +
@@ -409,7 +480,7 @@ async function main(): Promise<void> {
 
     if (profiili.kansalaisuudet.length === 0) {
       eiTietoa++;
-      eiOsumaaSlugit.add(p.slug);
+      eiTietoaSlugit.add(p.slug);
       eiOsumaa.push(p.nimi + ' — profiilissa ei kansalaisuutta');
       continue;
     }
@@ -473,12 +544,15 @@ async function main(): Promise<void> {
       );
     }
 
+    // Seura vahvistamatta -> ei tietoa, kunnes seura on vahvistettu.
+    if (seuraTuntematon) {
+      eiTietoaSlugit.add(p.slug);
+    } else if (vlKansalaisuus === 'FIN') {
+      finSlugit.add(p.slug);
+    } else {
+      ulkomaaSlugit.add(p.slug);
+    }
     luokat[suomalainen]++;
-    // Paras arvio = kaikki 'kylla', myos ne joilla seura jai vahvistamatta.
-    // Sama tapa kuin kauden 2026 "noin 10 %" -luvussa.
-    if (suomalainen === 'kylla') suomalaisetSlugit.add(p.slug);
-    if (suomalainen === 'ei tietoa') eiTietoaSlugit.add(p.slug);
-    if (seuraTuntematon) seuraVahvistamattaSlugit.add(p.slug);
     if (varmuus === 'kaksi lahdetta') kaksiLahdetta++;
     kansalaisuusJakauma.set(
       vlKansalaisuus,
@@ -566,55 +640,45 @@ async function main(): Promise<void> {
     console.log('EI OSUMAA (' + eiOsumaa.length + '):');
     for (const e of eiOsumaa) console.log('  · ' + e);
   }
-  // ---------- Minuuteilla painotettu osuus ----------
-  // Pelaajamäärä ei kerro kenelle peliaika meni: yksi paljon pelaava
-  // painaa enemmän kuin kolme varamiestä.
+  // ---------- Minuuteilla painotettu, kolme osaa samassa yksikossa ----------
+  // Kaikki osuudet ovat % LIIGAN MINUUTTIKAPASITEETISTA, jotta osat
+  // summautuvat ikaryhman kokonaisosuudeksi eika eri nimittajia sekoiteta.
   const { suoritukset, nimittajat } = await lueKausi(db, parseInt(kausi, 10));
   const kapasiteetti = nimittajat.reduce((a, n) => a + n.kapasiteetti_min, 0);
-  const minuutit = (ikaRaja: number, vainSuomalaiset: boolean): number =>
-    suoritukset
-      .filter(
-        (x) =>
-          x.ika <= ikaRaja &&
-          (!vainSuomalaiset || suomalaisetSlugit.has(x.slug)),
-      )
-      .reduce((a, x) => a + x.minuutit, 0);
-  const pr = (osa: number, koko: number): string =>
-    koko > 0 ? (osa / koko * 100).toFixed(1).replace('.', ',') + ' %' : '-';
-  /** Minuutit ikaryhmassa, jotka kuuluvat annettuun slug-joukkoon. */
   const minJoukossa = (ikaRaja: number, joukko: Set<string>): number =>
     suoritukset
       .filter((x) => x.ika <= ikaRaja && joukko.has(x.slug))
       .reduce((a, x) => a + x.minuutit, 0);
+  const minKaikki = (ikaRaja: number): number =>
+    suoritukset.filter((x) => x.ika <= ikaRaja).reduce((a, x) => a + x.minuutit, 0);
+  const pr = (osa: number): string =>
+    kapasiteetti > 0
+      ? (osa / kapasiteetti * 100).toFixed(1).replace('.', ',') + ' %'
+      : '-';
 
   console.log('');
-  console.log('MINUUTEILLA PAINOTETTU — kausi ' + kausi);
-  for (const [otsikko, raja] of [['17–21-vuotiaat', 21], ['alle 21-vuotiaat', 20]] as [string, number][]) {
-    const yht = minuutit(raja, false);
-    const suomi = minuutit(raja, true);
-    const eiTietoa = minJoukossa(raja, eiTietoaSlugit);
-    const vahvistamatta = minJoukossa(raja, seuraVahvistamattaSlugit);
-    console.log('  ' + otsikko);
-    console.log('    osuus kapasiteetista:        ' + pr(yht, kapasiteetti));
-    console.log('    Suomen kansalaisille:        ' + pr(suomi, kapasiteetti) +
-      ' kapasiteetista, ' + pr(suomi, yht) + ' ikäryhmän minuuteista');
-    const eiLainkaan = minJoukossa(raja, eiOsumaaSlugit);
-    console.log('    EPÄVARMUUS ikäryhmän minuuteista:');
-    console.log('      "ei tietoa" (luokiteltu):  ' + pr(eiTietoa, yht));
-    console.log('      ei löytynyt lähteestä:     ' + pr(eiLainkaan, yht));
-    console.log('      EPÄVARMAA YHTEENSÄ:        ' + pr(eiTietoa + eiLainkaan, yht));
-    console.log('      (joista seura vahvistamatta: ' + pr(vahvistamatta, yht) + ')');
+  console.log('MINUUTIT % LIIGAN KAPASITEETISTA — kausi ' + kausi);
+  for (const [otsikko, raja] of [
+    ['17–21-vuotiaat', 21],
+    ['alle 21-vuotiaat', 20],
+  ] as [string, number][]) {
+    const yht = minKaikki(raja);
+    const fin = minJoukossa(raja, finSlugit);
+    const ulk = minJoukossa(raja, ulkomaaSlugit);
+    const eiT = minJoukossa(raja, eiTietoaSlugit);
+    console.log('  ' + otsikko + ' yhteensa ' + pr(yht));
+    console.log('    FIN (Suomen kansalaisuus):    ' + pr(fin));
+    console.log('    ulkomaan koodi:               ' + pr(ulk));
+    console.log('    ei tietoa:                    ' + pr(eiT));
+    console.log('    summa tarkistus:              ' + pr(fin + ulk + eiT) +
+      (Math.abs(fin + ulk + eiT - yht) < 1 ? '  ✓' : '  ✗ EI TASMAA'));
   }
-  // Konekelpoinen rivi: kausi, 17-21, siita suomalaisille, alle21,
-  // siita suomalaisille, alle21 ei-tietoa-osuus, alle21 seura-vahvistamatta.
-  const a21 = minuutit(20, false);
-  console.log('  RAPORTTIRIVI\t' + kausi + '\t' +
-    pr(minuutit(21, false), kapasiteetti) + '\t' +
-    pr(minuutit(21, true), kapasiteetti) + '\t' +
-    pr(a21, kapasiteetti) + '\t' +
-    pr(minuutit(20, true), kapasiteetti) + '\t' +
-    pr(minJoukossa(20, eiTietoaSlugit) + minJoukossa(20, eiOsumaaSlugit), a21) + '\t' +
-    pr(minJoukossa(20, seuraVahvistamattaSlugit), a21));
+  const a = 20;
+  console.log('  RIVI\t' + kausi + '\t' +
+    pr(minKaikki(21)) + '\t' + pr(minJoukossa(21, finSlugit)) + '\t' +
+    pr(minJoukossa(21, ulkomaaSlugit)) + '\t' + pr(minJoukossa(21, eiTietoaSlugit)) + '\t' +
+    pr(minKaikki(a)) + '\t' + pr(minJoukossa(a, finSlugit)) + '\t' +
+    pr(minJoukossa(a, ulkomaaSlugit)) + '\t' + pr(minJoukossa(a, eiTietoaSlugit)));
 
   if (!vahvista) {
     console.log('');

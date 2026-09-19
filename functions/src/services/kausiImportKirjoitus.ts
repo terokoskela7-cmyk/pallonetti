@@ -46,6 +46,19 @@ export interface KirjoitusAsetukset {
    * tämän pois — päättyneellä kaudella kaikki ottelut on pelattu.
    */
   kierros?: number | null;
+  /**
+   * Tilannekuvan päivä, muodossa YYYY-MM-DD. Jokainen kumulatiivinen tuonti
+   * tallennetaan päivätyksi tilannekuvaksi seasons/{kausi}/tilannekuvat/
+   * {pvm}, jotta kehityskäyrä voidaan myöhemmin piirtää tilannekuvien
+   * erotuksista päivämääräakselilla.
+   *
+   * Kierrosnumeroa ei käytetä: runkosarjan jälkeen liiga ei ole synkronissa
+   * (seurat ovat pelanneet eri määrän otteluita), joten yksi liigatason
+   * kierrosnumero olisi rakenteellisesti väärä.
+   *
+   * Oletus on ajopäivä. Arvo false ohittaa tilannekuvan kokonaan.
+   */
+  tilannekuvaPvm?: string | false;
 }
 
 export interface VanhentunutDokumentti {
@@ -76,6 +89,8 @@ export interface KirjoitusYhteenveto {
    */
   vanhentuneetProjektiot: string[];
   batchejaAjettu: number;
+  /** Kirjoitetut tilannekuvat: 'seasons/2026/tilannekuvat/2026-09-19'. */
+  tilannekuvat: string[];
 }
 
 /** Esikatselun luvut: montako dokumenttia syntyy, päivittyy, vanhentuu. */
@@ -158,6 +173,7 @@ export async function kirjoitaKausituonti(
     vanhentuneet: [],
     vanhentuneetProjektiot: [],
     batchejaAjettu: 0,
+    tilannekuvat: [],
   };
 
   // Aikaleima luodaan kerran, jotta koko ajolla on sama tuotu_pvm.
@@ -242,6 +258,71 @@ export async function kirjoitaKausituonti(
     });
   });
   yhteenveto.kirjoitettu.projektiot = tulos.projektiot.length;
+
+  // ---------- Päivätty tilannekuva ----------
+  // Kumulatiivinen tuonti on kausitilannekuva, ei kierros. Tallennetaan se
+  // päivämäärällä, jolloin peräkkäisten tilannekuvien erotus antaa välillä
+  // pelatut minuutit ilman että liigan pitäisi olla synkronissa.
+  if (asetukset.tilannekuvaPvm !== false) {
+    const pvm =
+      asetukset.tilannekuvaPvm ?? tuotuPvm.toISOString().slice(0, 10);
+
+    // Seuran ottelumäärä kauden kaikista vaiheista yhteensä.
+    const otteluitaPerKausiJaJoukkue = new Map<string, Map<string, number>>();
+    for (const n of tulos.nimittajat) {
+      if (!otteluitaPerKausiJaJoukkue.has(n.kausi)) {
+        otteluitaPerKausiJaJoukkue.set(n.kausi, new Map());
+      }
+      const perJoukkue = otteluitaPerKausiJaJoukkue.get(n.kausi)!;
+      perJoukkue.set(n.joukkue, (perJoukkue.get(n.joukkue) || 0) + n.ottelut);
+    }
+
+    for (const kausi of tulos.kaudet.map((k) => k.kausi)) {
+      const projektiot = tulos.projektiot.filter((p) => p.kausi === kausi);
+      const seurat = Object.fromEntries(
+        otteluitaPerKausiJaJoukkue.get(kausi) ?? new Map<string, number>(),
+      );
+
+      const tilannekuvaRef = db
+        .collection((asetukset.kokoelmaEtuliite || '') + 'seasons')
+        .doc(kausi)
+        .collection('tilannekuvat')
+        .doc(pvm);
+
+      await tilannekuvaRef.set({
+        pvm,
+        kausi,
+        pelaajia: projektiot.length,
+        seurat,
+        tuonti_id: asetukset.tuontiId,
+        lahde_tiedosto: asetukset.lahdeTiedosto,
+        luotu: tuotuPvm,
+      });
+
+      // Pelaajakohtaiset kumulatiiviset minuutit tämän päivän tilanteessa.
+      await kirjoitaErissa(
+        db,
+        projektiot,
+        yhteenveto,
+        (batch, p: KausiProjektio) => {
+          batch.set(tilannekuvaRef.collection('pelaajat').doc(p.slug), {
+            slug: p.slug,
+            pelaajaAvain: p.pelaajaAvain,
+            ika: p.ika,
+            joukkue: p.joukkue,
+            minTotal: p.minTotal,
+            ottelutTotal: p.ottelutTotal,
+            aloituksetTotal: p.aloituksetTotal,
+            maaliTotal: p.maaliTotal,
+          });
+        },
+      );
+
+      yhteenveto.tilannekuvat.push(
+        'seasons/' + kausi + '/tilannekuvat/' + pvm,
+      );
+    }
+  }
 
   // ---------- Vanhentuneiden merkintä ----------
   // Pelaaja joka on poistunut lähdeaineistosta jää muuten Firestoreen

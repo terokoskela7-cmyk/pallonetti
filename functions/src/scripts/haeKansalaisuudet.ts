@@ -54,25 +54,89 @@ const AIA_URL = 'http://crt.sectigo.com/ZeroSSLECCDVSSLCA2.crt';
  * kentässä: uudemmissa profiileissa "FIN", vanhemmissa "FI". Molemmat
  * tarkoittavat samaa. Ilman normalisointia alpha-2-pelaajat putoaisivat
  * kokonaan pois, ja juuri niitä on vanhoilla kausilla eniten.
+ *
+ * Taulukko on täydellinen ISO 3166-1 (249 koodia), ei käsin koottu otos:
+ * käsin kootusta puuttui esimerkiksi NE (Niger), jolloin koodi jäi
+ * normalisoimatta. Tunnistamaton koodi EI mene läpi arvauksena vaan
+ * raportoidaan ja pelaaja päätyy "ei tietoa" -luokkaan.
  */
 const ALPHA2_ALPHA3: Record<string, string> = {
-  FI: 'FIN', SE: 'SWE', NO: 'NOR', DK: 'DNK', EE: 'EST', LV: 'LVA',
-  LT: 'LTU', RU: 'RUS', PL: 'POL', DE: 'DEU', NL: 'NLD', BE: 'BEL',
-  FR: 'FRA', ES: 'ESP', PT: 'PRT', IT: 'ITA', GB: 'GBR', IE: 'IRL',
-  IS: 'ISL', US: 'USA', BR: 'BRA', AR: 'ARG', CO: 'COL', CL: 'CHL',
-  NG: 'NGA', GH: 'GHA', CI: 'CIV', SN: 'SEN', GM: 'GMB', CM: 'CMR',
-  ML: 'MLI', ZM: 'ZMB', ZW: 'ZWE', SL: 'SLE', KE: 'KEN', MA: 'MAR',
-  SK: 'SVK', CZ: 'CZE', HU: 'HUN', HR: 'HRV', RS: 'SRB', BA: 'BIH',
-  XK: 'XKX', AL: 'ALB', TR: 'TUR', UA: 'UKR', AU: 'AUS', JP: 'JPN',
-  CA: 'CAN', CH: 'CHE', AT: 'AUT', GR: 'GRC', RO: 'ROU', BG: 'BGR',
+  AD: 'AND', AE: 'ARE', AF: 'AFG', AG: 'ATG', AI: 'AIA', AL: 'ALB', AM: 'ARM', AO: 'AGO',
+  AQ: 'ATA', AR: 'ARG', AS: 'ASM', AT: 'AUT', AU: 'AUS', AW: 'ABW', AX: 'ALA', AZ: 'AZE',
+  BA: 'BIH', BB: 'BRB', BD: 'BGD', BE: 'BEL', BF: 'BFA', BG: 'BGR', BH: 'BHR', BI: 'BDI',
+  BJ: 'BEN', BL: 'BLM', BM: 'BMU', BN: 'BRN', BO: 'BOL', BQ: 'BES', BR: 'BRA', BS: 'BHS',
+  BT: 'BTN', BV: 'BVT', BW: 'BWA', BY: 'BLR', BZ: 'BLZ', CA: 'CAN', CC: 'CCK', CD: 'COD',
+  CF: 'CAF', CG: 'COG', CH: 'CHE', CI: 'CIV', CK: 'COK', CL: 'CHL', CM: 'CMR', CN: 'CHN',
+  CO: 'COL', CR: 'CRI', CU: 'CUB', CV: 'CPV', CW: 'CUW', CX: 'CXR', CY: 'CYP', CZ: 'CZE',
+  DE: 'DEU', DJ: 'DJI', DK: 'DNK', DM: 'DMA', DO: 'DOM', DZ: 'DZA', EC: 'ECU', EE: 'EST',
+  EG: 'EGY', EH: 'ESH', ER: 'ERI', ES: 'ESP', ET: 'ETH', FI: 'FIN', FJ: 'FJI', FK: 'FLK',
+  FM: 'FSM', FO: 'FRO', FR: 'FRA', GA: 'GAB', GB: 'GBR', GD: 'GRD', GE: 'GEO', GF: 'GUF',
+  GG: 'GGY', GH: 'GHA', GI: 'GIB', GL: 'GRL', GM: 'GMB', GN: 'GIN', GP: 'GLP', GQ: 'GNQ',
+  GR: 'GRC', GS: 'SGS', GT: 'GTM', GU: 'GUM', GW: 'GNB', GY: 'GUY', HK: 'HKG', HM: 'HMD',
+  HN: 'HND', HR: 'HRV', HT: 'HTI', HU: 'HUN', ID: 'IDN', IE: 'IRL', IL: 'ISR', IM: 'IMN',
+  IN: 'IND', IO: 'IOT', IQ: 'IRQ', IR: 'IRN', IS: 'ISL', IT: 'ITA', JE: 'JEY', JM: 'JAM',
+  JO: 'JOR', JP: 'JPN', KE: 'KEN', KG: 'KGZ', KH: 'KHM', KI: 'KIR', KM: 'COM', KN: 'KNA',
+  KP: 'PRK', KR: 'KOR', KW: 'KWT', KY: 'CYM', KZ: 'KAZ', LA: 'LAO', LB: 'LBN', LC: 'LCA',
+  LI: 'LIE', LK: 'LKA', LR: 'LBR', LS: 'LSO', LT: 'LTU', LU: 'LUX', LV: 'LVA', LY: 'LBY',
+  MA: 'MAR', MC: 'MCO', MD: 'MDA', ME: 'MNE', MF: 'MAF', MG: 'MDG', MH: 'MHL', MK: 'MKD',
+  ML: 'MLI', MM: 'MMR', MN: 'MNG', MO: 'MAC', MP: 'MNP', MQ: 'MTQ', MR: 'MRT', MS: 'MSR',
+  MT: 'MLT', MU: 'MUS', MV: 'MDV', MW: 'MWI', MX: 'MEX', MY: 'MYS', MZ: 'MOZ', NA: 'NAM',
+  NC: 'NCL', NE: 'NER', NF: 'NFK', NG: 'NGA', NI: 'NIC', NL: 'NLD', NO: 'NOR', NP: 'NPL',
+  NR: 'NRU', NU: 'NIU', NZ: 'NZL', OM: 'OMN', PA: 'PAN', PE: 'PER', PF: 'PYF', PG: 'PNG',
+  PH: 'PHL', PK: 'PAK', PL: 'POL', PM: 'SPM', PN: 'PCN', PR: 'PRI', PS: 'PSE', PT: 'PRT',
+  PW: 'PLW', PY: 'PRY', QA: 'QAT', RE: 'REU', RO: 'ROU', RS: 'SRB', RU: 'RUS', RW: 'RWA',
+  SA: 'SAU', SB: 'SLB', SC: 'SYC', SD: 'SDN', SE: 'SWE', SG: 'SGP', SH: 'SHN', SI: 'SVN',
+  SJ: 'SJM', SK: 'SVK', SL: 'SLE', SM: 'SMR', SN: 'SEN', SO: 'SOM', SR: 'SUR', SS: 'SSD',
+  ST: 'STP', SV: 'SLV', SX: 'SXM', SY: 'SYR', SZ: 'SWZ', TC: 'TCA', TD: 'TCD', TF: 'ATF',
+  TG: 'TGO', TH: 'THA', TJ: 'TJK', TK: 'TKL', TL: 'TLS', TM: 'TKM', TN: 'TUN', TO: 'TON',
+  TR: 'TUR', TT: 'TTO', TV: 'TUV', TW: 'TWN', TZ: 'TZA', UA: 'UKR', UG: 'UGA', UM: 'UMI',
+  US: 'USA', UY: 'URY', UZ: 'UZB', VA: 'VAT', VC: 'VCT', VE: 'VEN', VG: 'VGB', VI: 'VIR',
+  VN: 'VNM', VU: 'VUT', WF: 'WLF', WS: 'WSM', YE: 'YEM', YT: 'MYT', ZA: 'ZAF', ZM: 'ZMB',
+  ZW: 'ZWE',
 };
 
-/** Normalisoi maakoodin kolmikirjaimiseksi. Tuntematon palautetaan isoin. */
-function normalisoiMaakoodi(koodi: string): string {
+/** Tunnistamattomat koodit kerätään raportoitavaksi ajon lopussa. */
+const tuntemattomatKoodit = new Map<string, number>();
+
+/**
+ * Normalisoi maakoodin kolmikirjaimiseksi.
+ *
+ * Palauttaa null jos koodia ei tunnisteta: kaksikirjaiminen jota ei ole
+ * ISO-taulukossa, tai muu kuin 2–3 merkkiä. Kutsuja tulkitsee nullin
+ * "ei tietoa" -tilaksi — koodia ei arvata.
+ */
+function normalisoiMaakoodi(koodi: string): string | null {
   const iso = koodi.trim().toUpperCase();
-  if (iso.length === 2) return ALPHA2_ALPHA3[iso] ?? iso;
-  return iso;
+  if (iso.length === 2) {
+    const kolme = ALPHA2_ALPHA3[iso];
+    if (kolme === undefined) {
+      tuntemattomatKoodit.set(iso, (tuntemattomatKoodit.get(iso) || 0) + 1);
+      return null;
+    }
+    return kolme;
+  }
+  if (iso.length === 3) {
+    // Alpha-3 kelpaa sellaisenaan jos se esiintyy taulukon arvoissa.
+    if (Object.values(ALPHA2_ALPHA3).includes(iso)) return iso;
+    tuntemattomatKoodit.set(iso, (tuntemattomatKoodit.get(iso) || 0) + 1);
+    return null;
+  }
+  tuntemattomatKoodit.set(iso, (tuntemattomatKoodit.get(iso) || 0) + 1);
+  return null;
 }
+
+/** Testejä varten: tyhjennä tunnistamattomien lista. */
+export function nollaaTuntemattomat(): void {
+  tuntemattomatKoodit.clear();
+}
+
+/** Testejä varten: tunnistamattomat koodit ja niiden määrät. */
+export function haeTuntemattomat(): Array<[string, number]> {
+  return Array.from(tuntemattomatKoodit.entries()).sort((a, b) => b[1] - a[1]);
+}
+
+export { normalisoiMaakoodi };
+
 
 async function luoAgent(): Promise<https.Agent> {
   const res = await axios.get<ArrayBuffer>(AIA_URL, {
@@ -241,7 +305,7 @@ export function parsiProfiili(html: string, vlId: string): Profiili {
       ? kansM[1]
           .split(/[/,]/)
           .map((x) => normalisoiMaakoodi(x))
-          .filter(Boolean)
+          .filter((x): x is string => x !== null)
       : [],
     pelipaikka: paikkaM ? paikkaM[1] : null,
     kaudenSeurat,
@@ -625,6 +689,14 @@ async function main(): Promise<void> {
       console.log('  ' + k + ': ' + n);
     }
   }
+  const tuntemattomat = haeTuntemattomat();
+  if (tuntemattomat.length > 0) {
+    console.log('');
+    console.log('TUNNISTAMATTOMAT MAAKOODIT (pelaaja -> "ei tietoa"):');
+    for (const [koodi, n] of tuntemattomat) {
+      console.log('  ' + koodi + ': ' + n + ' kpl');
+    }
+  }
   if (tarkistuslista.length > 0) {
     console.log('');
     console.log('TARKISTUSLISTA — lähteet ristiriidassa:');
@@ -689,7 +761,12 @@ async function main(): Promise<void> {
   }
 }
 
-main().catch((err) => {
-  console.error('Ajo epäonnistui:', err instanceof Error ? err.message : err);
-  process.exit(1);
-});
+// Ajetaan vain kun tiedosto kaynnistetaan suoraan. Nain testit voivat
+// importata parsiProfiili- ja normalisoiMaakoodi-funktiot ilman etta koko
+// ajo lahtee kayntiin.
+if (require.main === module) {
+  main().catch((err) => {
+    console.error('Ajo epäonnistui:', err instanceof Error ? err.message : err);
+    process.exit(1);
+  });
+}

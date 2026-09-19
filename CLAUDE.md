@@ -143,6 +143,10 @@ Ennen jokaista commitia ajetaan `git diff --cached --stat`, ja listan on
 vastattava PR:n aihetta. Jos listalla on tiedosto, joka ei kuulu aiheeseen,
 sitä ei commitoida mukaan.
 
+**Jokaisen PR:n kuvaukseen liitetään `git diff --stat origin/main...HEAD`,**
+ja jokainen listan tiedosto perustellaan PR:n aiheella. Jos tiedostoa ei voi
+perustella, se ei kuulu tähän PR:ään.
+
 **Työpuussa commitoimatta olevaa muutosta ei jätetä roikkumaan.** Se joko
 commitoidaan omaan haaraansa tai siitä raportoidaan käyttäjälle. Roikkuva
 muutos päätyy seuraavaan committiin riippumatta siitä, mihin se kuuluu.

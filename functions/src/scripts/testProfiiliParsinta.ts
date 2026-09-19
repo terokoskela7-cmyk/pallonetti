@@ -18,7 +18,12 @@
 // ============================================
 import * as fs from 'fs';
 import * as path from 'path';
-import { parsiProfiili } from './haeKansalaisuudet';
+import {
+  parsiProfiili,
+  normalisoiMaakoodi,
+  nollaaTuntemattomat,
+  haeTuntemattomat,
+} from './haeKansalaisuudet';
 
 const HAKEMISTO = path.join(__dirname, '../../test/fixtures/profiilit');
 
@@ -87,6 +92,40 @@ console.log('ei-kauden-rivia.html (ei tilastorivejä)');
   // tyhjän listan "ei tietoa" -tilaksi eikä arvaa seuraa.
   vertaa('kaudenSeurat tyhjä', p.kaudenSeurat, {});
   vertaa('kauden 2026 seurat', p.kaudenSeurat?.['2026'], undefined);
+}
+
+// ---------- 5. Maakoodien normalisointi ----------
+console.log('');
+console.log('MAAKOODIT');
+{
+  nollaaTuntemattomat();
+  // Kasin koottu kartta ei sisaltanyt NE:ta, jolloin koodi jai
+  // normalisoimatta ja tallentui muodossa "NE".
+  vertaa('NE (Niger)', normalisoiMaakoodi('NE'), 'NER');
+  vertaa('FI', normalisoiMaakoodi('FI'), 'FIN');
+  vertaa('Fi (pieni kirjain)', normalisoiMaakoodi('Fi'), 'FIN');
+  vertaa('FIN (jo alpha-3)', normalisoiMaakoodi('FIN'), 'FIN');
+  vertaa('CI (Norsunluurannikko)', normalisoiMaakoodi('CI'), 'CIV');
+  // Tunnistamaton EI mene lapi arvauksena.
+  vertaa('XX (tuntematon alpha-2)', normalisoiMaakoodi('XX'), null);
+  vertaa('ZZZ (tuntematon alpha-3)', normalisoiMaakoodi('ZZZ'), null);
+  vertaa('tyhja', normalisoiMaakoodi(''), null);
+  vertaa(
+    'tuntemattomat raportoidaan',
+    haeTuntemattomat().map((x) => x[0]).sort(),
+    ['', 'XX', 'ZZZ'],
+  );
+}
+
+// ---------- 6. Tuntematon koodi profiilissa -> "ei tietoa" ----------
+console.log('');
+console.log('ei-tunnettua-koodia.html (koodi "XX")');
+{
+  nollaaTuntemattomat();
+  const p = parsiProfiili(lue('ei-tunnettua-koodia.html'), '2');
+  // Tyhja lista tarkoittaa kutsujalle "ei tietoa": koodia ei arvata.
+  vertaa('kansalaisuudet tyhja', p.kansalaisuudet, []);
+  vertaa('koodi raportoitu', haeTuntemattomat().map((x) => x[0]), ['XX']);
 }
 
 console.log('');

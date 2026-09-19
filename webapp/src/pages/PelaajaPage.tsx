@@ -25,6 +25,7 @@ import {
   type PlayerRound,
 } from '@/services/api';
 import { useKausi, useValittuKausi } from '@/hooks/useKausi';
+import { MARKKINA_ARVOT_NAKYVISSA } from '@/constants/ominaisuudet';
 
 function fullName(p: SeasonPlayer): string {
   return `${p.etunimi} ${p.sukunimi}`.trim();
@@ -345,7 +346,7 @@ export default function PelaajaPage() {
       </section>
 
       {/* Transfermarkt — markkina-arvo + lisätiedot (≤ 5M € validointi). */}
-      {tmData && safeMarketValue !== null && (
+      {MARKKINA_ARVOT_NAKYVISSA && tmData && safeMarketValue !== null && (
         <section className="bg-navy-700/40 border border-navy-600 rounded-xl p-5">
           <div className="flex items-start gap-6">
             <div className="flex-1">
@@ -417,8 +418,10 @@ export default function PelaajaPage() {
       </section>
 
       <div className="text-xs text-white/40 pt-1">
-        Lähde: Veikkausliiga.com (viralliset tilastot) + Transfermarkt
-        (markkina-arvo, kuva, pelipaikka)
+        Lähde: Veikkausliiga.com (viralliset tilastot)
+        {MARKKINA_ARVOT_NAKYVISSA
+          ? ' + Transfermarkt (markkina-arvo, kuva, pelipaikka)'
+          : ''}
       </div>
     </div>
   );

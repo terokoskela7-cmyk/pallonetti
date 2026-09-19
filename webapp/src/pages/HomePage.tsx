@@ -34,14 +34,12 @@ import {
   getYouthStatsAll,
   getYouthAggregation,
   getOfficialStats,
-  getTransfermarktLeague,
   getU21RoundTrend,
   filterReliableTeams,
   buildU23Players,
-  formatMarketValue,
   type YouthStats,
 } from '@/services/api';
-import { useKausi, useValittuKausi } from '@/hooks/useKausi';
+import { useValittuKausi } from '@/hooks/useKausi';
 import {
   NUORET_LABEL,
   NUORET_MAX,
@@ -56,8 +54,6 @@ import { ResearchCard } from '@/components/ResearchCard';
 // peliajasta. Ei tavoite vaan vertailuluku — ja se koskee ALLE 21-vuotiaita,
 // ei sivuston 17–21-päämittaria. Vertaa tähän vain alle 21 -lukua.
 const CIES_TANSKA_PCT = 11.7;
-// Markkina-arvojen yläraja sukunimi-matchille — sama logiikka kuin NuoretPage.
-const MAX_REASONABLE_MV = 5_000_000;
 
 // ============================================================
 // Sivuston rakenne — opastaa käyttäjää
@@ -314,11 +310,6 @@ const MISSIONS = [
 
 export default function HomePage() {
   const kausi = useValittuKausi();
-  const { kaudet } = useKausi();
-  // Markkina-arvo on nykyhetken tieto. Menneellä kaudella sitä ei esitetä
-  // kauden arvona, vaan kortti nimetään auki.
-  const uusinKausi = kaudet.length > 0 ? kaudet[0].kausi : kausi;
-  const menneKausi = kausi < uusinKausi;
   const [infoOpen, setInfoOpen] = useState(false);
 
   // Päädata: kolme sarjaa + U23-aggregaatti + viralliset minuutit.
@@ -342,30 +333,6 @@ export default function HomePage() {
       return null;
     }
   }, [kausi]);
-
-  // Markkina-arvot rinnakkain — sivu ei jää odottamaan.
-  const { data: tmEntries } = useApi(async () => {
-    try {
-      return await getTransfermarktLeague(kausi);
-    } catch {
-      return [] as Awaited<ReturnType<typeof getTransfermarktLeague>>;
-    }
-  }, [kausi]);
-
-  // Sukunimi → markkina-arvo (sama logiikka kuin NuoretPage).
-  const marketValueBySurname = useMemo(() => {
-    const map = new Map<string, number>();
-    for (const e of tmEntries ?? []) {
-      if (e.marketValue === null || e.marketValue === undefined) continue;
-      const surname = e.name.split(/\s+/).filter(Boolean).pop()?.toLowerCase();
-      if (!surname) continue;
-      const existing = map.get(surname);
-      if (existing === undefined || e.marketValue > existing) {
-        map.set(surname, e.marketValue);
-      }
-    }
-    return map;
-  }, [tmEntries]);
 
   // U23 = kaikki topYouthPlayers (backend suodattaa jo U23:iin).
   const kaikkiNuoret = useMemo(() => {
@@ -408,12 +375,6 @@ export default function HomePage() {
       : veikkausliiga.reduce((s, t) => s + t.pelaajatNuoret, 0);
   const players = nuoretPelaajat;
   const topPlayer = players[0] ?? null;
-
-  const totalMv = players.reduce((sum, p) => {
-    const surname = p.playerName.split(/\s+/).filter(Boolean).pop()?.toLowerCase();
-    const mv = surname ? marketValueBySurname.get(surname) ?? null : null;
-    return mv !== null && mv <= MAX_REASONABLE_MV ? sum + mv : sum;
-  }, 0);
 
   // Kansainvälinen vertailu tehdään ALLE 21 -luvulla, ei 17–21-päämittarilla.
   // Puuttuva arvo on null, ei 0 — nolla väittäisi että Suomi on tasan Tanskan
@@ -458,7 +419,7 @@ export default function HomePage() {
             Peliaika on <span className="text-aurora font-medium">kaikki</span>
           </>
         }
-        subtitle="Seuraa suomalaisten nuorten pelaajien peliaikaa Veikkausliigassa. Yhdistämme API-Footballin, Veikkausliigan viralliset tilastot ja Transfermarktin markkina-arvot yhdeksi näkymäksi."
+        subtitle="Seuraa suomalaisten nuorten pelaajien peliaikaa Veikkausliigassa. Lähteenä Veikkausliigan viralliset tilastot."
         height="lg"
       />
 
@@ -478,7 +439,7 @@ export default function HomePage() {
             to="/nuoret"
             icon={Users}
             title="Nuoret"
-            body="17–21-vuotiaiden spotlight: pelaajakortit, markkina-arvot ja kansainvälinen vertailu."
+            body="17–21-vuotiaiden spotlight: pelaajakortit, peliaika ja kansainvälinen vertailu."
           />
           <GuideCard
             to="/pelaajat"
@@ -498,7 +459,7 @@ export default function HomePage() {
       {/* ---------- Osio 3 — KPI-kortit ---------- */}
       <section className="space-y-4">
         {/* KPI-kortit */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
           <KpiCard
             label={'Nuorten osuus peliajasta (' + NUORET_LABEL + ')'}
             value={pros(pct)}
@@ -532,23 +493,6 @@ export default function HomePage() {
             value={topPlayer ? String(topPlayer.minutes) : '—'}
             accent="ice"
             hint={topPlayer ? `${topPlayer.playerName} · ${topPlayer.teamName}` : undefined}
-          />
-          <KpiCard
-            label={
-              // Markkina-arvo on nykyhetken tieto, ei kauden aikainen.
-              (menneKausi
-                ? 'Nuorten nykyinen yhteismarkkina-arvo'
-                : 'Nuorten yhteismarkkina-arvo') +
-              ' (' + NUORET_LABEL + ')'
-            }
-            value={formatMarketValue(totalMv) ?? 'ei dataa'}
-            accent="amber"
-            // Tyhja lista ei ole "0 pelaajaa" vaan puuttuva data.
-            hint={
-              players.length === 0
-                ? 'ei dataa'
-                : `${players.length} pelaajaa seurannassa`
-            }
           />
         </div>
 
@@ -647,9 +591,7 @@ export default function HomePage() {
         <span>Veikkausliiga {kausi}</span>
         <span className="w-px h-3 bg-white/20" />
         <span>
-          Lähteet: <span className="text-white/60">API-Football</span> ·{' '}
-          <span className="text-white/60">Veikkausliiga.com</span> ·{' '}
-          <span className="text-white/60">Transfermarkt</span>
+          Lähde: <span className="text-white/60">Veikkausliiga.com</span>
         </span>
         <span className="w-px h-3 bg-white/20" />
         <span>

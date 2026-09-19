@@ -10,6 +10,7 @@ import {
 } from '@/services/api';
 import { useKausi, useValittuKausi } from '@/hooks/useKausi';
 import { IKAKAISTAT, kaistalla } from '@/constants/ika';
+import { MARKKINA_ARVOT_NAKYVISSA } from '@/constants/ominaisuudet';
 import { Hero } from '@/components/Hero';
 
 const AVATAR_COLORS = ['#00D4FF', '#00FF88', '#6366f1', '#f59e0b', '#ef4444'];
@@ -109,7 +110,7 @@ function PlayerCard({
         </div>
       )}
 
-      {marketValue !== null && (
+      {MARKKINA_ARVOT_NAKYVISSA && marketValue !== null && (
         <div className="flex items-baseline justify-between border-t border-navy-600 pt-2 -mb-1">
           <span className="text-[10px] uppercase tracking-wider text-white/40">
             {menneKausi ? 'Nykyinen arvo' : 'Markkina-arvo'}
@@ -275,7 +276,8 @@ export default function NuoretPage() {
       )}
 
       <div className="text-xs text-white/40 text-center pt-2">
-        Lähde: Veikkausliiga.com (viralliset tilastot) + Transfermarkt (markkina-arvo)
+        Lähde: Veikkausliiga.com (viralliset tilastot)
+        {MARKKINA_ARVOT_NAKYVISSA ? ' + Transfermarkt (markkina-arvo)' : ''}
       </div>
     </div>
   );

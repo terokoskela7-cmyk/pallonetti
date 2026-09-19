@@ -545,9 +545,14 @@ export default function HomePage() {
                 ? 'Nuorten yhteismarkkina-arvo (17–21 v)'
                 : 'Nuorten yhteismarkkina-arvo (17–23 v)'
             }
-            value={formatMarketValue(totalMv) ?? '—'}
+            value={formatMarketValue(totalMv) ?? 'ei dataa'}
             accent="amber"
-            hint={`${players.length} pelaajaa seurannassa`}
+            // Tyhja lista ei ole "0 pelaajaa" vaan puuttuva data.
+            hint={
+              players.length === 0
+                ? 'ei dataa'
+                : `${players.length} pelaajaa seurannassa`
+            }
           />
         </div>
 

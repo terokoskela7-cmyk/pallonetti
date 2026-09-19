@@ -1,3 +1,8 @@
+// HUOM (2026-09-19): tämä tiedosto ei ole reitityksessä — App.tsx ei
+// renderöi sitä eikä mikään reititetty sivu tuo sitä. U23-kentät eivät
+// enää tule kausituonnin lähteestä (vienti suodatettu 17–21-vuotiaisiin),
+// joten ne luetaan tässä nollana vain jotta tiedosto kääntyy. Jos tämä
+// otetaan käyttöön, laskenta on siirrettävä U21-kenttiin.
 import type { YouthStats } from '@/services/api';
 
 interface WeeklyNarrativeProps {
@@ -7,13 +12,13 @@ interface WeeklyNarrativeProps {
 
 function calcAvgU23(teams: YouthStats[]): number {
   const totalMinutes = teams.reduce((s, t) => s + t.totalMinutes, 0);
-  const u23Minutes = teams.reduce((s, t) => s + t.youthMinutesU23, 0);
+  const u23Minutes = teams.reduce((s, t) => s + (t.youthMinutesU23 ?? 0), 0);
   return totalMinutes > 0 ? (u23Minutes / totalMinutes) * 100 : 0;
 }
 
 function findLeader(teams: YouthStats[]): YouthStats | undefined {
   return [...teams].sort(
-    (a, b) => b.youthPercentageU23 - a.youthPercentageU23,
+    (a, b) => (b.youthPercentageU23 ?? 0) - (a.youthPercentageU23 ?? 0),
   )[0];
 }
 
@@ -41,7 +46,7 @@ export function WeeklyNarrative({ veikkausliiga, ykkosliiga }: WeeklyNarrativePr
             <span className="text-white/70">Eniten nuoria käyttää </span>
             <span className="text-ice font-medium">{vLeader.teamName}</span>
             <span className="text-white/70">
-              {' '}({vLeader.youthPercentageU23.toFixed(1)} %).
+              {' '}({(vLeader.youthPercentageU23 ?? 0).toFixed(1)} %).
             </span>
           </>
         )}
@@ -51,7 +56,7 @@ export function WeeklyNarrative({ veikkausliiga, ykkosliiga }: WeeklyNarrativePr
           <span>Ykkösliigassa eniten peliaikaa nuorille antaa </span>
           <span className="text-ice font-medium">{yLeader.teamName}</span>
           <span>
-            {' '}<span className="tabular">{yLeader.youthPercentageU23.toFixed(1)} %</span> osuudella.
+            {' '}<span className="tabular">{(yLeader.youthPercentageU23 ?? 0).toFixed(1)} %</span> osuudella.
           </span>
         </p>
       )}

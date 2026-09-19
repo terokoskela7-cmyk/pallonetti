@@ -1,3 +1,8 @@
+// HUOM (2026-09-19): tämä tiedosto ei ole reitityksessä — App.tsx ei
+// renderöi sitä eikä mikään reititetty sivu tuo sitä. U23-kentät eivät
+// enää tule kausituonnin lähteestä (vienti suodatettu 17–21-vuotiaisiin),
+// joten ne luetaan tässä nollana vain jotta tiedosto kääntyy. Jos tämä
+// otetaan käyttöön, laskenta on siirrettävä U21-kenttiin.
 import { useState } from 'react';
 import { ArrowUpDown, ArrowDown, ArrowUp } from 'lucide-react';
 import type { YouthStats } from '@/services/api';
@@ -15,14 +20,14 @@ type SortKey = 'pct' | 'minutes' | 'players' | 'age' | 'name';
 type SortDir = 'asc' | 'desc';
 
 function getPct(t: YouthStats, ag: AgeGroup): number {
-  if (ag === 'u23') return t.youthPercentageU23;
+  if (ag === 'u23') return (t.youthPercentageU23 ?? 0);
   if (ag === 'u21') return t.youthPercentageU21;
   if (ag === 'u20') return t.youthPercentageU20;
   return t.youthPercentageU19;
 }
 
 function getMinutes(t: YouthStats, ag: AgeGroup): number {
-  if (ag === 'u23') return t.youthMinutesU23;
+  if (ag === 'u23') return (t.youthMinutesU23 ?? 0);
   if (ag === 'u21') return t.youthMinutesU21;
   if (ag === 'u20') return t.youthMinutesU20;
   return t.youthMinutesU19;
@@ -30,7 +35,7 @@ function getMinutes(t: YouthStats, ag: AgeGroup): number {
 
 function getPlayers(t: YouthStats, ag: AgeGroup): number {
   // YouthStats sisältää laskurit vain U23/U21/U20 — U19:lle ei
-  if (ag === 'u23') return t.youthPlayersU23;
+  if (ag === 'u23') return (t.youthPlayersU23 ?? 0);
   if (ag === 'u21') return t.youthPlayersU21;
   if (ag === 'u20') return t.youthPlayersU20;
   return 0;
@@ -159,7 +164,7 @@ export function PlayerMinutesTable({
               <tr
                 key={team.teamId}
                 className={`border-t border-navy-700 hover:bg-navy-700/30 transition-colors border-l-[3px] ${rowAccentClass(
-                  team.youthPercentageU23,
+                  (team.youthPercentageU23 ?? 0),
                 )}`}
               >
                 <td className="py-3 pr-3 pl-2 text-white/40 tabular">{i + 1}</td>

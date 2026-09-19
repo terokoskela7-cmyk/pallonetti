@@ -21,7 +21,6 @@ import {
   YAxis,
   Tooltip,
   CartesianGrid,
-  ReferenceLine,
   ResponsiveContainer,
   type TooltipProps,
 } from 'recharts';
@@ -46,10 +45,10 @@ import { ResearchCard } from '@/components/ResearchCard';
 
 const SEASON = 2026;
 
-// CIES Football Observatory: Tanskan Superliga johtaa Euroopassa U21-peliajassa.
-const CIES_TARGET_PCT = 11.7;
-// Tavoiteltava U21-runko Veikkausliigassa (seurannan pohjaluku).
-const U21_PLAYER_TARGET = 17;
+// CIES Football Observatory 2025: Tanskan Superliga, alle 21-vuotiaiden osuus
+// peliajasta. Ei tavoite vaan vertailuluku — ja se koskee ALLE 21-vuotiaita,
+// ei sivuston 17–21-päämittaria. Vertaa tähän vain alle 21 -lukua.
+const CIES_TANSKA_PCT = 11.7;
 // Markkina-arvojen yläraja sukunimi-matchille — sama logiikka kuin NuoretPage.
 const MAX_REASONABLE_MV = 5_000_000;
 
@@ -84,16 +83,41 @@ function GuideCard({ to, icon: Icon, title, body }: GuideCardProps) {
 // ============================================================
 // Apulaskennat
 // ============================================================
-function calcU21Pct(teams: YouthStats[]): number {
+function calcU21Pct(teams: YouthStats[]): number | null {
+  if (teams.length === 0) return null;
   const total = teams.reduce((s, t) => s + t.totalMinutes, 0);
   const u21 = teams.reduce((s, t) => s + t.youthMinutesU21, 0);
-  return total > 0 ? (u21 / total) * 100 : 0;
+  return total > 0 ? (u21 / total) * 100 : null;
 }
 
-function calcU23Pct(teams: YouthStats[]): number {
+/**
+ * Alle 21-vuotiaiden osuus (ikä ≤ 20) — ainoa luku jota saa verrata CIES:n
+ * kansainväliseen vertailuun. Sivuston päämittari on 17–21, joka on tätä
+ * suurempi; niiden sekoittaminen liioittelisi Suomen lukua.
+ *
+ * Suomen luku on YLÄRAJA: CIES laskee osuuden vain maajoukkuekelpoisista
+ * pelaajista, tässä ovat mukana kaikki alle 21-vuotiaat.
+ */
+function calcAlle21Pct(teams: YouthStats[]): number | null {
+  if (teams.length === 0) return null;
+  if (teams.some((t) => t.youthMinutesU20 === undefined)) return null;
   const total = teams.reduce((s, t) => s + t.totalMinutes, 0);
-  const u23 = teams.reduce((s, t) => s + t.youthMinutesU23, 0);
-  return total > 0 ? (u23 / total) * 100 : 0;
+  const alle21 = teams.reduce((s, t) => s + (t.youthMinutesU20 ?? 0), 0);
+  return total > 0 ? (alle21 / total) * 100 : null;
+}
+
+/**
+ * U23-osuus, tai null jos lähde ei sisällä 22–23-vuotiaita. Nykyinen lähde
+ * (Veikkausliigan vienti) on suodatettu 17–21-vuotiaisiin, joten U23-lukua
+ * ei ole — sitä ei saa esittää nollana eikä U21:n arvona. Palaa käyttöön
+ * sellaisenaan jos vienti tehdään haarukalla 17–23.
+ */
+function calcU23Pct(teams: YouthStats[]): number | null {
+  if (teams.length === 0) return null;
+  if (teams.some((t) => t.youthMinutesU23 === undefined)) return null;
+  const total = teams.reduce((s, t) => s + t.totalMinutes, 0);
+  const u23 = teams.reduce((s, t) => s + (t.youthMinutesU23 ?? 0), 0);
+  return total > 0 ? (u23 / total) * 100 : null;
 }
 
 function formatRelativeTime(iso: string): string {
@@ -174,7 +198,6 @@ function TrendTooltip({ active, payload }: TooltipProps<ValueType, NameType>) {
       <div className="text-white/90 font-medium">Kierros {d.round}</div>
       <div className="text-ice tabular">
         {d.pct.toFixed(1)} %
-        <span className="text-white/40"> — Tanska: {CIES_TARGET_PCT} %</span>
       </div>
     </div>
   );
@@ -208,7 +231,7 @@ function U21TrendChart() {
     );
   }
 
-  const maxPct = Math.max(CIES_TARGET_PCT, ...chartData.map((d) => d.pct));
+  const maxPct = Math.max(...chartData.map((d) => d.pct));
 
   return (
     <>
@@ -245,18 +268,9 @@ function U21TrendChart() {
               content={<TrendTooltip />}
               cursor={{ stroke: '#00D4FF', strokeOpacity: 0.3 }}
             />
-            <ReferenceLine
-              y={CIES_TARGET_PCT}
-              stroke="#f97316"
-              strokeDasharray="6 4"
-              strokeWidth={1.5}
-              label={{
-                value: `CIES-tavoite ${CIES_TARGET_PCT} %`,
-                position: 'insideTopLeft',
-                fill: '#f97316',
-                fontSize: 11,
-              }}
-            />
+            {/* Ei Tanska-vertailuviivaa: tämä sarja on 17–21-vuotiaiden osuus,
+                kun taas CIES:n Tanska-luku koskee alle 21-vuotiaita. Eri
+                mittarit samalla akselilla antaisivat väärän kuvan. */}
             <Line
               type="monotone"
               dataKey="pct"
@@ -270,10 +284,10 @@ function U21TrendChart() {
         </ResponsiveContainer>
       </div>
       <p className="text-[11px] text-white/40 mt-3">
-        Toteutunut U21-osuus kierroksittain (sininen) vs. CIES-tavoite{' '}
-        {CIES_TARGET_PCT} % (Tanskan Superliga). U21 = syntynyt 2005 tai
-        myöhemmin · vain päättyneet ottelut · pelaajat joilla ei ikätietoa
-        eivät vaikuta prosenttiin.
+        17–21-vuotiaiden osuus peliajasta kierroksittain · vain päättyneet
+        ottelut · pelaajat joilla ei ikätietoa eivät vaikuta prosenttiin.
+        Kansainvälinen vertailu tehdään erikseen alle 21-vuotiaiden luvulla,
+        joka on tätä pienempi.
       </p>
     </>
   );
@@ -375,10 +389,14 @@ export default function HomePage() {
 
   // Laskelmat ikäryhmän mukaan
   const pct = isU21 ? calcU21Pct(veikkausliiga) : calcU23Pct(veikkausliiga);
-  const count = isU21
+  // null = ei dataa. U23-kentät puuttuvat nykyisestä lähteestä.
+  const count: number | null = veikkausliiga.length === 0
+    ? null
+    : isU21
     ? veikkausliiga.reduce((s, t) => s + t.youthPlayersU21, 0)
-    : veikkausliiga.reduce((s, t) => s + t.youthPlayersU23, 0);
-  const missing = isU21 ? Math.max(0, U21_PLAYER_TARGET - count) : 0;
+    : veikkausliiga.some((t) => t.youthPlayersU23 === undefined)
+      ? null
+      : veikkausliiga.reduce((s, t) => s + (t.youthPlayersU23 ?? 0), 0);
   const players = isU21 ? u21Players : u23Players;
   const topPlayer = players[0] ?? null;
 
@@ -388,7 +406,12 @@ export default function HomePage() {
     return mv !== null && mv <= MAX_REASONABLE_MV ? sum + mv : sum;
   }, 0);
 
-  const pctVsTarget = isU21 ? pct - CIES_TARGET_PCT : 0;
+  // Kansainvälinen vertailu tehdään ALLE 21 -luvulla, ei 17–21-päämittarilla.
+  // Puuttuva arvo on null, ei 0 — nolla väittäisi että Suomi on tasan Tanskan
+  // tasolla. null renderöidään "ei dataa".
+  const alle21Pct = calcAlle21Pct(veikkausliiga);
+  const alle21VsTanska: number | null =
+    alle21Pct === null ? null : alle21Pct - CIES_TANSKA_PCT;
 
   return (
     <div className="px-6 py-10 md:py-16 space-y-14">
@@ -414,7 +437,7 @@ export default function HomePage() {
             to="/peliaika"
             icon={BarChart3}
             title="Analyysi"
-            body="Joukkueiden U23-%-kaaviot, pelaajataulukko filttereillä ja kehityskäyrät. Syväsukellus dataan."
+            body="Joukkueiden U21-%-kaaviot, pelaajataulukko filttereillä ja kehityskäyrät. Syväsukellus dataan."
           />
           <GuideCard
             to="/nuoret"
@@ -468,7 +491,8 @@ export default function HomePage() {
           </div>
           {isU21 && (
             <span className="text-[11px] text-white/40">
-              CIES-tavoite: {CIES_TARGET_PCT}% (Tanskan Superliga)
+              Vertailu: Tanska {CIES_TANSKA_PCT} % (CIES 2025, alle
+              21-vuotiaat)
             </span>
           )}
         </div>
@@ -476,46 +500,71 @@ export default function HomePage() {
         {/* KPI-kortit */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
           <KpiCard
-            label={`${ageGroup.toUpperCase()} peliaika-%`}
-            value={`${pct.toFixed(1)} %`}
+            label={
+              isU21
+                ? 'Nuorten osuus peliajasta (17–21 v)'
+                : 'Nuorten osuus peliajasta (17–23 v)'
+            }
+            value={pct === null ? 'ei dataa' : `${pct.toFixed(1)} %`}
             accent="aurora"
             compare={
-              isU21
-                ? {
-                    tone: pctVsTarget >= 0 ? 'aurora' : 'red',
-                    text:
-                      pctVsTarget >= 0
-                        ? `+${pctVsTarget.toFixed(1)} pp yli CIES-tavoitteen (${CIES_TARGET_PCT} %)`
-                        : `${pctVsTarget.toFixed(1)} pp alle CIES-tavoitteen (${CIES_TARGET_PCT} %)`,
-                  }
-                : undefined
+              // Vertailu Tanskaan tehdään alle 21 -luvulla, ei tämän kortin
+              // 17–21-luvulla. Puuttuva arvo → "ei dataa", ei nollaa.
+              !isU21
+                ? undefined
+                : alle21Pct === null || alle21VsTanska === null
+                  ? { tone: 'aurora', text: 'alle 21-vuotiaat: ei dataa' }
+                  : {
+                      tone: alle21VsTanska >= 0 ? 'aurora' : 'red',
+                      text:
+                        'alle 21-vuotiaat: enintään ' +
+                        alle21Pct.toFixed(1) +
+                        ' % · Tanska ' +
+                        CIES_TANSKA_PCT +
+                        ' %',
+                    }
             }
           />
           <KpiCard
-            label={`${ageGroup.toUpperCase()} pelaajia`}
-            value={String(count)}
+            label={isU21 ? 'Nuoria pelaajia (17–21 v)' : 'Nuoria pelaajia (17–23 v)'}
+            value={count === null ? 'ei dataa' : String(count)}
             accent="ice"
-            compare={
-              isU21 && missing > 0
-                ? { tone: 'red', text: `${missing} vajaa tavoitteesta ${U21_PLAYER_TARGET}` }
-                : isU21
-                  ? { tone: 'aurora', text: `tavoite ${U21_PLAYER_TARGET} saavutettu` }
-                  : undefined
+            hint={
+              count === null ? undefined : 'peliaikaa saaneet 17–21-vuotiaat'
             }
           />
           <KpiCard
-            label={`Eniten minuutteja (${ageGroup.toUpperCase()})`}
+            label={isU21 ? 'Eniten minuutteja (17–21 v)' : 'Eniten minuutteja (17–23 v)'}
             value={topPlayer ? String(topPlayer.minutes) : '—'}
             accent="ice"
             hint={topPlayer ? `${topPlayer.playerName} · ${topPlayer.teamName}` : undefined}
           />
           <KpiCard
-            label={`${ageGroup.toUpperCase()} yhteismarkkina-arvo`}
-            value={formatMarketValue(totalMv) ?? '—'}
+            label={
+              isU21
+                ? 'Nuorten yhteismarkkina-arvo (17–21 v)'
+                : 'Nuorten yhteismarkkina-arvo (17–23 v)'
+            }
+            value={formatMarketValue(totalMv) ?? 'ei dataa'}
             accent="amber"
-            hint={`${players.length} pelaajaa seurannassa`}
+            // Tyhja lista ei ole "0 pelaajaa" vaan puuttuva data.
+            hint={
+              players.length === 0
+                ? 'ei dataa'
+                : `${players.length} pelaajaa seurannassa`
+            }
           />
         </div>
+
+        {isU21 && (
+          <p className="text-[11px] text-white/40 mt-3 max-w-3xl leading-relaxed">
+            Sivuston päämittari on 17–21-vuotiaiden osuus peliajasta.
+            Kansainvälinen vertailu tehdään erikseen alle 21-vuotiaiden
+            luvulla, joka on pienempi. Suomen luku on yläraja: CIES laskee
+            osuuden vain maajoukkuekelpoisista pelaajista, kun taas tässä ovat
+            mukana kaikki alle 21-vuotiaat.
+          </p>
+        )}
       </section>
 
       {/* ---------- Osio 4 — Kierrostrendi ---------- */}
@@ -523,7 +572,8 @@ export default function HomePage() {
         <div className="flex items-baseline justify-between gap-3 mb-4">
           <h2 className="text-base font-medium flex items-center gap-2">
             <TrendingUp className="w-4 h-4 text-ice" />
-            U21 peliaika-% kierroksittain — Veikkausliiga {SEASON}
+            Nuorten osuus peliajasta (17–21 v) kierroksittain — Veikkausliiga{' '}
+            {SEASON}
           </h2>
         </div>
         <U21TrendChart />

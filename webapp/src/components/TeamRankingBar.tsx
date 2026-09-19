@@ -1,3 +1,8 @@
+// HUOM (2026-09-19): tämä tiedosto ei ole reitityksessä — App.tsx ei
+// renderöi sitä eikä mikään reititetty sivu tuo sitä. U23-kentät eivät
+// enää tule kausituonnin lähteestä (vienti suodatettu 17–21-vuotiaisiin),
+// joten ne luetaan tässä nollana vain jotta tiedosto kääntyy. Jos tämä
+// otetaan käyttöön, laskenta on siirrettävä U21-kenttiin.
 import type { YouthStats } from '@/services/api';
 
 interface TeamRankingBarProps {
@@ -24,14 +29,14 @@ export function TeamRankingBar({ teams }: TeamRankingBarProps) {
   }
 
   const sorted = [...teams].sort(
-    (a, b) => b.youthPercentageU23 - a.youthPercentageU23,
+    (a, b) => (b.youthPercentageU23 ?? 0) - (a.youthPercentageU23 ?? 0),
   );
-  const scaleMax = Math.max(40, ...sorted.map((t) => t.youthPercentageU23));
+  const scaleMax = Math.max(40, ...sorted.map((t) => (t.youthPercentageU23 ?? 0)));
 
   return (
     <div className="space-y-3">
       {sorted.map((team) => {
-        const pct = team.youthPercentageU23;
+        const pct = (team.youthPercentageU23 ?? 0);
         const widthPct = (pct / scaleMax) * 100;
         const barColor = getBarColor(pct);
         const borderColor = getBorderColor(pct);

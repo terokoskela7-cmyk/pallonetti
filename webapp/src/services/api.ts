@@ -187,25 +187,32 @@ export interface YouthStats {
   season: number;
   teamId: string;
   teamName: string;
+  /** Joukkueen koko minuuttikapasiteetti kaudella = Σ ottelut × 90 × 11. */
   totalMinutes: number;
-  youthMinutesU23: number;
   youthMinutesU21: number;
   youthMinutesU20: number;
   youthMinutesU19: number;
   youthMinutesU18: number;
-  youthPercentageU23: number;
   youthPercentageU21: number;
   youthPercentageU20: number;
   youthPercentageU19: number;
   youthPercentageU18: number;
-  totalPlayers: number;
-  youthPlayersU23: number;
   youthPlayersU21: number;
   youthPlayersU20: number;
-  // null = ei luotettavaa keski-ikätietoa (esim. virheellistä API-Football-dataa)
+  /** null = ei luotettavaa keski-ikätietoa. */
   averageAge: number | null;
-  averageAgeStarters: number;
   updatedAt: string;
+
+  // ----- U23: EI saatavilla nykyisestä lähteestä -----
+  // Veikkausliigan Excel-vienti on suodatettu 17–21-vuotiaisiin, joten
+  // U23-lukua ei voi laskea. Se ei ole sama kuin U21 eikä nolla, joten
+  // kentät ovat valinnaisia ja UI näyttää niiden puuttuessa "ei dataa".
+  // Palaavat sellaisenaan jos vienti tehdään haarukalla 17–23.
+  youthMinutesU23?: number;
+  youthPercentageU23?: number;
+  youthPlayersU23?: number;
+  totalPlayers?: number;
+  averageAgeStarters?: number;
 }
 
 export interface YouthAggregation {
@@ -213,15 +220,20 @@ export interface YouthAggregation {
   league: string;
   totalPlayersAnalyzed: number;
   youthPlayersU21: number;
-  youthPlayersU23: number;
   totalMinutesPlayed: number;
   youthMinutesU21: number;
-  youthMinutesU23: number;
   youthPercentageU21: number;
-  youthPercentageU23: number;
   teamBreakdown: YouthStats[];
   topYouthPlayers: PlayerStats[];
   updatedAt: string;
+  /** Vain runkosarja — vertailukelpoinen kausien yli (22 ottelua joka kausi). */
+  youthPercentageU21Runkosarja?: number;
+  /** Mitä ikiä lähde tosiasiassa sisältää. u23Saatavilla=false → ei U23-lukua. */
+  ikahaarukka?: { min: number; max: number; u23Saatavilla: boolean };
+  // U23 ei ole saatavilla nykyisestä lähteestä — ks. YouthStats.
+  youthPlayersU23?: number;
+  youthMinutesU23?: number;
+  youthPercentageU23?: number;
 }
 
 export const getYouthStats = (

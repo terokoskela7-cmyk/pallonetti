@@ -1,3 +1,8 @@
+// HUOM (2026-09-19): tämä tiedosto ei ole reitityksessä — App.tsx ei
+// renderöi sitä eikä mikään reititetty sivu tuo sitä. U23-kentät eivät
+// enää tule kausituonnin lähteestä (vienti suodatettu 17–21-vuotiaisiin),
+// joten ne luetaan tässä nollana vain jotta tiedosto kääntyy. Jos tämä
+// otetaan käyttöön, laskenta on siirrettävä U21-kenttiin.
 import { useState } from 'react';
 import { Info, RefreshCw, ChevronRight } from 'lucide-react';
 import { Link } from 'react-router-dom';
@@ -47,7 +52,7 @@ function TeamCard({ team, index }: TeamCardProps) {
   const [logoFailed, setLogoFailed] = useState(false);
   const initials = getInitials(team.teamName);
   const circleColor = TEAM_COLORS[index % TEAM_COLORS.length];
-  const pct = team.youthPercentageU23;
+  const pct = (team.youthPercentageU23 ?? 0);
   const barColor = progressBarColor(pct);
   // API-Football CDN: logo per teamId. Jos kuva ei löydy → fallback initiaaliympyrään.
   const logoUrl = `https://media.api-sports.io/football/teams/${team.teamId}.png`;
@@ -95,7 +100,7 @@ function TeamCard({ team, index }: TeamCardProps) {
             U23-pelaajia
           </div>
           <div className="tabular text-white/90 font-medium">
-            {team.youthPlayersU23}
+            {(team.youthPlayersU23 ?? 0)}
           </div>
         </div>
         <div>
@@ -103,7 +108,7 @@ function TeamCard({ team, index }: TeamCardProps) {
             Minuutteja
           </div>
           <div className="tabular text-white/90 font-medium">
-            {team.youthMinutesU23.toLocaleString('fi-FI')}
+            {(team.youthMinutesU23 ?? 0).toLocaleString('fi-FI')}
           </div>
         </div>
         <div>
@@ -188,7 +193,7 @@ export default function JoukkueetPage() {
 
   // Suodata pois joukkueet joilla totalMinutes < 1000 (datavaje).
   const teams = filterReliableTeams(data.veikkausliiga).sort(
-    (a, b) => b.youthPercentageU23 - a.youthPercentageU23,
+    (a, b) => (b.youthPercentageU23 ?? 0) - (a.youthPercentageU23 ?? 0),
   );
 
   return (

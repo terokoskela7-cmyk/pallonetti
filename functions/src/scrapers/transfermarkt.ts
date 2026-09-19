@@ -419,27 +419,77 @@ export async function getOrFetchPlayer(args: {
   return profile;
 }
 
+/**
+ * Kauden nuoret pelaajat kausituonnin datasta, minuutit suurimmasta
+ * pienimpään. Vanhentuneiksi merkityt (lähdeaineistosta poistuneet)
+ * jätetään pois — niille ei haeta markkina-arvoa.
+ */
+async function lueKaudenNuoretPelaajat(
+  season: number,
+): Promise<Array<{ playerName: string; teamName: string; minutes: number }>> {
+  const snap = await admin
+    .firestore()
+    .collection('suoritukset')
+    .where('kausi', '==', String(season))
+    .get();
+
+  const perPelaaja = new Map<
+    string,
+    { playerName: string; teamName: string; minutes: number }
+  >();
+
+  for (const doc of snap.docs) {
+    const d = doc.data() as {
+      etunimi?: string;
+      sukunimi?: string;
+      pelaajaAvain?: string;
+      joukkue?: string;
+      minuutit?: number;
+      vanhentunut?: boolean;
+    };
+    if (d.vanhentunut === true) continue;
+    const avain = d.pelaajaAvain || '';
+    if (!avain) continue;
+    const nimi = ((d.etunimi || '') + ' ' + (d.sukunimi || '')).trim();
+    const olemassa = perPelaaja.get(avain);
+    if (olemassa) {
+      olemassa.minutes += d.minuutit || 0;
+    } else {
+      perPelaaja.set(avain, {
+        playerName: nimi,
+        teamName: d.joukkue || '',
+        minutes: d.minuutit || 0,
+      });
+    }
+  }
+
+  return Array.from(perPelaaja.values()).sort((a, b) => b.minutes - a.minutes);
+}
+
 // ============================================
-// VAIHE 2 — BATCH: kaikki U23-pelaajat youthAggregationista
+// VAIHE 2 — BATCH: kauden nuoret pelaajat kausituonnin datasta
+//
+// Lähde oli aiemmin dataAggregator.getYouthAggregation().topYouthPlayers
+// eli API-Football, joka oli cap:attu 20 pelaajaan. Nyt lista tulee
+// suoritukset-kokoelmasta: kauden KAIKKI pelaajat, ei top-20. Ikäsuodatusta
+// ei tehdä täällä — lähde on jo nuorten aineisto, ja sen haarukka luetaan
+// datasta eikä oleteta koodissa.
 // ============================================
-export async function scrapeAllU23Players(
+export async function scrapeAllYouthPlayers(
   season: number,
   limit?: number,
   offset?: number,
 ): Promise<
   Array<{ name: string; tmId: string; marketValue: number | null }>
 > {
-  const agg = await dataAggregator.getYouthAggregation(season);
-  // topYouthPlayers on backendissä jo cap:attu 20:een. Sovelletaan vielä
-  // tämän päälle valinnainen limit/offset-paginointi jotta yksittäinen
-  // refresh ei kestä liian kauan Cloud Functions -timeout-rajaan nähden
-  // (n. 60 s @ 2 s/pelaaja → batch 5 mahtuu reilusti).
-  const cap = 20;
+  const kaikki = await lueKaudenNuoretPelaajat(season);
+  // limit/offset pitää yksittäisen refreshin Cloud Functions -timeoutin
+  // sisällä (n. 60 s @ 2 s/pelaaja). Ilman limitiä käydään koko lista.
   const start = Math.max(0, offset ?? 0);
-  const end = limit !== undefined ? Math.min(cap, start + limit) : cap;
-  const players = agg.topYouthPlayers.slice(start, end);
+  const end = limit !== undefined ? start + limit : kaikki.length;
+  const players = kaikki.slice(start, end);
   console.log(
-    `[tm-batch] season=${season} slice=[${start},${end}) total=${agg.topYouthPlayers.length}`,
+    `[tm-batch] season=${season} slice=[${start},${end}) total=${kaikki.length}`,
   );
 
   const results: Array<{

@@ -1,6 +1,8 @@
 import { useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
+import { motion } from 'framer-motion';
 import { ArrowLeft, Info, TrendingUp } from 'lucide-react';
+import { FadeIn, staggerContainer, staggerItem } from '@/components/animations';
 import {
   LineChart,
   Line,
@@ -71,6 +73,73 @@ function translatePosition(pos: string | undefined): string {
 
 function findYouth(slug: string, topYouth: PlayerStats[]): PlayerStats | null {
   return topYouth.find((p) => slugify(p.playerName) === slug) ?? null;
+}
+
+/** Tutkimusperusteinen minuuttitavoite ikäryhmän mukaan.
+ *  Lähde: CIES, Antwerpenin yliopisto, Football Benchmark 2024 */
+function getMinuteTarget(age: number | undefined): { target: number; label: string; phase: string } {
+  if (age === undefined) return { target: 1500, label: 'Tavoite: 1 500 min', phase: 'tuntematon' };
+  if (age <= 18) return { target: 1000, label: 'Tavoite: 500–1 000 min (debyytti)', phase: 'debyytti' };
+  if (age <= 20) return { target: 1500, label: 'Tavoite: 1 000–1 500 min (vakiinnutus)', phase: 'vakiinnutus' };
+  if (age === 21) return { target: 1500, label: 'Tavoite: 1 500+ min (⭐ kriittinen vuosi)', phase: 'kriittinen' };
+  return { target: 1500, label: 'Tavoite: 1 500+ min (myynti-ikkuna)', phase: 'myynti' };
+}
+
+function minuteTargetColor(pct: number, phase: string): string {
+  if (pct >= 100) return '#22c55e';
+  if (pct >= 75) return phase === 'kriittinen' || phase === 'myynti' ? '#eab308' : '#22c55e';
+  if (pct >= 50) return '#eab308';
+  return '#ef4444';
+}
+
+interface MinuteTargetBarProps {
+  minutes: number;
+  age: number | undefined;
+}
+
+function MinuteTargetBar({ minutes, age }: MinuteTargetBarProps) {
+  const { target, label, phase } = getMinuteTarget(age);
+  const pct = Math.min(100, (minutes / target) * 100);
+  const color = minuteTargetColor(pct, phase);
+  const remaining = Math.max(0, target - minutes);
+
+  return (
+    <div className="bg-navy-700/40 border border-navy-600 rounded-xl p-5">
+      <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 mb-3">
+        <span className="text-xs uppercase tracking-wider text-white/50">Minuuttitavoite</span>
+        <span className="text-sm font-medium" style={{ color }}>
+          {minutes.toLocaleString('fi-FI')} / {target.toLocaleString('fi-FI')} min
+          <span className="font-mono tabular ml-2">({pct.toFixed(0)} %)</span>
+        </span>
+      </div>
+      <div className="relative h-3 bg-navy-600 rounded-full overflow-hidden">
+        <motion.div
+          className="h-full rounded-full"
+          initial={{ width: 0 }}
+          animate={{ width: `${pct}%` }}
+          transition={{ duration: 0.8, ease: [0.16, 1, 0.3, 1] as [number, number, number, number] }}
+          style={{ backgroundColor: color }}
+        />
+      </div>
+      <div className="flex justify-between mt-2">
+        <span className="text-[11px] text-white/50">{label}</span>
+        {remaining > 0 ? (
+          <span className="text-[11px] font-mono tabular text-white/40">
+            {remaining.toLocaleString('fi-FI')} min jäljellä
+          </span>
+        ) : (
+          <span className="text-[11px] font-medium" style={{ color }}>
+            ✅ Tavoite saavutettu
+          </span>
+        )}
+      </div>
+      {phase === 'kriittinen' && (
+        <div className="mt-2 text-[11px] text-aurora bg-aurora/10 border border-aurora/30 rounded-md px-2 py-1 inline-block">
+          ⭐ 21v = kriittinen myyntivuosi (tutkimus: siirtoarvo korkeimmillaan)
+        </div>
+      )}
+    </div>
+  );
 }
 
 function findOfficial(
@@ -481,7 +550,8 @@ export default function PelaajaPage() {
     async () => {
       if (!playerId) return null;
       try {
-        return await getPlayerFixtures(playerId, SEASON);
+        // Force refresh to recalculate with estimation logic for missing match data
+        return await getPlayerFixtures(playerId, SEASON, true);
       } catch {
         return null;
       }
@@ -580,95 +650,125 @@ export default function PelaajaPage() {
       </div>
 
       {/* Header: kasvokuva + nimi + meta */}
-      <header className="bg-navy-700/40 border border-navy-600 rounded-xl p-6 flex items-start gap-5">
-        <PlayerAvatar photoUrl={photoUrl} name={displayName} size={80} />
-        <div className="min-w-0 flex-1">
-          <div className="text-xs uppercase tracking-[0.2em] text-ice mb-1 font-medium">
-            Veikkausliiga · Kausi {SEASON}
+      <FadeIn y={16}>
+        <header className="bg-navy-700/40 border border-navy-600 rounded-xl p-6 flex items-start gap-5">
+          <PlayerAvatar photoUrl={photoUrl} name={displayName} size={80} />
+          <div className="min-w-0 flex-1">
+            <div className="text-xs uppercase tracking-[0.2em] text-ice mb-1 font-medium">
+              Veikkausliiga · Kausi {SEASON}
+            </div>
+            <h1 className="text-2xl md:text-3xl font-light tracking-tight leading-tight">
+              {displayName}
+            </h1>
+            <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-white/80">
+              <span className="text-white/90">{positionDisplay}</span>
+              {numberDisplay && (
+                <>
+                  <span className="text-white/20">·</span>
+                  <span className="text-ice font-mono">{numberDisplay}</span>
+                </>
+              )}
+            </div>
+            <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-white/60">
+              <span>{teamName}</span>
+              {age !== undefined && (
+                <>
+                  <span className="text-white/20">·</span>
+                  <span>{age} v</span>
+                </>
+              )}
+              {nationality && (
+                <>
+                  <span className="text-white/20">·</span>
+                  <span>{nationality}</span>
+                </>
+              )}
+            </div>
           </div>
-          <h1 className="text-2xl md:text-3xl font-light tracking-tight leading-tight">
-            {displayName}
-          </h1>
-          <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-white/80">
-            <span className="text-white/90">{positionDisplay}</span>
-            {numberDisplay && (
-              <>
-                <span className="text-white/20">·</span>
-                <span className="text-ice font-mono">{numberDisplay}</span>
-              </>
-            )}
-          </div>
-          <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-white/60">
-            <span>{teamName}</span>
-            {age !== undefined && (
-              <>
-                <span className="text-white/20">·</span>
-                <span>{age} v</span>
-              </>
-            )}
-            {nationality && (
-              <>
-                <span className="text-white/20">·</span>
-                <span>{nationality}</span>
-              </>
-            )}
-          </div>
-        </div>
-      </header>
+        </header>
+      </FadeIn>
 
       {/* Päätilastot 6 sarakkeessa */}
-      <section className="bg-navy-700/40 border border-navy-600 rounded-xl">
-        <div className="text-xs uppercase tracking-wider text-white/40 px-5 pt-4">
-          Kauden tilastot
-        </div>
-        <div className="grid grid-cols-3 md:grid-cols-6 divide-x divide-y md:divide-y-0 divide-navy-600">
-          <StatBlock label="Min" value={String(minutes)} accent="ice" />
-          <StatBlock label="M" value={String(goals)} />
-          <StatBlock label="S" value={String(assists)} />
-          <StatBlock label="TP" value={String(tp)} accent="aurora" />
-          <StatBlock label="KK" value={String(yellowCards)} />
-          <StatBlock label="Rating" value={ratingDisplay} accent="ice" />
-        </div>
-      </section>
+      <FadeIn y={16} delay={0.05}>
+        <motion.section
+          className="bg-navy-700/40 border border-navy-600 rounded-xl"
+          variants={staggerContainer}
+          initial="hidden"
+          animate="visible"
+        >
+          <div className="text-xs uppercase tracking-wider text-white/40 px-5 pt-4">
+            Kauden tilastot
+          </div>
+          <div className="grid grid-cols-3 md:grid-cols-6 divide-x divide-y md:divide-y-0 divide-navy-600">
+            <motion.div variants={staggerItem}>
+              <StatBlock label="Min" value={String(minutes)} accent="ice" />
+            </motion.div>
+            <motion.div variants={staggerItem}>
+              <StatBlock label="M" value={String(goals)} />
+            </motion.div>
+            <motion.div variants={staggerItem}>
+              <StatBlock label="S" value={String(assists)} />
+            </motion.div>
+            <motion.div variants={staggerItem}>
+              <StatBlock label="TP" value={String(tp)} accent="aurora" />
+            </motion.div>
+            <motion.div variants={staggerItem}>
+              <StatBlock label="KK" value={String(yellowCards)} />
+            </motion.div>
+            <motion.div variants={staggerItem}>
+              <StatBlock label="Rating" value={ratingDisplay} accent="ice" />
+            </motion.div>
+          </div>
+        </motion.section>
+      </FadeIn>
+
+      {/* Minuuttitavoite — tutkimusperusteinen progress bar */}
+      {age !== undefined && age <= 23 && (
+        <FadeIn y={16} delay={0.08}>
+          <MinuteTargetBar minutes={minutes} age={age} />
+        </FadeIn>
+      )}
 
       {/* Pelitilastot 2-sarakkeessa */}
-      <section className="bg-navy-700/40 border border-navy-600 rounded-xl p-5">
-        <h2 className="text-xs uppercase tracking-wider text-white/40 mb-3">
-          Pelitilastot
-          {detailLoading && (
-            <span className="ml-2 text-white/30 normal-case tracking-normal">
-              · ladataan…
-            </span>
-          )}
-        </h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-1">
-          <div>
-            <DetailRow label="Aloitukset" value={`${starts} / ${appearances}`} />
-            <DetailRow
-              label="Laukaukset"
-              value={`${shotsTotal} (${shotsOn} maaliin)`}
-            />
-            <DetailRow label="Avaussyötöt" value={String(keyPasses)} />
-            <DetailRow label="Passitarkkuus" value={passAccDisplay} />
+      <FadeIn y={16} delay={0.1}>
+        <section className="bg-navy-700/40 border border-navy-600 rounded-xl p-5">
+          <h2 className="text-xs uppercase tracking-wider text-white/40 mb-3">
+            Pelitilastot
+            {detailLoading && (
+              <span className="ml-2 text-white/30 normal-case tracking-normal">
+                · ladataan…
+              </span>
+            )}
+          </h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-1">
+            <div>
+              <DetailRow label="Aloitukset" value={`${starts} / ${appearances}`} />
+              <DetailRow
+                label="Laukaukset"
+                value={`${shotsTotal} (${shotsOn} maaliin)`}
+              />
+              <DetailRow label="Avaussyötöt" value={String(keyPasses)} />
+              <DetailRow label="Passitarkkuus" value={passAccDisplay} />
+            </div>
+            <div>
+              <DetailRow
+                label="Haastot voitettu"
+                value={
+                  duelsTotal > 0
+                    ? `${duelsWon}/${duelsTotal} (${duelsPct} %)`
+                    : '—'
+                }
+              />
+              <DetailRow label="Taklaukset" value={String(tackles)} />
+              <DetailRow label="Torjunnat" value={String(saves)} />
+              <DetailRow
+                label="Rikkeet tehty/saatu"
+                value={`${foulsCommitted}/${foulsDrawn}`}
+              />
+            </div>
           </div>
-          <div>
-            <DetailRow
-              label="Haastot voitettu"
-              value={
-                duelsTotal > 0
-                  ? `${duelsWon}/${duelsTotal} (${duelsPct} %)`
-                  : '—'
-              }
-            />
-            <DetailRow label="Taklaukset" value={String(tackles)} />
-            <DetailRow label="Torjunnat" value={String(saves)} />
-            <DetailRow
-              label="Rikkeet tehty/saatu"
-              value={`${foulsCommitted}/${foulsDrawn}`}
-            />
-          </div>
-        </div>
-      </section>
+        </section>
+      </FadeIn>
 
       {/* Transfermarkt — markkina-arvo + lisätiedot. Näkyy vain kun
           TM-data on indeksoitu JA arvo on luotettava (≤ 5M €).
@@ -682,90 +782,96 @@ export default function PelaajaPage() {
             : null;
         if (!tmData || safeMarketValue === null) return null;
         return (
-        <section className="bg-navy-700/40 border border-navy-600 rounded-xl p-5">
-          <div className="flex items-start gap-6">
-            <div className="flex-1">
-              <div className="text-xs uppercase tracking-wider text-white/40 mb-1">
-                Markkina-arvo
+        <FadeIn y={16} delay={0.15}>
+          <section className="bg-navy-700/40 border border-navy-600 rounded-xl p-5">
+            <div className="flex items-start gap-6">
+              <div className="flex-1">
+                <div className="text-xs uppercase tracking-wider text-white/40 mb-1">
+                  Markkina-arvo
+                </div>
+                <div className="text-3xl md:text-4xl font-bold text-ice font-mono tabular leading-none">
+                  {formatMarketValue(safeMarketValue) ?? '—'}
+                </div>
+                {tmData.contractExpires && (
+                  <div className="text-xs text-white/50 mt-3">
+                    Sopimus voimassa:{' '}
+                    <span className="text-white/80">{tmData.contractExpires}</span>
+                  </div>
+                )}
+                {tmData.loanFrom && (
+                  <div className="text-xs text-white/50 mt-1">
+                    Lainalla:{' '}
+                    <span className="text-white/80">{tmData.loanFrom}</span>
+                  </div>
+                )}
               </div>
-              <div className="text-3xl md:text-4xl font-bold text-ice font-mono tabular leading-none">
-                {formatMarketValue(safeMarketValue) ?? '—'}
+              <div className="hidden md:flex flex-col items-end text-right text-xs text-white/50 space-y-1 max-w-[40%]">
+                {tmData.position && (
+                  <div>
+                    Pelipaikka (TM):{' '}
+                    <span className="text-white/80">{tmData.position}</span>
+                  </div>
+                )}
+                {tmData.height && (
+                  <div>
+                    Pituus: <span className="text-white/80">{tmData.height}</span>
+                  </div>
+                )}
+                {tmData.foot && (
+                  <div>
+                    Jalka: <span className="text-white/80">{tmData.foot}</span>
+                  </div>
+                )}
+                {tmData.agent && (
+                  <div>
+                    Agentti: <span className="text-white/80">{tmData.agent}</span>
+                  </div>
+                )}
               </div>
-              {tmData.contractExpires && (
-                <div className="text-xs text-white/50 mt-3">
-                  Sopimus voimassa:{' '}
-                  <span className="text-white/80">{tmData.contractExpires}</span>
-                </div>
-              )}
-              {tmData.loanFrom && (
-                <div className="text-xs text-white/50 mt-1">
-                  Lainalla:{' '}
-                  <span className="text-white/80">{tmData.loanFrom}</span>
-                </div>
-              )}
             </div>
-            <div className="hidden md:flex flex-col items-end text-right text-xs text-white/50 space-y-1 max-w-[40%]">
-              {tmData.position && (
-                <div>
-                  Pelipaikka (TM):{' '}
-                  <span className="text-white/80">{tmData.position}</span>
-                </div>
-              )}
-              {tmData.height && (
-                <div>
-                  Pituus: <span className="text-white/80">{tmData.height}</span>
-                </div>
-              )}
-              {tmData.foot && (
-                <div>
-                  Jalka: <span className="text-white/80">{tmData.foot}</span>
-                </div>
-              )}
-              {tmData.agent && (
-                <div>
-                  Agentti: <span className="text-white/80">{tmData.agent}</span>
-                </div>
-              )}
+            <div className="text-[10px] text-white/30 mt-4 uppercase tracking-wider">
+              Lähde: Transfermarkt
             </div>
-          </div>
-          <div className="text-[10px] text-white/30 mt-4 uppercase tracking-wider">
-            Lähde: Transfermarkt
-          </div>
-        </section>
+          </section>
+        </FadeIn>
         );
       })()}
 
       {/* Kehityskäyrä — oikea fixture-data jos saatavilla, muuten estimaatti */}
-      <section className="bg-navy-700/40 border border-navy-600 rounded-xl p-5">
-        <div className="flex items-baseline justify-between gap-3 mb-2">
-          <h2 className="text-xs uppercase tracking-wider text-white/40">
-            Kehityskäyrä — minuutit per kierros
-          </h2>
-          <span className="text-[10px] text-white/30 uppercase tracking-wider">
-            {fixturesData && fixturesData.length > 0
-              ? `${fixturesData.length} ottelua · oikea data`
-              : fixturesLoading
-                ? 'Estimoitu · kierrosdata ladataan'
-                : 'Estimoitu · kierrosdata tulossa'}
-          </span>
-        </div>
-        {fixturesData && fixturesData.length > 0 ? (
-          <RealProgressionChart fixtures={fixturesData} />
-        ) : (
-          <ProgressionChart minutes={minutes} appearances={appearances} />
-        )}
-      </section>
+      <FadeIn y={16} delay={0.2}>
+        <section className="bg-navy-700/40 border border-navy-600 rounded-xl p-5">
+          <div className="flex items-baseline justify-between gap-3 mb-2">
+            <h2 className="text-xs uppercase tracking-wider text-white/40">
+              Kehityskäyrä — minuutit per kierros
+            </h2>
+            <span className="text-[10px] text-white/30 uppercase tracking-wider">
+              {fixturesData && fixturesData.length > 0
+                ? `${fixturesData.length} ottelua · oikea data`
+                : fixturesLoading
+                  ? 'Estimoitu · kierrosdata ladataan'
+                  : 'Estimoitu · kierrosdata tulossa'}
+            </span>
+          </div>
+          {fixturesData && fixturesData.length > 0 ? (
+            <RealProgressionChart fixtures={fixturesData} />
+          ) : (
+            <ProgressionChart minutes={minutes} appearances={appearances} />
+          )}
+        </section>
+      </FadeIn>
 
       {/* Vaihtopenkkistatistikka */}
-      <section className="bg-navy-700/40 border border-navy-600 rounded-xl p-5">
-        <h2 className="text-xs uppercase tracking-wider text-white/40 mb-3">
-          Vaihtopenkki
-        </h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-1">
-          <DetailRow label="Aloitti penkiltä" value={`${subBench} kertaa`} />
-          <DetailRow label="Tuli vaihtoon" value={`${subIn} kertaa`} />
-        </div>
-      </section>
+      <FadeIn y={16} delay={0.25}>
+        <section className="bg-navy-700/40 border border-navy-600 rounded-xl p-5">
+          <h2 className="text-xs uppercase tracking-wider text-white/40 mb-3">
+            Vaihtopenkki
+          </h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-1">
+            <DetailRow label="Aloitti penkiltä" value={`${subBench} kertaa`} />
+            <DetailRow label="Tuli vaihtoon" value={`${subIn} kertaa`} />
+          </div>
+        </section>
+      </FadeIn>
 
       <div className="text-xs text-white/40 pt-1">
         Lähde: API-Football (pelaajatiedot, kuva, tilastot) +

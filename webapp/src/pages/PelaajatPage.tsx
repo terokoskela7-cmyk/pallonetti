@@ -1,9 +1,11 @@
 import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { motion } from 'framer-motion';
 import { Search, Info } from 'lucide-react';
 import { useApi } from '@/hooks/useApi';
 import { getOfficialStats, type OfficialPlayer } from '@/services/api';
 import { Hero } from '@/components/Hero';
+import { FadeIn } from '@/components/animations';
 
 const SEASON = 2026;
 
@@ -77,30 +79,32 @@ export default function PelaajatPage() {
       />
 
       {/* Suodattimet */}
-      <div className="flex flex-col sm:flex-row gap-3">
-        <div className="relative flex-1">
-          <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-white/40" />
-          <input
-            type="search"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Hae nimellä…"
-            className="w-full bg-navy-700 border border-navy-600 rounded-md pl-9 pr-3 py-2 text-sm text-white/90 placeholder-white/40 focus:outline-none focus:border-ice/50"
-          />
+      <FadeIn y={12}>
+        <div className="flex flex-col sm:flex-row gap-3">
+          <div className="relative flex-1">
+            <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-white/40" />
+            <input
+              type="search"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Hae nimellä…"
+              className="w-full bg-navy-700 border border-navy-600 rounded-md pl-9 pr-3 py-2 text-sm text-white/90 placeholder-white/40 focus:outline-none focus:border-ice/50"
+            />
+          </div>
+          <select
+            value={teamFilter}
+            onChange={(e) => setTeamFilter(e.target.value)}
+            className="bg-navy-700 border border-navy-600 rounded-md px-3 py-2 text-sm text-white/90 focus:outline-none focus:border-ice/50"
+          >
+            <option value="">Kaikki joukkueet</option>
+            {teams.map((t) => (
+              <option key={t} value={t}>
+                {t}
+              </option>
+            ))}
+          </select>
         </div>
-        <select
-          value={teamFilter}
-          onChange={(e) => setTeamFilter(e.target.value)}
-          className="bg-navy-700 border border-navy-600 rounded-md px-3 py-2 text-sm text-white/90 focus:outline-none focus:border-ice/50"
-        >
-          <option value="">Kaikki joukkueet</option>
-          {teams.map((t) => (
-            <option key={t} value={t}>
-              {t}
-            </option>
-          ))}
-        </select>
-      </div>
+      </FadeIn>
 
       {/* Taulukko */}
       {filtered.length === 0 ? (
@@ -126,13 +130,17 @@ export default function PelaajatPage() {
               </tr>
             </thead>
             <tbody>
-              {filtered.map((p) => {
+              {filtered.map((p, i) => {
                 const tp = p.goals + p.assists;
                 return (
-                  <tr
+                  <motion.tr
                     key={`${p.name}-${p.team}-${p.rank}`}
                     onClick={() => navigate(`/pelaaja/${slugify(p.name)}`)}
-                    className="border-b border-navy-700 hover:bg-navy-700/50 cursor-pointer transition-colors"
+                    initial={{ opacity: 0, x: -6 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ duration: 0.25, delay: Math.min(i * 0.015, 0.5) }}
+                    whileHover={{ backgroundColor: 'rgba(0, 200, 255, 0.05)' }}
+                    className="border-b border-navy-700 cursor-pointer"
                   >
                     <td className="py-2 pr-3 text-right text-white/40 font-mono tabular">
                       {p.rank}
@@ -156,7 +164,7 @@ export default function PelaajatPage() {
                     <td className="py-2 pl-3 text-right text-white/60 font-mono tabular">
                       {p.yellowCards}
                     </td>
-                  </tr>
+                  </motion.tr>
                 );
               })}
             </tbody>

@@ -312,11 +312,18 @@ export interface U21RoundTrendPoint {
   u21Pct: number;
   u21Mins: number;
   totalMins: number;
+  matches?: number;
+  failedMatches?: number;
+  estimatedMatches?: number; // kuinka monta ottelua on estimoitu
+  completeness?: number; // 0-100%, todellinen datan kattavuus
+  estimatedRatio?: number; // 0-100%, estimoitujen osuus
 }
 
 export const getU21RoundTrend = (
   season: number,
-): Promise<U21RoundTrendPoint[]> => fetchApi(`/u21-round-trend/${season}`);
+  refresh?: boolean,
+): Promise<U21RoundTrendPoint[]> =>
+  fetchApi(`/u21-round-trend/${season}${refresh ? '?refresh=1' : ''}`);
 
 // ============================================
 // PLAYER BY ID (API-Football season-detail)
@@ -388,7 +395,9 @@ export const getPlayerSeason = (
 ): Promise<ApiFootballPlayerSeason[]> =>
   fetchApi(`/player/${playerId}/season/${season}`);
 
-/** Pelaajan kierroskohtainen rivi — backend kokoaa joukkueen otteluista. */
+/** Pelaajan kierroskohtainen rivi — backend kokoaa joukkueen otteluista.
+ *  `actual=true` = data löytyi API-Footballista. `estimated=true` = data
+ *  puuttui ja minuutit on arvioitu kauden kokonaisminuuttien perusteella. */
 export interface PlayerFixture {
   round: string; // API-Football: "Regular Season - 7"
   date: string; // ISO
@@ -399,13 +408,16 @@ export interface PlayerFixture {
   homeTeam: string;
   awayTeam: string;
   score: string | null; // "2-1"
+  actual?: boolean;
+  estimated?: boolean;
 }
 
 export const getPlayerFixtures = (
   playerId: string,
   season: number,
+  refresh?: boolean,
 ): Promise<PlayerFixture[]> =>
-  fetchApi(`/player/${playerId}/fixtures?season=${season}`);
+  fetchApi(`/player/${playerId}/fixtures?season=${season}${refresh ? '&refresh=1' : ''}`);
 
 // ============================================
 // OFFICIAL STATS (Veikkausliiga.com scrape)

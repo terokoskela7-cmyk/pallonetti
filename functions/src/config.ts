@@ -2,11 +2,19 @@
 // CONFIGURATION
 // Environment variables and constants
 // ============================================
+import * as functions from 'firebase-functions';
+
+// Tuki sekä Firebase Functions configille että suorille ympäristömuuttujille
+// (paikallinen kehitys käyttää .env, production functions.config()).
+const rapidApiKey =
+  (functions.config().rapidapi?.key as string) ||
+  process.env.RAPIDAPI_KEY ||
+  '';
 
 export const config = {
-  // API Keys (set via Firebase Functions config)
-  rapidApiKey: process.env.RAPIDAPI_KEY || '',
-  
+  // API Keys (set via Firebase Functions config or .env)
+  rapidApiKey,
+
   // Firebase
   projectId: process.env.GCLOUD_PROJECT || '',
   

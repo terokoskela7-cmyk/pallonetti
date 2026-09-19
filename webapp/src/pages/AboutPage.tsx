@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom';
-import { ExternalLink, Mail, Database, Users } from 'lucide-react';
+import { ExternalLink, Database, Users } from 'lucide-react';
 
 const SEASON = 2026;
 
@@ -67,44 +67,53 @@ export default function AboutPage() {
 
       <Section title="Miksi tämä on olemassa?">
         <p>
-          CIES Football Observatoryn tutkimus 50 eurooppalaisesta liigasta osoittaa:
-          maat joissa nuoret saavat eniten peliaikaa, tuottavat eniten huippupelaajia.
-          Tanskan Superliga johtaa Euroopassa U21-peliajalla (11,7 %).
+          Pohjoismaiset jalkapalloliigat kilpailevat samoista pelaajista,
+          scout-huomiosta ja siirtomarkkinoista. Kun Tanska, Norja ja Ruotsi
+          investoivat nuoriin pelaajiin ja antavat heille peliaikaa,
+          Suomen on pystyttävä samaan — tai jäämme jälkeen.
         </p>
         <p>
-          Suomessa ei ole ollut julkisesti saatavilla työkalua, jolla seurata
-          nuorten pelaajien peliaikaa Veikkausliigassa. pallonetti.fi täyttää
-          tämän aukon.
+          CIES Football Observatoryn data: Ruotsin Allsvenskan antaa
+          U21-pelaajille <span className="tabular">22,4 %</span> peliajasta,
+          Norjan Eliteserien <span className="tabular">20,2 %</span> ja
+          Tanskan Superliga <span className="tabular">11,7 %</span>.
+          Suomella ei ole ollut vastaavaa julkista dataa.
+          pallonetti.fi muuttaa tämän.
         </p>
       </Section>
 
-      <Section title="Pohjoinen malli — Tanska edelläkävijänä">
+      <Section title="Pohjoismainen kilpailu — me vastaan muut">
         <p>
-          Pohjoismaissa Tanska on ottanut selvän johtoroolin nuorten pelaajien
-          kehittämisessä. CIES:n data: Tanskan Superliga on maailman kolmanneksi
-          paras U21-pelaajien peliajan suhteen ({' '}
-          <span className="tabular">11.7 %</span>).
+          Suomi ei kilpaile pelkästään Tanskaa vastaan — me kilpailemme
+          <strong className="text-white/80"> kaikkia Pohjoismaita vastaan</strong>.
+          Kun ruotsalainen scout etsii U21-pelaajaa, hän vertaa Ruotsin Allsvenskania
+          (<span className="tabular">22,4 %</span> U21-peliaikaa),
+          Norjan Eliteserieniä (<span className="tabular">20,2 %</span>)
+          ja Tanskan Superligaa (<span className="tabular">11,7 %</span>).
+          Suomen täytyy olla tuossa vertailussa mukana.
         </p>
         <p>
-          <strong className="text-white/80">FC Nordsjælland</strong> on Euroopan #1
-          kehitysseura <span className="tabular">44.7 %</span> U21-minuuteilla.
-          Heidän Right to Dream -mallinsa on Pohjoismaiden vastaus Red Bullille:
-          kehitä nuoria, anna peliaikaa, myy voitolla. Mohammed Kudus ja Mikkel
-          Damsgaard ovat tämän mallin tähtituotteita.
+          <strong className="text-white/80">Ruotsi</strong> johtaa pohjoismaista
+          U21-peliaikaa Allsvenskanin <span className="tabular">22,4 %</span>:lla.
+          Malmö FF, Djurgården ja AIK ovat systemaattisesti tuottaneet huippupelaajia
+          myyntiin Eurooppaan. <strong className="text-white/80">Norja</strong> seuraa
+          perässä Eliteserienin <span className="tabular">20,2 %</span>:lla,
+          Bodø/Glimtin ja Molde FK:n akatemiat ovat tunnettuja kehitysseuroja.
         </p>
         <p>
-          <strong className="text-white/80">Norjan Eliteserien</strong> ({' '}
-          <span className="tabular">20.2 %</span> U21-minuutit) ja{' '}
-          <strong className="text-white/80">Ruotsin Allsvenskan</strong> ({' '}
-          <span className="tabular">22.4 %</span>) ovat myös edelläkävijöitä
-          nuorten panostuksessa. Molemmat maat ovat tuottaneet merkittävästi
-          ulkomaille myytyjä pelaajia.
+          <strong className="text-white/80">Tanska</strong> ja erityisesti{' '}
+          <strong className="text-white/80">FC Nordsjælland</strong>{' '}
+          (<span className="tabular">44,7 %</span> U21-minuuteilla) ovat
+          Euroopan #1 kehitysseura. Heidän Right to Dream -mallinsa on
+          Pohjoismaiden vastaus Red Bullille: kehitä nuoria, anna peliaikaa,
+          myy voitolla. Mohammed Kudus ja Mikkel Damsgaard ovat tämän mallin
+          tähtituotteita.
         </p>
         <p>
           Suomen Veikkausliigassa tilanne on ollut pitkään epäselvä — tarkkaa
           dataa ei ole ollut julkisesti saatavilla. pallonetti.fi muuttaa tämän.
-          Seuraamalla U23-pelaajien peliaikaa teemme kehityksen mitattavaksi ja
-          vertailukelpoiseksi.
+          Seuraamalla U21-pelaajien peliaikaa ja vertaamalla sitä suoraan
+          Pohjoismaihin teemme kehityksen mitattavaksi ja kilpailukykyiseksi.
         </p>
       </Section>
 
@@ -165,26 +174,17 @@ export default function AboutPage() {
           <Users className="w-4 h-4 text-ice shrink-0 mt-0.5" />
           <div>
             <p>
-              <strong className="text-white/80">Tero Koskela</strong> —
-              Palloliiton HHL-palvelupäällikkö,{' '}
+              <strong className="text-white/80">TalentMasterID</strong> —
+              Pallonetti on{' '}
               <a
                 href="https://talentmaster.fi"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="text-ice hover:text-white transition-colors"
               >
-                TalentMaster
-              </a>
-              -perustaja.
-            </p>
-            <p className="mt-2">
-              <a
-                href="mailto:tero@talentmaster.fi"
-                className="text-ice hover:text-white transition-colors inline-flex items-center gap-1.5"
-              >
-                <Mail className="w-3.5 h-3.5" />
-                tero@talentmaster.fi
-              </a>
+                TalentMasterin
+              </a>{' '}
+              kehittämä työkalu suomalaisen jalkapallon nuorisoanalytiikkaan.
             </p>
           </div>
         </div>

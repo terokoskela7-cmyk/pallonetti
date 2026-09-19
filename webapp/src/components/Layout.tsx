@@ -9,8 +9,8 @@ interface LayoutProps {
 
 const navLinks: Array<{ to: string; label: string; end?: boolean }> = [
   { to: '/', label: 'etusivu', end: true },
-  { to: '/peliaika', label: 'analyysi' },
   { to: '/nuoret', label: 'U21-pelaajat' },
+  { to: '/peliaika', label: 'analyysi' },
   { to: '/pelaajat', label: 'kaikki pelaajat' },
   { to: '/about', label: 'tietoa' },
 ];

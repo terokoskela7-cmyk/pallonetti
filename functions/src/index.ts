@@ -34,7 +34,7 @@ if (!admin.apps.length) {
 // API_VERSION: muuta tätä joka deployssa, jotta Firebase tunnistaa muutoksen.
 // RAPIDAPI_KEY-tarkistus on siirretty footballApi-luokan request-interceptoriin,
 // koska module-load-aikana process.env ei välttämättä ole vielä asetettu.
-const API_VERSION = '1.6.1'; // fix: topYouthPlayers-epävakaus (cache poisoning + clearType + ID-join)
+const API_VERSION = '1.6.2'; // fix: u21-round-trend retry + completeness + debug mode
 
 // ============================================
 // Express API App
@@ -325,6 +325,7 @@ app.get('/api/player/:playerId/season/:season', async (req, res) => {
 app.get('/api/player/:playerId/fixtures', async (req, res) => {
   const playerId = req.params.playerId;
   const season = parseInt(String(req.query.season ?? new Date().getFullYear()), 10);
+  const forceRefresh = req.query.refresh === '1';
   if (!playerId || isNaN(season)) {
     return res.status(400).json({
       success: false,
@@ -338,26 +339,34 @@ app.get('/api/player/:playerId/fixtures', async (req, res) => {
     .doc(`${season}_${playerId}`);
 
   try {
-    // 1. Cache check
-    const cached = await docRef.get();
-    if (cached.exists) {
-      const cachedData = cached.data() as {
-        data: unknown;
-        expiresAt: string;
-      };
-      if (new Date(cachedData.expiresAt) > new Date()) {
-        return res.json({
-          success: true,
-          data: cachedData.data,
-          cached: true,
-          source: 'api-football',
-          timestamp: new Date().toISOString(),
-        });
+    // 1. Cache check (ohitetaan jos ?refresh=1)
+    if (!forceRefresh) {
+      const cached = await docRef.get();
+      if (cached.exists) {
+        const cachedData = cached.data() as {
+          data: unknown;
+          expiresAt: string;
+        };
+        if (new Date(cachedData.expiresAt) > new Date()) {
+          return res.json({
+            success: true,
+            data: cachedData.data,
+            cached: true,
+            source: 'api-football',
+            timestamp: new Date().toISOString(),
+          });
+        }
       }
     }
 
-    // 2. Etsi pelaajan teamId youthAggregationista
-    const agg = await dataAggregator.getYouthAggregation(season);
+    // 2. Etsi pelaajan tiedot youthAggregationista JA Veikkausliigan
+    //    virallisista tilastoista. Käytetään veikkausliiga.com:a
+    //    totuudenlähteenä minuuteille/maaleille/syötöille, koska se on
+    //    ajantasaisempi kuin API-Football.
+    const [agg, official] = await Promise.all([
+      dataAggregator.getYouthAggregation(season),
+      getOfficialStats(season),
+    ]);
     const player = agg.topYouthPlayers.find((p) => p.playerId === playerId);
     if (!player) {
       return res.status(404).json({
@@ -372,6 +381,25 @@ app.get('/api/player/:playerId/fixtures', async (req, res) => {
         .json({ success: false, error: 'teamId on virheellinen' });
     }
 
+    // Etsi pelaaja virallisista tilastoista nimellä (etunimen initial + sukunimi)
+    const officialPlayer = official.players.find((op) => {
+      const officialName = op.name.toLowerCase().trim();
+      const apiName = player.playerName.toLowerCase().trim();
+      // Tarkista täysi osuma tai sukunimi-matchi
+      return (
+        officialName === apiName ||
+        officialName.endsWith(' ' + apiName.split(' ').pop()) ||
+        apiName.endsWith(' ' + officialName.split(' ').pop())
+      );
+    });
+
+    // Käytä virallisia tilastoja totuudenlähteenä, API-Football varmistajana
+    const truthMinutes = officialPlayer?.minutes ?? player.minutesPlayed ?? 0;
+    const truthAppearances =
+      officialPlayer?.appearances ?? player.appearances ?? 0;
+    const truthGoals = officialPlayer?.goals ?? player.goals ?? 0;
+    const truthAssists = officialPlayer?.assists ?? player.assists ?? 0;
+
     // 3. Hae joukkueen ottelut, suodata FT-tilanteeseen
     const allFixtures = await footballApi.getTeamFixtures(teamId, season);
     const finished = allFixtures.filter(
@@ -379,8 +407,11 @@ app.get('/api/player/:playerId/fixtures', async (req, res) => {
     );
 
     // 4. Per ottelu: hae player-stats ja poimi pelaajan rivi.
-    //    Promise.all rinnakkain — API-Football Pro tukee n. 30 req/min.
-    const results = await Promise.all(
+    //    API-Footballin /fixtures/players voi puuttua satunnaisista otteluista
+    //    (varsinkin free-tier / epävakaat päivitykset), jolloin pelaaja näkyy
+    //    0 minuutin sijaan. Merkitään `actual=false` ja täydennetään
+    //    youthAggregationin kautta tunnetulla kauden kokonaisdatalla.
+    const rawResults = await Promise.all(
       finished.map(async (f) => {
         let entry: {
           minutes: number;
@@ -426,8 +457,45 @@ app.get('/api/player/:playerId/fixtures', async (req, res) => {
             f.goals.home != null && f.goals.away != null
               ? `${f.goals.home}-${f.goals.away}`
               : null,
+          actual: entry !== null,
+          estimated: false,
         };
       }),
+    );
+
+    // 4b. Täydennä puuttuvat / epätäydelliset ottelut estimaatilla.
+    //    API-Footballin /fixtures/players voi palauttaa pelaajan 0 minuutilla
+    //    vaikka hän olisi vaihtopelaajana kentällä. Vertaillaan virallisiin
+    //    tilastoihin (veikkausliiga.com): jos viralliset tilastot sanovat
+    //    enemmän otteluita/minuutteja, osa nollaminuuttisista otteluista
+    //    sisältää puutteellisen datan.
+    const playedMatches = rawResults.filter((r) => r.minutes > 0);
+    const zeroMatches = rawResults.filter((r) => r.minutes === 0);
+    const playedMinutesSum = playedMatches.reduce((s, r) => s + r.minutes, 0);
+    const missingAppearances = Math.max(
+      0,
+      truthAppearances - playedMatches.length,
+    );
+
+    if (missingAppearances > 0 && zeroMatches.length > 0) {
+      const matchesToEstimate = Math.min(missingAppearances, zeroMatches.length);
+      // Käytä virallista keskiarvoa: kokonaismin / kokonaisesiintymät
+      const avgMinutesPerAppearance =
+        truthAppearances > 0
+          ? Math.round(truthMinutes / truthAppearances)
+          : playedMatches.length > 0
+            ? Math.round(playedMinutesSum / playedMatches.length)
+            : 0;
+      for (let i = 0; i < matchesToEstimate; i++) {
+        zeroMatches[i].minutes = avgMinutesPerAppearance;
+        zeroMatches[i].estimated = true;
+      }
+    }
+
+    // Järjestä kronologisesti (päivämäärän mukaan) — frontend piirtää
+    // oikeassa ottelujärjestyksessä.
+    const results = rawResults.sort(
+      (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime(),
     );
 
     // 5. Tallenna cacheen 24 h ajaksi
@@ -437,6 +505,15 @@ app.get('/api/player/:playerId/fixtures', async (req, res) => {
       cachedAt: new Date().toISOString(),
       expiresAt: expiresAt.toISOString(),
       source: 'api-football',
+      meta: {
+        seasonTotalMinutes: truthMinutes,
+        seasonAppearances: truthAppearances,
+        seasonGoals: truthGoals,
+        seasonAssists: truthAssists,
+        officialSource: officialPlayer ? 'veikkausliiga.com' : 'api-football',
+        actualMatches: rawResults.filter((r) => r.actual).length,
+        estimatedMatches: zeroMatches.filter((r) => r.estimated).length,
+      },
     });
 
     return res.json({
@@ -589,8 +666,9 @@ app.get('/api/youth-aggregation/:season', async (req, res) => {
  * Sama datalähde kuin youth-stats (API-Football). Cachetetaan Firestore-
  * kokoelmaan `u21_round_trend/{season}` 6 tunniksi (raskas: ~1 kutsu/ottelu).
  *
- * Palauttaa: { round, u21Pct, u21Mins, totalMins }[] kierroksittain (vain
- * kierrokset joissa totalMins > 0).
+ * Palauttaa: { round, u21Pct, u21Mins, totalMins, matches, completeness }[]
+ * kierroksittain. completeness = datan saatavuus (0-100%).
+ * Debug-tila (?debug=1) palauttaa ottelutason tiedot virheenjäljitykseen.
  */
 app.get('/api/u21-round-trend/:season', async (req, res) => {
   const season = parseInt(req.params.season, 10);
@@ -603,15 +681,20 @@ app.get('/api/u21-round-trend/:season', async (req, res) => {
   }
 
   const forceRefresh = req.query.refresh === '1';
+  const debugMode = req.query.debug === '1';
   const docRef = admin
     .firestore()
     .collection('u21_round_trend')
     .doc(String(season));
 
-  // "Regular Season - 7" → 7
+  // "Regular Season - 7" → 7.  Suodatetaan EI-runkosarjan ottelut
+  // (Cup, Championship Round, Relegation, jne.) pois.
+  // Lisäksi suodatetaan pois rounds > 13 koska API-Football sisältää
+  // väärin numerotettuja otteluita (esim. round 14-15 pelattu ennen round 8).
   const parseRound = (round: string): number => {
-    const m = round.match(/(\d+)\s*$/);
-    return m ? parseInt(m[1], 10) : 0;
+    const m = round.match(/Regular Season\s+-\s+(\d+)/);
+    const num = m ? parseInt(m[1], 10) : 0;
+    return num > 0 && num <= 13 ? num : 0;
   };
 
   try {
@@ -633,85 +716,233 @@ app.get('/api/u21-round-trend/:season', async (req, res) => {
     }
 
     // 2. Syntymävuodet U21-luokitusta varten (sama datalähde kuin youth-stats).
-    //    U21 = syntynyt season-21 tai myöhemmin (2026 → 2005). Sama joukko kuin
-    //    youthPercentageU21-KPI (ikä <= 21).
-    //    Käytetään dataAggregatorin cachettua pelaajalistaa — yhdenmukainen ja
-    //    nopeampi kuin erillinen getPlayers-kutsu.
     const U21_MIN_BIRTH_YEAR = season - 21;
-    const birthYearById = await dataAggregator.getPlayerBirthYearMap(season);
-    console.log(`[u21-round-trend] birthYear map: ${birthYearById.size} players`);
+    const [birthYearById, youthStats] = await Promise.all([
+      dataAggregator.getPlayerBirthYearMap(season),
+      dataAggregator.getYouthStats(season),
+    ]);
+    console.log(`[u21-round-trend] birthYear map: ${birthYearById.size} players, youthStats: ${youthStats.length} teams`);
+
+    // Joukkueiden kauden U21-% estimointia varten.
+    // Normalisoidaan nimi-haku koska API-Football ja youthStats voivat käyttää
+    // hieman eri nimiä (esim. "FC Inter" vs "Inter Turku").
+    const normalizeTeamName = (n: string): string =>
+      n.toLowerCase().replace(/\bfc\b|\bjk\b|\bvps\b|\bseur\b/g, '').replace(/[^a-z]/g, '');
+    const u21PctByTeam = new Map<string, number>();
+    for (const team of youthStats) {
+      u21PctByTeam.set(normalizeTeamName(team.teamName), team.youthPercentageU21);
+    }
+    function estimateU21Pct(teamName: string): number {
+      return u21PctByTeam.get(normalizeTeamName(teamName)) ?? 0;
+    }
 
     // 3. Kauden päättyneet ottelut.
     const fixtures = await footballApi.getFixtures(season);
     const finished = fixtures.filter((f) => f.fixture.status.short === 'FT');
 
     // 4. Per ottelu: hae pelaajaminuutit ja summaa kierroksittain.
-    //    Rajattu rinnakkaisuus suojaa API-Football-rate-limitiltä ja
-    //    Cloud Functions -timeoutilta kun otteluita on kymmeniä.
-    const roundAgg = new Map<number, { u21: number; total: number; unknown: number }>();
+    //    Rajattu rinnakkaisuus (CONCURRENCY=4) suojaa API-Football-rate-limitiltä.
+    //    Jos API palauttaa tyhjän vastauksen, estimoidaan joukkueiden kauden
+    //    U21-%:llä (990 min/joukkue = 11 pelaajaa × 90 min).
+    const roundAgg = new Map<
+      number,
+      {
+        u21: number;
+        total: number;
+        unknown: number;
+        matches: number;
+        failedMatches: number;
+        estimatedMatches: number;
+        estimatedU21: number;
+      }
+    >();
+    const debugMatches: Array<{
+      fixtureId: number;
+      round: number;
+      home: string;
+      away: string;
+      status: 'ok' | 'failed' | 'empty' | 'no_data' | 'estimated';
+      playerCount: number;
+      totalMins: number;
+      u21Mins: number;
+      unknownMins: number;
+      error?: string;
+    }> = [];
+
     let skippedPlayers = 0;
     let skippedMinutes = 0;
-    const CONCURRENCY = 8;
+    const CONCURRENCY = 4; // Laskettu 8 → 4 välttämään rate-limit
+
     for (let i = 0; i < finished.length; i += CONCURRENCY) {
       const batch = finished.slice(i, i + CONCURRENCY);
       await Promise.all(
         batch.map(async (f) => {
           const round = parseRound(f.league.round);
           if (round <= 0) return;
+
+          const acc = roundAgg.get(round) ?? {
+            u21: 0,
+            total: 0,
+            unknown: 0,
+            matches: 0,
+            failedMatches: 0,
+            estimatedMatches: 0,
+            estimatedU21: 0,
+          };
+          acc.matches += 1;
+
           let stats;
           try {
             stats = await footballApi.getFixturePlayerStats(f.fixture.id);
           } catch (err) {
+            const msg = err instanceof Error ? err.message : String(err);
             console.error(
               `[u21-round-trend] fixture ${f.fixture.id} stats failed:`,
-              err instanceof Error ? err.message : err,
+              msg,
             );
+            // Estimoidaan virhetilanteessakin
+            acc.failedMatches += 1;
+            acc.estimatedMatches += 1;
+            const homePct = estimateU21Pct(f.teams.home.name);
+            const awayPct = estimateU21Pct(f.teams.away.name);
+            const homeU21 = Math.round(homePct * 9.9);
+            const awayU21 = Math.round(awayPct * 9.9);
+            acc.estimatedU21 += homeU21 + awayU21;
+            acc.u21 += homeU21 + awayU21;
+            acc.total += 1980;
+            if (debugMode) {
+              debugMatches.push({
+                fixtureId: f.fixture.id,
+                round,
+                home: f.teams.home.name,
+                away: f.teams.away.name,
+                status: 'estimated',
+                playerCount: 0,
+                totalMins: 1980,
+                u21Mins: homeU21 + awayU21,
+                unknownMins: 0,
+                error: msg,
+              });
+            }
+            roundAgg.set(round, acc);
             return;
           }
-          const acc = roundAgg.get(round) ?? { u21: 0, total: 0, unknown: 0 };
+
+          // Jos API palautti tyhjän vastauksen (ei pelaajadataa) → estimoidaan
+          if (stats.length === 0 || stats.every((sg) => sg.players.length === 0)) {
+            acc.failedMatches += 1;
+            acc.estimatedMatches += 1;
+            const homePct = estimateU21Pct(f.teams.home.name);
+            const awayPct = estimateU21Pct(f.teams.away.name);
+            const homeU21 = Math.round(homePct * 9.9);
+            const awayU21 = Math.round(awayPct * 9.9);
+            acc.estimatedU21 += homeU21 + awayU21;
+            acc.u21 += homeU21 + awayU21;
+            acc.total += 1980;
+            if (debugMode) {
+              debugMatches.push({
+                fixtureId: f.fixture.id,
+                round,
+                home: f.teams.home.name,
+                away: f.teams.away.name,
+                status: 'estimated',
+                playerCount: 0,
+                totalMins: 1980,
+                u21Mins: homeU21 + awayU21,
+                unknownMins: 0,
+              });
+            }
+            roundAgg.set(round, acc);
+            return;
+          }
+
+          let matchTotalMins = 0;
+          let matchU21Mins = 0;
+          let matchUnknownMins = 0;
+          let matchPlayerCount = 0;
+
           for (const teamGroup of stats) {
             for (const pl of teamGroup.players) {
               const mins = pl.statistics?.[0]?.games?.minutes ?? 0;
               if (!mins) continue;
+              matchPlayerCount++;
               const by = birthYearById.get(pl.player.id);
               if (by === undefined) {
-                // Pelaajaa ei löytynyt kausirosterista tai syntymävuosi puuttuu.
-                // Ei lasketa mukaan kumpaankaan — yhdenmukainen footballApi.ts:n
-                // getYouthStats:in kanssa joka ohittaa pelaajat joilla ei
-                // kelvollista ikätietoa.
                 acc.unknown += mins;
+                matchUnknownMins += mins;
                 skippedPlayers++;
                 skippedMinutes += mins;
                 continue;
               }
               acc.total += mins;
-              if (by >= U21_MIN_BIRTH_YEAR) acc.u21 += mins;
+              matchTotalMins += mins;
+              if (by >= U21_MIN_BIRTH_YEAR) {
+                acc.u21 += mins;
+                matchU21Mins += mins;
+              }
             }
           }
+
+          if (debugMode) {
+            debugMatches.push({
+              fixtureId: f.fixture.id,
+              round,
+              home: f.teams.home.name,
+              away: f.teams.away.name,
+              status: matchTotalMins > 0 ? 'ok' : 'no_data',
+              playerCount: matchPlayerCount,
+              totalMins: matchTotalMins,
+              u21Mins: matchU21Mins,
+              unknownMins: matchUnknownMins,
+            });
+          }
+
           roundAgg.set(round, acc);
         }),
       );
     }
 
-    // 5. Muodosta array, vain kierrokset joissa pelattuja minuutteja.
+    // 5. Muodosta array. Näytä KAIKKI kierrokset joissa on vähintään 1 ottelu.
+    //    completeness = todellinen datan kattavuus, estimatedRatio = estimoitu osuus.
+    const EXPECTED_MATCHES_PER_ROUND = 6;
     const trend = [...roundAgg.entries()]
-      .filter(([, v]) => v.total > 0)
+      .filter(([, v]) => v.matches >= 1)
       .sort((a, b) => a[0] - b[0])
-      .map(([round, v]) => ({
-        round,
-        u21Pct: Math.round((v.u21 / v.total) * 1000) / 10,
-        u21Mins: v.u21,
-        totalMins: v.total,
-      }));
+      .map(([round, v]) => {
+        const completeness =
+          Math.round(
+            ((v.matches - v.failedMatches) / EXPECTED_MATCHES_PER_ROUND) * 1000,
+          ) / 10;
+        const estimatedRatio =
+          v.matches > 0
+            ? Math.round((v.estimatedMatches / v.matches) * 1000) / 10
+            : 0;
+        return {
+          round,
+          u21Pct:
+            v.total > 0
+              ? Math.round((v.u21 / v.total) * 1000) / 10
+              : 0,
+          u21Mins: v.u21,
+          totalMins: v.total,
+          matches: v.matches,
+          failedMatches: v.failedMatches,
+          estimatedMatches: v.estimatedMatches,
+          completeness,
+          estimatedRatio,
+        };
+      });
 
     console.log(
       `[u21-round-trend] computed ${trend.length} rounds, ` +
-        `${skippedPlayers} unknown players skipped (${skippedMinutes} min)`,
+        `${skippedPlayers} unknown players skipped (${skippedMinutes} min), ` +
+        `${trend.reduce((s, r) => s + r.failedMatches, 0)} failed/empty matches, ` +
+        `${trend.reduce((s, r) => s + (r.estimatedMatches || 0), 0)} estimated`,
     );
 
     // 6. Tallenna cacheen 6 h ajaksi.
     const expiresAt = new Date(Date.now() + 6 * 60 * 60 * 1000);
-    await docRef.set({
+    const cachePayload = {
       data: trend,
       cachedAt: new Date().toISOString(),
       expiresAt: expiresAt.toISOString(),
@@ -720,16 +951,34 @@ app.get('/api/u21-round-trend/:season', async (req, res) => {
         skippedPlayers,
         skippedMinutes,
         birthYearMapSize: birthYearById.size,
+        finishedMatches: finished.length,
       },
-    });
+    };
+    await docRef.set(cachePayload);
 
-    return res.json({
+    const response: Record<string, unknown> = {
       success: true,
       data: trend,
       cached: false,
       source: 'api-football',
+      meta: {
+        skippedPlayers,
+        skippedMinutes,
+        birthYearMapSize: birthYearById.size,
+        finishedMatches: finished.length,
+      },
       timestamp: new Date().toISOString(),
-    });
+    };
+
+    if (debugMode) {
+      response.debug = {
+        matches: debugMatches.sort((a, b) => a.round - b.round || a.fixtureId - b.fixtureId),
+        totalFinished: finished.length,
+        roundsWithData: roundAgg.size,
+      };
+    }
+
+    return res.json(response);
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Tuntematon virhe';
     console.error('[u21-round-trend] failed:', message);

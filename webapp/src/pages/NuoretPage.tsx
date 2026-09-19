@@ -1,4 +1,5 @@
 import { useMemo } from 'react';
+import { motion } from 'framer-motion';
 import { useApi } from '@/hooks/useApi';
 import {
   getYouthAggregation,
@@ -11,6 +12,11 @@ import {
   type YouthStats,
 } from '@/services/api';
 import { Hero } from '@/components/Hero';
+import {
+  staggerContainer,
+  staggerItem,
+  FadeIn,
+} from '@/components/animations';
 import {
   Clock,
   Target,
@@ -26,10 +32,15 @@ const MAX_PLAYERS = 30;
 
 const AVATAR_COLORS = ['#00D4FF', '#00FF88', '#6366f1', '#f59e0b', '#ef4444'];
 
-// CIES Football Observatory: Tanskan Superliga johtaa Euroopassa U21-peliajassa.
-const CIES_TARGET_PCT = 11.7;
-// Palkin asteikon yläraja — pitää sekä tavoitteen että Suomen arvon näkyvissä.
-const CIES_BAR_MAX = 25;
+// Pohjoismaiset U21-peliaika-% — kilpailemme näitä maita vastaan.
+const NORDIC = {
+  denmark: { pct: 11.7, color: '#f97316', label: 'Tanska' },
+  norway:  { pct: 20.2, color: '#a78bfa', label: 'Norja' },
+  sweden:  { pct: 22.4, color: '#eab308', label: 'Ruotsi' },
+};
+const NORDIC_AVG = (NORDIC.denmark.pct + NORDIC.norway.pct + NORDIC.sweden.pct) / 3;
+// Palkin asteikon yläraja — pitää kaikki arvot näkyvissä.
+const BAR_MAX = 28;
 
 function getInitials(name: string): string {
   const parts = name.trim().split(/\s+/).filter(Boolean);
@@ -45,20 +56,53 @@ function calcU21Pct(teams: YouthStats[]): number {
   return total > 0 ? (u21 / total) * 100 : 0;
 }
 
-/** CIES-vertailupalkki: Suomen U21-% vs. Tanskan 11,7 % -tavoite. */
-function CiesComparisonBar({ pct }: { pct: number }) {
-  const diff = pct - CIES_TARGET_PCT;
+/** Tutkimusperusteinen myyntivalmius U21-pelaajalle.
+ *  CIES / Antwerpen: 1 500+ min = 3× todennäköisemmin huippuliigaan. */
+function getReadinessBadge(player: U23Player & { tp: number }): { text: string; color: string; bg: string } | null {
+  const min = player.minutes;
+  const age = player.age;
+
+  if (age > 23) return null;
+
+  // 21v = kriittinen myyntivuosi
+  if (age === 21) {
+    if (min >= 1500) return { text: '⭐ Myyntivalmis', color: '#22c55e', bg: 'rgba(34,197,94,0.12)' };
+    if (min >= 1000) return { text: '🟡 Kehityksessä', color: '#eab308', bg: 'rgba(234,179,8,0.12)' };
+    return { text: '🔴 Ei riitä', color: '#ef4444', bg: 'rgba(239,68,68,0.12)' };
+  }
+
+  // 19–20v = vakiinnutus
+  if (age >= 19) {
+    if (min >= 1500) return { text: '🟢 Edelläkävijä', color: '#22c55e', bg: 'rgba(34,197,94,0.12)' };
+    if (min >= 1000) return { text: '🟡 Kunnossa', color: '#eab308', bg: 'rgba(234,179,8,0.12)' };
+    return { text: '🟠 Debyyttivaihe', color: '#f97316', bg: 'rgba(249,115,22,0.12)' };
+  }
+
+  // 17–18v = debyytti
+  if (min >= 1000) return { text: '🟢 Harvinaista! ', color: '#22c55e', bg: 'rgba(34,197,94,0.12)' };
+  if (min >= 500) return { text: '🟡 Debyytti OK', color: '#eab308', bg: 'rgba(234,179,8,0.12)' };
+  return { text: '🟠 Alku', color: '#f97316', bg: 'rgba(249,115,22,0.12)' };
+}
+
+/** Pohjoismainen vertailupalkki: Suomi vs. Tanska · Norja · Ruotsi. */
+function NordicComparisonBar({ pct }: { pct: number }) {
+  const diff = pct - NORDIC_AVG;
   const above = diff >= 0;
   const toneClass = above ? 'text-aurora' : 'text-red-400';
   const fillColor = above ? '#00FF88' : '#ef4444';
-  const fillPct = Math.min(100, (pct / CIES_BAR_MAX) * 100);
-  const targetLeft = Math.min(100, (CIES_TARGET_PCT / CIES_BAR_MAX) * 100);
+  const fillPct = Math.min(100, (pct / BAR_MAX) * 100);
+
+  const markers = [
+    { pct: NORDIC.denmark.pct, color: NORDIC.denmark.color, label: 'DK' },
+    { pct: NORDIC.norway.pct, color: NORDIC.norway.color, label: 'NO' },
+    { pct: NORDIC.sweden.pct, color: NORDIC.sweden.color, label: 'SE' },
+  ];
 
   return (
     <div className="bg-navy-700 border border-navy-600 rounded-lg p-4">
       <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 mb-3">
         <span className="text-xs uppercase tracking-wider text-white/50">
-          CIES-tavoite: {CIES_TARGET_PCT.toFixed(1).replace('.', ',')} % · Tanska Superliga
+          Pohjoismainen vertailu · keskiarvo {NORDIC_AVG.toFixed(1).replace('.', ',')} %
         </span>
         <span className={`text-sm font-medium ${toneClass}`}>
           Suomi nyt {pct.toFixed(1).replace('.', ',')} %{' '}
@@ -69,20 +113,35 @@ function CiesComparisonBar({ pct }: { pct: number }) {
         </span>
       </div>
       <div className="relative h-3 bg-navy-600 rounded-full overflow-hidden">
-        <div
-          className="h-full rounded-full transition-all duration-500"
-          style={{ width: `${fillPct}%`, backgroundColor: fillColor }}
+        <motion.div
+          className="h-full rounded-full"
+          initial={{ width: 0 }}
+          animate={{ width: `${fillPct}%` }}
+          transition={{ duration: 0.8, ease: [0.16, 1, 0.3, 1] as [number, number, number, number] }}
+          style={{ backgroundColor: fillColor }}
         />
-        {/* CIES-tavoitemerkki */}
-        <div
-          className="absolute top-0 bottom-0 w-px bg-white/70"
-          style={{ left: `${targetLeft}%` }}
-          aria-hidden="true"
-        />
+        {markers.map((m) => (
+          <div
+            key={m.label}
+            className="absolute top-0 bottom-0 w-px"
+            style={{
+              left: `${Math.min(100, (m.pct / BAR_MAX) * 100)}%`,
+              backgroundColor: m.color,
+            }}
+            aria-hidden="true"
+          />
+        ))}
       </div>
-      <div className="flex justify-between mt-1.5 text-[10px] text-white/30 font-mono tabular">
-        <span>0 %</span>
-        <span>{CIES_BAR_MAX} %</span>
+      <div className="flex justify-between mt-2">
+        <div className="flex gap-3 text-[10px] font-mono tabular">
+          {markers.map((m) => (
+            <span key={m.label} className="flex items-center gap-1">
+              <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: m.color }} />
+              <span style={{ color: m.color }}>{m.label} {m.pct.toFixed(1).replace('.', ',')} %</span>
+            </span>
+          ))}
+        </div>
+        <span className="text-[10px] text-white/30 font-mono tabular">{BAR_MAX} %</span>
       </div>
     </div>
   );
@@ -177,6 +236,19 @@ function PlayerCard({ player, index, maxTp, marketValue }: PlayerCardProps) {
           style={{ width: `${tpPct}%` }}
         />
       </div>
+
+      {(() => {
+        const badge = getReadinessBadge(player);
+        if (!badge) return null;
+        return (
+          <div
+            className="text-[11px] font-medium rounded-full px-2 py-0.5 self-start border"
+            style={{ color: badge.color, backgroundColor: badge.bg, borderColor: badge.color + '40' }}
+          >
+            {badge.text}
+          </div>
+        );
+      })()}
 
       {player.goals >= 3 && (
         <div className="text-[11px] font-medium text-aurora bg-aurora/10 border border-aurora/30 rounded-full px-2 py-0.5 self-start">
@@ -320,7 +392,7 @@ export default function NuoretPage() {
           height="sm"
         />
         {/* CIES-vertailu näkyy myös ilman pelaajalistaa — data on teamBreakdownista */}
-        <CiesComparisonBar pct={u21Pct} />
+        <NordicComparisonBar pct={u21Pct} />
         <div className="rounded-r-md bg-navy-600 border-l-2 border-ice px-5 py-4 flex items-start gap-3">
           <Info className="w-4 h-4 text-ice shrink-0 mt-0.5" />
           <p className="text-sm text-white/60">
@@ -362,56 +434,87 @@ export default function NuoretPage() {
       />
 
       {/* Konteksti: miksi näiden pelaajien minuutit ovat tärkeitä */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-        <HighlightCard
-          icon={ArrowUpRight}
-          label="Wirén 2026 · Pohjoismainen vertailu"
-          title="Suomi 14 % → Pohjoismaat 23 %"
-          body="Pohjoismaisten vertailujen mukaan suomalaisen U23-pelaajan todennäköisyys ulkomaan siirrolle on noin 14 %, kun pohjoismaiden keskiarvo on 23 %. Käyttöaste seuroissa on suorin tapa kuroa eroa kiinni."
-        />
-        <HighlightCard
-          icon={Users}
-          label={`Kauden ${SEASON} U21-runko`}
-          title={`${players.length} pelaajaa rakentaa tulevaisuutta`}
-          body="Jokainen minuutti pääsarjassa lisää siirtoarvoa ja kehityspotentiaalia. Alla listatut pelaajat ovat tämän kauden eniten peliaikaa saaneet U21-pelaajat — heidän kehityksensä kertoo Suomen jalkapallon suunnan."
-        />
-      </div>
+      <motion.div
+        className="grid grid-cols-1 md:grid-cols-2 gap-3"
+        variants={staggerContainer}
+        initial="hidden"
+        animate="visible"
+      >
+        <motion.div variants={staggerItem}>
+          <HighlightCard
+            icon={ArrowUpRight}
+            label="Wirén 2026 · Pohjoismainen vertailu"
+            title="Suomi 14 % → Pohjoismaat 23 %"
+            body="Pohjoismaisten vertailujen mukaan suomalaisen U23-pelaajan todennäköisyys ulkomaan siirrolle on noin 14 %, kun pohjoismaiden keskiarvo on 23 %. Käyttöaste seuroissa on suorin tapa kuroa eroa kiinni."
+          />
+        </motion.div>
+        <motion.div variants={staggerItem}>
+          <HighlightCard
+            icon={Users}
+            label={`Kauden ${SEASON} U21-runko`}
+            title={`${players.length} pelaajaa rakentaa tulevaisuutta`}
+            body="Jokainen minuutti pääsarjassa lisää siirtoarvoa ja kehityspotentiaalia. Alla listatut pelaajat ovat tämän kauden eniten peliaikaa saaneet U21-pelaajat — heidän kehityksensä kertoo Suomen jalkapallon suunnan."
+          />
+        </motion.div>
+      </motion.div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-        <HighlightCard
-          icon={Clock}
-          label="Eniten minuutteja"
-          title={topMinutes.playerName}
-          body={`${topMinutes.teamName} · ${topMinutes.minutes} minuuttia · ${topMinutes.age} v`}
-        />
-        <HighlightCard
-          icon={Target}
-          label="Paras maalintekijä"
-          title={topScorer.playerName}
-          body={`${topScorer.teamName} · ${topScorer.goals} maalia · ${topScorer.age} v`}
-        />
-        <HighlightCard
-          icon={Sparkles}
-          label="Tehokkain"
-          title={topTp.playerName}
-          body={`${topTp.teamName} · ${topTp.tp} tehopistettä (${topTp.goals} M + ${topTp.assists} S) · ${topTp.age} v`}
-        />
-      </div>
+      <motion.div
+        className="grid grid-cols-1 md:grid-cols-3 gap-3"
+        variants={staggerContainer}
+        initial="hidden"
+        animate="visible"
+      >
+        <motion.div variants={staggerItem}>
+          <HighlightCard
+            icon={Clock}
+            label="Eniten minuutteja"
+            title={topMinutes.playerName}
+            body={`${topMinutes.teamName} · ${topMinutes.minutes} minuuttia · ${topMinutes.age} v`}
+          />
+        </motion.div>
+        <motion.div variants={staggerItem}>
+          <HighlightCard
+            icon={Target}
+            label="Paras maalintekijä"
+            title={topScorer.playerName}
+            body={`${topScorer.teamName} · ${topScorer.goals} maalia · ${topScorer.age} v`}
+          />
+        </motion.div>
+        <motion.div variants={staggerItem}>
+          <HighlightCard
+            icon={Sparkles}
+            label="Tehokkain"
+            title={topTp.playerName}
+            body={`${topTp.teamName} · ${topTp.tp} tehopistettä (${topTp.goals} M + ${topTp.assists} S) · ${topTp.age} v`}
+          />
+        </motion.div>
+      </motion.div>
 
       {/* CIES-vertailu: Suomen U21-% vs. Tanskan 11,7 % -tavoite */}
-      <CiesComparisonBar pct={u21Pct} />
+      <FadeIn y={16}>
+        <NordicComparisonBar pct={u21Pct} />
+      </FadeIn>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+      <motion.div
+        className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3"
+        variants={staggerContainer}
+        initial="hidden"
+        animate="visible"
+      >
         {players.map((player, i) => (
-          <PlayerCard
+          <motion.div
             key={`${player.playerName}-${player.teamName}-${i}`}
-            player={player}
-            index={i}
-            maxTp={maxTp}
-            marketValue={lookupMarketValue(player.playerName)}
-          />
+            variants={staggerItem}
+          >
+            <PlayerCard
+              player={player}
+              index={i}
+              maxTp={maxTp}
+              marketValue={lookupMarketValue(player.playerName)}
+            />
+          </motion.div>
         ))}
-      </div>
+      </motion.div>
 
       <div className="text-xs text-white/40 text-center pt-2">
         Lähde: Veikkausliiga.com (minuutit, maalit, syötöt) + API-Football (ikä)

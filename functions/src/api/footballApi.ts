@@ -44,7 +44,7 @@ const SEASONS: Record<number, VeikkausliigaSeason> = {
     year: 2026,
     startDate: '2026-04-04',
     endDate: '2026-10-25',
-    currentMatchday: 7,
+    currentMatchday: 11,
     numberOfMatchdays: 27,
     numberOfTeams: 12,
     apiFootballLeagueId: VEIKKAUSLIIGA_ID,
@@ -65,17 +65,17 @@ class FootballApiService {
       timeout: 15000,
     });
 
-    // Lazy: lue RAPIDAPI_KEY jokaisessa pyynnössä, ei konstruktorissa.
-    // Firebase Cloud Functions lataa .env-arvot ennen module-loadia, mutta
-    // sniffaus per-pyyntö suojaa myös tapaukset joissa env tulee myöhemmin
-    // (paikallinen kehitys, container-uudelleenkäyttö).
-    this.client.interceptors.request.use((config) => {
-      const apiKey = process.env.RAPIDAPI_KEY || '';
+    // Lazy: lue API-avain jokaisessa pyynnössä, ei konstruktorissa.
+    // Tukee sekä Firebase Functions configia (functions.config().rapidapi.key)
+    // että suoria ympäristömuuttujia (process.env.RAPIDAPI_KEY).
+    this.client.interceptors.request.use((cfg) => {
+      const { config: appConfig } = require('../config');
+      const apiKey = appConfig.rapidApiKey || '';
       if (!apiKey) {
-        console.warn('RAPIDAPI_KEY not set at request time — API-Football call will fail.');
+        console.warn('API-Football key not set — call will fail. Set via: firebase functions:config:set rapidapi.key=...');
       }
-      config.headers.set('x-rapidapi-key', apiKey);
-      return config;
+      cfg.headers.set('x-rapidapi-key', apiKey);
+      return cfg;
     });
   }
 
@@ -169,13 +169,40 @@ class FootballApiService {
   }
 
   /** Hae ottelun per-pelaaja-tilastot (/fixtures/players). Vastaus on
-   *  ryhmitelty joukkueittain: [{ team, players: [{player, statistics}] }]. */
+   *  ryhmitelty joukkueittain: [{ team, players: [{player, statistics}] }].
+   *  Sisältää retry-logiikan koska API-Footballin /fixtures/players on
+   *  epävakaa ja palauttaa usein tyhjää tai rate-limit-virheitä. */
   async getFixturePlayerStats(
     fixtureId: number,
+    retries = 2,
   ): Promise<ApiFootballFixturePlayers[]> {
-    return this.fetch<ApiFootballFixturePlayers[]>('/fixtures/players', {
-      fixture: fixtureId,
-    });
+    for (let attempt = 0; attempt <= retries; attempt++) {
+      try {
+        const result = await this.fetch<ApiFootballFixturePlayers[]>('/fixtures/players', {
+          fixture: fixtureId,
+        });
+        // Jos vastaus on tyhjä array ja retryjä jäljellä, yritä uudelleen
+        if (result.length === 0 && attempt < retries) {
+          console.log(`[getFixturePlayerStats] fixture ${fixtureId} empty, retry ${attempt + 1}/${retries}`);
+          await this.delay(1000 * (attempt + 1));
+          continue;
+        }
+        return result;
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        if (attempt < retries) {
+          console.log(`[getFixturePlayerStats] fixture ${fixtureId} failed (${msg}), retry ${attempt + 1}/${retries}`);
+          await this.delay(1000 * (attempt + 1));
+        } else {
+          throw err;
+        }
+      }
+    }
+    return [];
+  }
+
+  private delay(ms: number): Promise<void> {
+    return new Promise((resolve) => setTimeout(resolve, ms));
   }
 
   /** Hae sarjataulukko */

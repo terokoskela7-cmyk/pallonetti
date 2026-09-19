@@ -59,45 +59,51 @@ class DataAggregator {
 
   /** Hae pelaajat tilastoineen (API-Football + FBref xG) */
   async getPlayerStats(season: number, teamId?: string): Promise<PlayerStats[]> {
-    const cacheKey = `player_stats_${season}_${teamId || 'all'}`;
-    const result = await cacheService.getOrFetch(
-      cacheKey,
-      async () => {
-        // Get base stats from API-Football
-        const apiStats = await footballApi.getPlayerStatsList(
-          season,
-          teamId ? parseInt(teamId) : undefined
-        );
+    // v2: cache-avain invalidoi mahdollisen aiemman tyhjän cache-merkinnän.
+    const cacheKey = `player_stats_v2_${season}_${teamId || 'all'}`;
+    const cached = await cacheService.get<PlayerStats[]>(cacheKey);
+    if (cached && cached.length > 0) {
+      return cached;
+    }
 
-        // Enrich with xG from FBref
-        try {
-          const fbrefStats = await fbrefApi.scrapePlayerStats(season);
-          const fbrefByName = new Map(
-            fbrefStats.map((s) => [
-              s.player.toLowerCase().trim(),
-              s,
-            ])
-          );
-
-          for (const stat of apiStats) {
-            const fbrefMatch = fbrefByName.get(stat.playerName.toLowerCase().trim());
-            if (fbrefMatch) {
-              stat.xG = fbrefMatch.xg || stat.xG;
-              stat.xA = fbrefMatch.xag || stat.xA;
-              stat.npg = (fbrefMatch.gls - fbrefMatch.pk) || stat.npg;
-              stat.npxG = fbrefMatch.npxg || stat.npxG;
-            }
-          }
-        } catch (e) {
-          console.log('FBref enrichment failed, using API-Football only');
-        }
-
-        return apiStats;
-      },
-      'api-football',
-      'player_stats'
+    // Get base stats from API-Football
+    const apiStats = await footballApi.getPlayerStatsList(
+      season,
+      teamId ? parseInt(teamId) : undefined
     );
-    return result.data;
+
+    // Älä cacheta tyhjää — API-Football voi hetkellisesti palauttaa 0 pelaajaa
+    // (rate-limit, häiriö tms.) ja tyhjä cache myrkyttää palvelun 6 h:ksi.
+    if (apiStats.length === 0) {
+      console.warn(`[getPlayerStats] API-Football returned 0 players for season ${season}`);
+      return [];
+    }
+
+    // Enrich with xG from FBref
+    try {
+      const fbrefStats = await fbrefApi.scrapePlayerStats(season);
+      const fbrefByName = new Map(
+        fbrefStats.map((s) => [
+          s.player.toLowerCase().trim(),
+          s,
+        ])
+      );
+
+      for (const stat of apiStats) {
+        const fbrefMatch = fbrefByName.get(stat.playerName.toLowerCase().trim());
+        if (fbrefMatch) {
+          stat.xG = fbrefMatch.xg || stat.xG;
+          stat.xA = fbrefMatch.xag || stat.xA;
+          stat.npg = (fbrefMatch.gls - fbrefMatch.pk) || stat.npg;
+          stat.npxG = fbrefMatch.npxg || stat.npxG;
+        }
+      }
+    } catch (e) {
+      console.log('FBref enrichment failed, using API-Football only');
+    }
+
+    await cacheService.set(cacheKey, apiStats, 'api-football', 'player_stats');
+    return apiStats;
   }
 
   /** Hae joukkueiden nuorten pelaajien tilastot — tukee useaa sarjaa */

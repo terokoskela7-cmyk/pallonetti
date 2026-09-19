@@ -23,7 +23,7 @@
 | **Frontend** | `https://pallonetti-fi.web.app` (Firebase Hosting) |
 | **Backend** | `https://europe-west1-pallonetti-fi.cloudfunctions.net/api` |
 | **Region** | europe-west1 (kaikki Functions) |
-| **API-versio** | `1.1.0` — tarkistettavissa `GET /api/health` |
+| **API-versio** | `1.9.0` — tarkistettavissa `GET /api/health` (myos `/health` funktiota suoraan kutsuttaessa) |
 | **Firebase-projekti** | `pallonetti-fi` |
 | **API-Football-tilaus** | Pro (tukee 2026-kauden dataa) |
 | **RAPIDAPI_KEY** | `functions/.env` (CI-step luo secretistä), luetaan axios-interceptorissa per pyyntö |

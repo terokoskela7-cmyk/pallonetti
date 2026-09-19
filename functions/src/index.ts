@@ -46,8 +46,10 @@ const app = express();
 app.use(cors({ origin: true }));
 app.use(express.json());
 
-// Health check
-app.get('/health', (_req, res) => {
+// Health check. Kaksi polkua tarkoituksella: Hosting-rewrite valittaa
+// pyynnon muodossa /api/health (rewrite ei riisu etuliitetta), kun taas
+// funktiota suoraan kutsuttaessa polku on /health.
+app.get(['/health', '/api/health'], (_req, res) => {
   res.json({
     status: 'ok',
     service: 'pallotalentti-api',

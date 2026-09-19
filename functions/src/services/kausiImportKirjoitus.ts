@@ -307,6 +307,12 @@ export interface Esikatselu {
   muutokset: MuutosArvio;
   /** Pelaajat joiden minuutit PIENENIVÄT — näytetään korostetusti. */
   pienentyneet: Array<{ slug: string; ennen: number; jalkeen: number }>;
+  /**
+   * Pelaajat joiden minuutit muuttuivat suuntaan tai toiseen. Kasvu on
+   * odotettua kierroksen jalkeen, mutta lukumaara kertoo heti onko tuonti
+   * oikea: jos se on 0, tiedosto on sama kuin viimeksi.
+   */
+  muuttuneet: Array<{ slug: string; ennen: number; jalkeen: number }>;
   /** Pelaajat jotka katosivat lähteestä. */
   kadonneet: Array<{ slug: string; minuutit: number }>;
   tilannekuvat: Array<{ kausi: string; pvm: string; muuttuu: boolean }>;
@@ -334,6 +340,7 @@ export async function esikatseleKausituonti(
   const kaudet: Esikatselu['kaudet'] = [];
   const tilannekuvat: Esikatselu['tilannekuvat'] = [];
   const pienentyneet: Esikatselu['pienentyneet'] = [];
+  const muuttuneet: Esikatselu['muuttuneet'] = [];
   const kadonneet: Esikatselu['kadonneet'] = [];
 
   for (const k of tulos.kaudet) {
@@ -391,8 +398,11 @@ export async function esikatseleKausituonti(
       const jalkeen = uudet.get(doc.id);
       if (jalkeen === undefined) {
         kadonneet.push({ slug: doc.id, minuutit: ennen });
-      } else if (jalkeen < ennen) {
-        pienentyneet.push({ slug: doc.id, ennen, jalkeen });
+      } else if (jalkeen !== ennen) {
+        muuttuneet.push({ slug: doc.id, ennen, jalkeen });
+        if (jalkeen < ennen) {
+          pienentyneet.push({ slug: doc.id, ennen, jalkeen });
+        }
       }
     }
   }
@@ -406,6 +416,7 @@ export async function esikatseleKausituonti(
     kaudet,
     muutokset,
     pienentyneet,
+    muuttuneet,
     kadonneet,
     tilannekuvat,
     varoitukset: tulos.varoitukset?.map((v) =>
@@ -660,6 +671,25 @@ export async function kirjoitaKausituonti(
       joukkueet: k.joukkueet,
       pelaajat: k.pelaajat,
     };
+    // Seurojen suurin ottelumaara: kesken oleva kausi merkitaan talla
+    // ("kesken, N/22+ ottelua pelattu"). Lasketaan tuonnissa, jottei
+    // trendinakyman tarvitse laskea sita joka pyynnolla.
+    const otteluitaSeuroittain = new Map<string, number>();
+    for (const n of tulos.nimittajat) {
+      if (n.kausi !== k.kausi) continue;
+      otteluitaSeuroittain.set(
+        n.joukkue,
+        (otteluitaSeuroittain.get(n.joukkue) || 0) + n.ottelut,
+      );
+    }
+    const otteluitaMax = Math.max(0, ...otteluitaSeuroittain.values());
+    const otteluitaMin =
+      otteluitaSeuroittain.size > 0
+        ? Math.min(...otteluitaSeuroittain.values())
+        : 0;
+    data.ottelut_max = otteluitaMax;
+    data.ottelut_min = otteluitaMin;
+
     if (asetukset.kierros !== undefined && asetukset.kierros !== null) {
       data.kierros_tilanne = asetukset.kierros;
     }

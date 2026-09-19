@@ -34,6 +34,19 @@ import {
   paatteleIkahaarukka,
 } from './services/kausiData';
 import { parseExcelBuffer, writeRoundData } from './services/excelImport';
+import { parsiKausiExcel } from './services/kausiImport';
+import {
+  esikatseleKausituonti,
+  kirjoitaKausituonti,
+} from './services/kausiImportKirjoitus';
+import {
+  luoAgent,
+  asetaAgent,
+  haeLista,
+  haeProfiili,
+  nimetTasmaavat,
+  seuraAvain,
+} from './services/kansalaisuus';
 
 // Region: kaikki funktiot deployataan europe-west1:een (sama kuin TalentMaster-sisarprojekti)
 const REGION = 'europe-west1';
@@ -1550,6 +1563,323 @@ app.get('/api/debug/sofascore', requireAdminKey, async (req, res) => {
     res.status(500).json({ success: false, error: message });
   }
 });
+
+
+/**
+ * Hakee kansalaisuuden vain pelaajille, joilla ei ole dokumenttia.
+ *
+ * Budjetoitu: Cloud Functions -aikaraja on 60 s, joten haku tekee
+ * enintaan RAJA pelaajaa kerralla ja kertoo montako jai jaljelle.
+ * Epaonnistunut haku EI kaada tuontia - pelaaja jaa "ei tietoa" -tilaan
+ * ja nakyy yhteenvedossa.
+ *
+ * Seura varmennetaan profiilin kauden rivilta, sama saanto kuin
+ * komentoriviskriptissa (jaettu moduuli services/kansalaisuus.ts).
+ */
+async function haeUusienKansalaisuudet(
+  db: admin.firestore.Firestore,
+  tulos: { kaudet: Array<{ kausi: string }>; projektiot: Array<{ kausi: string; slug: string; pelaajaAvain: string; joukkue: string; joukkueet: string[]; ika: number; etunimi: string; sukunimi: string }> },
+): Promise<{ haettu: number; onnistui: number; eiTietoa: number; jaljella: number }> {
+  const RAJA = 15;
+  const VIIVE_MS = 1200;
+  let haettu = 0;
+  let onnistui = 0;
+  let eiTietoa = 0;
+  let jaljella = 0;
+
+  try {
+    asetaAgent(await luoAgent());
+  } catch (e) {
+    console.error('[kansalaisuus] agentin luonti epaonnistui:', e);
+    // Koko haku ohitetaan; tuonti on jo kirjoitettu.
+    return { haettu: 0, onnistui: 0, eiTietoa: 0, jaljella: -1 };
+  }
+
+  for (const k of tulos.kaudet) {
+    const kansKok = db
+      .collection('seasons')
+      .doc(k.kausi)
+      .collection('kansalaisuudet');
+    const on = new Set((await kansKok.get()).docs.map((d) => d.id));
+    const uudet = tulos.projektiot.filter(
+      (p) => p.kausi === k.kausi && !on.has(p.slug),
+    );
+    if (uudet.length === 0) continue;
+
+    let lista: Awaited<ReturnType<typeof haeLista>>;
+    try {
+      lista = await haeLista(k.kausi);
+    } catch (e) {
+      console.error('[kansalaisuus] listan haku epaonnistui:', e);
+      jaljella += uudet.length;
+      continue;
+    }
+
+    for (const p of uudet) {
+      if (haettu >= RAJA) {
+        jaljella++;
+        continue;
+      }
+      haettu++;
+      const nimi = (p.etunimi + ' ' + p.sukunimi).trim();
+      const omatSeurat = new Set(
+        [p.joukkue, ...(p.joukkueet || [])].filter(Boolean).map(seuraAvain),
+      );
+      try {
+        const ehdokkaat = lista.filter((r) => nimetTasmaavat(nimi, r.nimi));
+        let tallennettu = false;
+        for (const e of ehdokkaat) {
+          const prof = await haeProfiili(e.polku, e.vlId);
+          await new Promise((r) => setTimeout(r, VIIVE_MS));
+          const kaudenSeurat = (prof.kaudenSeurat?.[k.kausi] ?? []).map(seuraAvain);
+          const ikaProfiilista =
+            prof.syntymavuosi !== null
+              ? parseInt(k.kausi, 10) - prof.syntymavuosi
+              : null;
+          if (
+            kaudenSeurat.some((x) => omatSeurat.has(x)) &&
+            ikaProfiilista === p.ika &&
+            prof.kansalaisuudet.length > 0
+          ) {
+            const koodi = prof.kansalaisuudet[0];
+            await kansKok.doc(p.slug).set({
+              slug: p.slug,
+              nimi,
+              joukkue: p.joukkue,
+              ika: p.ika,
+              vlKansalaisuus: koodi,
+              suomalainen: koodi === 'FIN' ? 'kylla' : 'ei tietoa',
+              varmuus: 'yksi lahde',
+              ristiriita: false,
+              lahteet: [
+                { lahde: 'veikkausliiga.com', id: e.vlId, arvo: koodi },
+              ],
+              seura_vahvistettu: true,
+              varmennus: 'nimi+seura+ika',
+              // Pelipaikka on NYKYTIETO, ei kauden aikainen - sama varauma
+              // kuin kansalaisuudella. Puuttuva arvo on null, ei arvaus:
+              // pelipaikkaa ei paatella tilastoista.
+              pelipaikka: prof.pelipaikka ?? null,
+              pelipaikka_lahde:
+                prof.pelipaikka !== null ? 'veikkausliiga.com profiili' : null,
+              syntynyt: prof.syntynyt,
+              paivitetty: new Date().toISOString(),
+            });
+            onnistui++;
+            tallennettu = true;
+            break;
+          }
+        }
+        if (!tallennettu) eiTietoa++;
+      } catch (e) {
+        // Yksittainen epaonnistuminen ei kaada tuontia.
+        console.error('[kansalaisuus] ' + p.slug + ' epaonnistui:', e);
+        eiTietoa++;
+      }
+    }
+  }
+  return { haettu, onnistui, eiTietoa, jaljella };
+}
+
+// ============================================
+// KAUSITUONTI — esikatselu ja vahvistus (admin)
+//
+// Kaksi reittia: esikatselu ei kirjoita mitaan, vahvistus kirjoittaa.
+// Molemmat kayttavat samaa kausiImport-koodia kuin komentoriviskriptit,
+// joten toista toteutusta ei ole.
+//
+// Kayttoliittymassa annettu vahvistus vastaa CLAUDE.md 3.5:n vaatimaa
+// kayttajan hyvaksyntaa.
+// ============================================
+
+/** Tiedoston kokoraja. Veikkausliigan vienti on kymmenia kilotavuja. */
+const TUONTI_MAX_TAVUA = 5 * 1024 * 1024;
+
+/** Yksinkertainen rajoitus admin-avaimen vaarille yrityksille. */
+const adminYritykset = new Map<string, { n: number; eka: number }>();
+const ADMIN_IKKUNA_MS = 10 * 60 * 1000;
+const ADMIN_MAX_YRITYSTA = 5;
+
+function adminRajoitus(req: Request, res: Response, next: NextFunction): void {
+  const ip = String(req.ip || req.header('x-forwarded-for') || 'tuntematon');
+  const nyt = Date.now();
+  const tila = adminYritykset.get(ip);
+  if (tila && nyt - tila.eka < ADMIN_IKKUNA_MS && tila.n >= ADMIN_MAX_YRITYSTA) {
+    res.status(429).json({
+      success: false,
+      error: 'Liian monta virheellista yritysta. Odota 10 minuuttia.',
+    });
+    return;
+  }
+  const annettu = req.header('x-admin-key');
+  if (annettu !== process.env.ADMIN_KEY) {
+    if (!tila || nyt - tila.eka >= ADMIN_IKKUNA_MS) {
+      adminYritykset.set(ip, { n: 1, eka: nyt });
+    } else {
+      tila.n++;
+    }
+  } else {
+    adminYritykset.delete(ip);
+  }
+  next();
+}
+
+/** Lukee multipart-pyynnon: tiedosto + kentat. */
+async function lueTuontiTiedosto(
+  req: Request,
+): Promise<{ buffer: Buffer; nimi: string; kentat: Record<string, string> }> {
+  const rawBody = (req as unknown as { rawBody?: Buffer }).rawBody;
+  if (!rawBody) {
+    throw new Error('Odotettiin multipart/form-data -pyyntoa');
+  }
+  if (rawBody.length > TUONTI_MAX_TAVUA) {
+    throw new Error(
+      'Tiedosto on liian suuri (' +
+        Math.round(rawBody.length / 1024) +
+        ' kt, raja ' +
+        Math.round(TUONTI_MAX_TAVUA / 1024) +
+        ' kt)',
+    );
+  }
+  const bb = Busboy({ headers: req.headers });
+  const kentat: Record<string, string> = {};
+  const palat: Buffer[] = [];
+  let nimi = '';
+  bb.on('field', (k, v) => {
+    kentat[k] = v;
+  });
+  bb.on('file', (_k, stream, info) => {
+    nimi = info.filename ?? '';
+    stream.on('data', (d: Buffer) => palat.push(d));
+  });
+  await new Promise<void>((resolve, reject) => {
+    bb.on('close', resolve);
+    bb.on('finish', resolve);
+    bb.on('error', reject);
+    bb.end(rawBody);
+  });
+  const buffer = Buffer.concat(palat);
+  if (buffer.length === 0 || !nimi.toLowerCase().endsWith('.xlsx')) {
+    throw new Error('Tiedosto puuttuu tai ei ole .xlsx-muotoinen');
+  }
+  return { buffer, nimi, kentat };
+}
+
+/**
+ * Parsii tiedoston ja antaa selkean virheen vaarasta tiedostosta.
+ * Seurayhteenveto pelaajatiedoston sijaan on tavallisin erehdys.
+ */
+function parsiTuonti(buffer: Buffer): ReturnType<typeof parsiKausiExcel> {
+  const tulos = parsiKausiExcel(buffer);
+  if (tulos.virheet.length > 0) {
+    const puuttuvat = tulos.virheet.slice(0, 5).join('; ');
+    throw new Error(
+      'Tiedosto ei kelpaa pelaajatiedostoksi. ' +
+        'Tarkista ettet lahettanyt seurayhteenvetoa. Virheet: ' +
+        puuttuvat,
+    );
+  }
+  return tulos;
+}
+
+/** POST /api/admin/kausituonti/esikatselu — ei kirjoita mitaan. */
+app.post(
+  '/api/admin/kausituonti/esikatselu',
+  adminRajoitus,
+  requireAdminKey,
+  async (req, res) => {
+    try {
+      const { buffer, nimi } = await lueTuontiTiedosto(req);
+      const tulos = parsiTuonti(buffer);
+      const db = admin.firestore();
+      const esikatselu = await esikatseleKausituonti(db, tulos, {
+        tuontiId: 'esikatselu',
+        lahdeTiedosto: nimi,
+      });
+
+      // Montako uutta pelaajaa on ilman kansalaisuustietoa.
+      let uusiaIlmanKansalaisuutta = 0;
+      for (const k of tulos.kaudet) {
+        const kans = await db
+          .collection('seasons')
+          .doc(k.kausi)
+          .collection('kansalaisuudet')
+          .get();
+        const on = new Set(kans.docs.map((d) => d.id));
+        uusiaIlmanKansalaisuutta += tulos.projektiot.filter(
+          (p) => p.kausi === k.kausi && !on.has(p.slug),
+        ).length;
+      }
+
+      res.json({
+        success: true,
+        data: { ...esikatselu, uusiaIlmanKansalaisuutta, tiedosto: nimi },
+        kirjoitettu: false,
+        timestamp: new Date().toISOString(),
+      });
+    } catch (error) {
+      const viesti = error instanceof Error ? error.message : 'Tuntematon virhe';
+      console.error('[kausituonti/esikatselu] failed:', viesti);
+      res.status(400).json({ success: false, error: viesti });
+    }
+  },
+);
+
+/** POST /api/admin/kausituonti/vahvista — kirjoittaa. */
+app.post(
+  '/api/admin/kausituonti/vahvista',
+  adminRajoitus,
+  requireAdminKey,
+  async (req, res) => {
+    try {
+      const { buffer, nimi } = await lueTuontiTiedosto(req);
+      const tulos = parsiTuonti(buffer);
+      const db = admin.firestore();
+      const tuontiId =
+        new Date().toISOString().replace(/[:.]/g, '-') + '_' + nimi;
+
+      const yhteenveto = await kirjoitaKausituonti(db, tulos, {
+        tuontiId,
+        lahdeTiedosto: nimi,
+      });
+
+      // Kansalaisuushaku vain pelaajille joilla ei ole dokumenttia.
+      // Ei saa kaataa tuontia: epaonnistuminen jaa "ei tietoa" -tilaan.
+      const kansalaisuus = await haeUusienKansalaisuudet(db, tulos);
+
+      // Valimuistin tyhjennys: kausi- ja trendinakymat lukevat naita, ja
+      // data muuttuu vain tuonnin yhteydessa. Ilman tyhjennysta uusi
+      // kierros nakyisi vasta TTL:n umpeuduttua.
+      const tyhjennetyt: string[] = [];
+      for (const tyyppi of ['youth_stats', 'players', 'standings']) {
+        try {
+          await cacheService.clearType(tyyppi);
+          tyhjennetyt.push(tyyppi);
+        } catch (e) {
+          console.error('[kausituonti] valimuistin tyhjennys ' + tyyppi + ':', e);
+        }
+      }
+
+      res.json({
+        success: true,
+        data: {
+          tuontiId,
+          kirjoitettu: yhteenveto.kirjoitettu,
+          tilannekuvat: yhteenveto.tilannekuvat,
+          tilannekuvatOhitettu: yhteenveto.tilannekuvatOhitettu,
+          vanhentuneet: yhteenveto.vanhentuneet.length,
+          kansalaisuus,
+          valimuistiTyhjennetty: tyhjennetyt,
+        },
+        timestamp: new Date().toISOString(),
+      });
+    } catch (error) {
+      const viesti = error instanceof Error ? error.message : 'Tuntematon virhe';
+      console.error('[kausituonti/vahvista] failed:', viesti);
+      res.status(400).json({ success: false, error: viesti });
+    }
+  },
+);
 
 // ============================================
 // EXCEL-IMPORT (Veikkausliiga kumulatiivinen data)

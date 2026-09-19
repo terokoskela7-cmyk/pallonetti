@@ -55,6 +55,7 @@ console.log('yksi-seura.html (Ruoppi, FIN, KuPS)');
   vertaa('syntymävuosi', p.syntymavuosi, 2006);
   vertaa('kauden 2026 seurat', p.kaudenSeurat?.['2026'], ['KuPS']);
   vertaa('kauden 2025 seurat', p.kaudenSeurat?.['2025'], ['KuPS']);
+  vertaa('pelipaikka', p.pelipaikka, 'Keskikenttä');
   // Syntymävuosi 2006 EI saa päätyä kausiksi.
   vertaa('syntymävuosi ei ole kausi', p.kaudenSeurat?.['2006'], undefined);
 }
@@ -65,6 +66,7 @@ console.log('useampi-seura.html (Suso, GMB, SJK + FC Inter)');
 {
   const p = parsiProfiili(lue('useampi-seura.html'), '1303047');
   vertaa('kansalaisuudet', p.kansalaisuudet, ['GMB']);
+  vertaa('pelipaikka', p.pelipaikka, 'Hyökkääjä');
   // Molempien seurojen on löydyttävä: vahvistukseen riittää että datan
   // seura on jommassakummassa.
   vertaa('kauden 2026 seurat', p.kaudenSeurat?.['2026'], ['SJK', 'FC Inter']);
@@ -91,6 +93,7 @@ console.log('ei-kauden-rivia.html (ei tilastorivejä)');
   // Kauden riviä ei ole, joten seuraa ei voi varmentaa. Kutsuja tulkitsee
   // tyhjän listan "ei tietoa" -tilaksi eikä arvaa seuraa.
   vertaa('kaudenSeurat tyhjä', p.kaudenSeurat, {});
+  vertaa('pelipaikka', p.pelipaikka, 'Maalivahti');
   vertaa('kauden 2026 seurat', p.kaudenSeurat?.['2026'], undefined);
 }
 

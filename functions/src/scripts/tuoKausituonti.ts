@@ -46,6 +46,10 @@ async function main(): Promise<void> {
   const vahvista = lippu('vahvista');
   const tuotanto = lippu('tuotanto');
   const etuliite = argumentti('etuliite') || '';
+  // Tahallinen ohitus etuliitepakolle. Ei löysää vartijaa vaan vaatii oman
+  // lippunsa: --tuotanto --oikeat-kokoelmat --vahvista. Ilman tätä tuotantoon
+  // kirjoitetaan vain etuliitekokoelmiin.
+  const oikeatKokoelmat = lippu('oikeat-kokoelmat');
   const kierrosRaaka = argumentti('kierros');
   const kierros = kierrosRaaka ? parseInt(kierrosRaaka, 10) : null;
 
@@ -62,10 +66,18 @@ async function main(): Promise<void> {
     );
     process.exit(1);
   }
-  if (tuotanto && !etuliite) {
+  if (oikeatKokoelmat && etuliite) {
+    console.error(
+      '--oikeat-kokoelmat ja --etuliite ovat ristiriidassa. Valitse kumpi ' +
+        'kohde on: etuliitekokoelmat vai oikeat kokoelmat.',
+    );
+    process.exit(1);
+  }
+  if (tuotanto && !etuliite && !oikeatKokoelmat) {
     console.error(
       'Tuotantoon kirjoittaminen ilman --etuliite ylikirjoittaisi oikeat ' +
-        'kokoelmat. Anna esim. --etuliite testi_ .',
+        'kokoelmat. Anna esim. --etuliite testi_ , tai jos tarkoitat ' +
+        'nimenomaan oikeita kokoelmia, anna --oikeat-kokoelmat .',
     );
     process.exit(1);
   }
@@ -126,6 +138,18 @@ async function main(): Promise<void> {
   const tuontiId =
     argumentti('tuonti-id') ||
     new Date().toISOString().replace(/[:.]/g, '-') + '_' + path.basename(polku);
+
+  if (tuotanto && oikeatKokoelmat) {
+    console.log('');
+    console.log('!'.repeat(66));
+    console.log('KOHTEENA TUOTANNON OIKEAT KOKOELMAT — ei etuliitettä.');
+    console.log('  suoritukset, nimittajat, kaudet, seasons/{kausi}/players');
+    console.log(
+      '  luodaan ' + arvio.luodaan + ', päivitetään ' + arvio.paivitetaan +
+        ', vanhentuu ' + arvio.vanhentuu,
+    );
+    console.log('!'.repeat(66));
+  }
 
   console.log('');
   console.log('KIRJOITETAAN — tuonti_id ' + tuontiId);

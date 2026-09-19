@@ -165,6 +165,12 @@ async function main(): Promise<void> {
   console.log('  kaudet       ' + yhteenveto.kirjoitettu.kaudet);
   console.log('  projektiot   ' + yhteenveto.kirjoitettu.projektiot);
   console.log('  batcheja     ' + yhteenveto.batchejaAjettu);
+  for (const t of yhteenveto.tilannekuvat) {
+    console.log('  tilannekuva  ' + t);
+  }
+  for (const t of yhteenveto.tilannekuvatOhitettu) {
+    console.log('  tilannekuva  ' + t + '  — ei muutosta edelliseen tilannekuvaan');
+  }
   console.log('  vanhentuneita suorituksia merkitty: ' + yhteenveto.vanhentuneet.length);
   console.log('  vanhentuneita projektioita merkitty: ' +
     yhteenveto.vanhentuneetProjektiot.length);

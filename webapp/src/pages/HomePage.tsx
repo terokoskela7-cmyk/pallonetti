@@ -137,7 +137,7 @@ interface KpiCardProps {
   label: string;
   value: string;
   hint?: string;
-  compare?: { text: string; tone: 'red' | 'aurora' };
+  compare?: { text: string; tone: 'red' | 'aurora' | 'neutral' };
   accent?: 'aurora' | 'ice' | 'amber' | 'white';
 }
 
@@ -161,7 +161,11 @@ function KpiCard({ label, value, hint, compare, accent = 'white' }: KpiCardProps
       {compare && (
         <div
           className={`text-xs font-medium mt-2 ${
-            compare.tone === 'red' ? 'text-red-400' : 'text-aurora'
+            compare.tone === 'red'
+              ? 'text-red-400'
+              : compare.tone === 'neutral'
+                ? 'text-white/50'
+                : 'text-aurora'
           }`}
         >
           {compare.text}
@@ -519,9 +523,14 @@ export default function HomePage() {
               !isU21
                 ? undefined
                 : alle21Pct === null || alle21VsTanska === null
-                  ? { tone: 'aurora', text: 'alle 21-vuotiaat: ei dataa' }
+                  ? { tone: 'neutral', text: 'alle 21-vuotiaat: ei dataa' }
                   : {
-                      tone: alle21VsTanska >= 0 ? 'aurora' : 'red',
+                      // Suomen luku on YLÄRAJA, joten vertailu on
+                      // epäsymmetrinen. Jos yläraja jää Tanskan alle, Suomi on
+                      // varmasti perässä — se saa punaisen. Jos yläraja ylittää
+                      // Tanskan, siitä EI seuraa että Suomi olisi edellä, joten
+                      // sävy on neutraali eikä myönteinen.
+                      tone: alle21VsTanska < 0 ? 'red' : 'neutral',
                       text:
                         'alle 21-vuotiaat: enintään ' +
                         alle21Pct.toFixed(1) +

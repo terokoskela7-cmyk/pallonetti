@@ -186,6 +186,25 @@ koskee suorituksia, nimittäjiä, projektioita JA kausidokumentteja: vanha
 nimittäjä kasvattaa kapasiteettia ja pienentää osuutta, vanha
 kausidokumentti näkyy kautena kahdesti.
 
+### Tilannekuvat ja kehityskäyrä (B3)
+
+Tilannekuva on `seasons/{kausi}/tilannekuvat/{sarja}_{pvm}`, ja sen alla
+`pelaajat/{sarja}_{slug}`. Kehityskäyrä lasketaan peräkkäisten
+tilannekuvien erotuksesta, joten se **valitsee tilannekuvat kolmella
+ehdolla**:
+
+1. **vain kuluva kausi** — päättyneen kauden tilannekuva on lopputila, ei
+   havainto kauden kulusta
+2. **suodatus sarjalla** — puuttuva `sarja`-kenttä tarkoittaa
+   Veikkausliigaa
+3. **`lahde: "migraatio"` jätetään pois** — nämä syntyivät avainmuutoksen
+   yhteydessä 20.9.2026 eivätkä kerro pelatuista otteluista mitään
+
+Kaksoiskappaleen esto vertaa sisältöä (seurojen ottelumäärät ja pelaajien
+minuutit seuroittain), ei aikaleimaa. Vanhin tilannekuva `2026-09-19` on
+vanhemmasta muodosta, josta puuttuu pelaajakohtainen seuraerittely — sen
+tiiviste eroaa uudesta, vaikka minuutit ovat samat.
+
 ### Tuotannon päätepisteen kutsuminen on tuotantotoimenpide
 
 Tuotannon päätepistettä ei kutsuta sen selvittämiseksi, mitä se tekee.

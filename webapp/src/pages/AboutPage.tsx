@@ -3,7 +3,7 @@ import { ExternalLink, Database } from 'lucide-react';
 import { useValittuKausi } from '@/hooks/useKausi';
 import { useApi } from '@/hooks/useApi';
 import { getKansalaisuudet } from '@/services/api';
-import { pros } from '@/utils/luvut';
+import { luku, pros } from '@/utils/luvut';
 import { ALLE_21_MAX, CIES_TANSKA_PCT, NUORET_MIN, NUORET_MAX } from '@/constants/ika';
 
 // ============================================
@@ -18,7 +18,23 @@ import { ALLE_21_MAX, CIES_TANSKA_PCT, NUORET_MIN, NUORET_MAX } from '@/constant
  */
 const CIES_SARJAT_URL =
   'https://football-observatory.com/Best-development-leagues-for-young-domestic-3602';
-const CIES_SEURAT_URL = 'https://football-observatory.com/WeeklyPost551';
+const CIES_SEURAT_URL = 'https://football-observatory.com/WeeklyPost541';
+
+/**
+ * CIES:n seuravertailu (weekly post 541, julkaistu 8.4.2026).
+ *
+ * Mittari on ERI kuin sivuston omat luvut: osuus seuran sarjaminuuteista
+ * VIIDEN VUODEN ajalta 1.1.2021 alkaen, ei yhdelta kaudelta. Siksi naita
+ * ei rinnasteta sivuston kausikohtaisiin osuuksiin missaan.
+ *
+ * Luvut on luettu postauksesta kasin; sen sisalto ei aukea koneellisesti.
+ */
+const CIES_SEURAT_ALKAEN = '1.1.2021';
+const NORDSJAELLAND = { pct: 44.7, pelaajia: 63 };
+const CIES_SEURAT_SUOMI = [
+  { seura: 'AC Oulu', pct: 16.6, pelaajia: 36 },
+  { seura: 'FC Lahti', pct: 15.6, pelaajia: 18 },
+];
 
 /** CIES 2025: alle 21-vuotiaiden osuus peliajasta, karkisarjat. */
 const CIES_2025 = [
@@ -228,7 +244,22 @@ export default function AboutPage() {
           >
             CIES:n seuravertailussa
           </a>{' '}
-          kärjessä on FC Nordsjælland.
+          FC Nordsjælland on maailman kärjessä:{' '}
+          <span className="tabular">{pros(NORDSJAELLAND.pct)}</span> seuran
+          sarjaminuuteista viiden vuoden aikana ({CIES_SEURAT_ALKAEN} alkaen) on
+          mennyt alle 21-vuotiaille. Seura on myös peluuttanut eniten eri alle
+          21-vuotiaita pelaajia,{' '}
+          <span className="tabular">{luku(NORDSJAELLAND.pelaajia)}</span>.
+          Samassa vertailussa ovat mukana{' '}
+          {CIES_SEURAT_SUOMI.map((x, i) => (
+            <span key={x.seura}>
+              {i > 0 ? ' ja ' : ''}
+              {x.seura} (<span className="tabular">{pros(x.pct)}</span>,{' '}
+              <span className="tabular">{luku(x.pelaajia)}</span>
+              {i === 0 ? ' eri pelaajaa' : ' pelaajaa'})
+            </span>
+          ))}
+          .
         </p>
         <p>
           <strong className="text-white/80">Mitä tämä sivusto mittaa.</strong>{' '}

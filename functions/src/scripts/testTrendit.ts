@@ -13,6 +13,7 @@ import {
   laskeKolmijako,
   onKesken,
   otteluitaPelattu,
+  pyoristaOsatSummaan,
 } from '../services/trendit';
 import type { SuoritusDoc } from '../services/kausiData';
 
@@ -91,6 +92,34 @@ console.log('KOLMIJAKO');
     laskeKolmijako(suoritukset, 0, luokat, 20),
     null,
   );
+}
+
+console.log('');
+console.log('PYÖRISTYS — osat summautuvat näytettyyn kokonaislukuun');
+{
+  // Nämä kaksi näyttivät aiemmin väärin: erikseen pyöristetyt osat
+  // antoivat 11,1 % ja 9,0 %, kun kokonaisluvut olivat 11,2 % ja 8,9 %.
+  vertaa('kausi 2021 -tapaus', pyoristaOsatSummaan([9.62, 1.31, 0.24], 11.2), [9.6, 1.3, 0.3]);
+  vertaa('kausi 2025 -tapaus', pyoristaOsatSummaan([7.63, 1.21, 0.16], 8.9), [7.6, 1.2, 0.1]);
+  // Tavallinen tapaus ei muutu.
+  vertaa('kausi 2026 -tapaus', pyoristaOsatSummaan([10.24, 2.78, 0.01], 13.0), [10.2, 2.8, 0]);
+  vertaa('nollat', pyoristaOsatSummaan([0, 0, 0], 0), [0, 0, 0]);
+  // Ylitys: osien alarajat ylittavat tavoitteen -> otetaan pois
+  // pienimman jaannoksen mukaan, ei jaada silmukkaan.
+  const ylitys = pyoristaOsatSummaan([1.0, 1.0], 1.5);
+  vertaa('ylitys summautuu tavoitteeseen', ylitys.reduce((a, b) => a + b, 0).toFixed(1), '1.5');
+
+  // Summa pitää kaikilla satunnaisilla jaoilla: pyöristys ei saa
+  // toimia vain käsin valituilla luvuilla.
+  let poikkeamia = 0;
+  for (let i = 0; i < 2000; i++) {
+    const osat = [Math.random() * 12, Math.random() * 4, Math.random() * 2];
+    const summa = Math.round(osat.reduce((a, b) => a + b, 0) * 10) / 10;
+    const tulos = pyoristaOsatSummaan(osat, summa);
+    const saatu = Math.round(tulos.reduce((a, b) => a + b, 0) * 10);
+    if (saatu !== Math.round(summa * 10)) poikkeamia++;
+  }
+  vertaa('2000 satunnaista jakoa summautuu', poikkeamia, 0);
 }
 
 console.log('');

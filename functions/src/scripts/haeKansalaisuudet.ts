@@ -219,9 +219,16 @@ async function main(): Promise<void> {
     // Seura vahvistetaan hybridisaannolla (services/kansalaisuus.ts):
     // tilastolistan sarake ensin, profiilin kauden rivi aina kun lista ei
     // vahvista. Kumpikin lahde pettaa eri kausilla, eivatka paallekkain.
+    //
+    // Samannimisia pelaajia on: ehdokkaista valitaan se joka tayttaa SEKA
+    // seuran ETTA ian. Pelkan seuran perusteella valittu ensimmainen osuma
+    // voi olla eri henkilo, jolloin ikatarkistus hylkaisi koko pelaajan.
     const ehdokkaat: typeof nimiOsumat = [];
     let seuraTuntematon = false;
     let vahvistusLahde: 'lista' | 'profiili' | null = null;
+    let paras: { rivi: ListaRivi; lahde: 'lista' | 'profiili' } | null = null;
+    let varalla: { rivi: ListaRivi; lahde: 'lista' | 'profiili' } | null = null;
+
     for (const ehdokas of nimiOsumat) {
       const prof = await haeProfiiliValimuistista(ehdokas);
       if (prof === null) continue;
@@ -230,16 +237,29 @@ async function main(): Promise<void> {
         ehdokas.seura,
         prof.kaudenSeurat?.[kausi] ?? [],
       );
-      if (v.vahvistettu) {
-        ehdokkaat.push(ehdokas);
-        vahvistusLahde = v.lahde;
-        seuraTuntematon = false;
+      const ikaProf =
+        prof.syntymavuosi !== null
+          ? parseInt(kausi, 10) - prof.syntymavuosi
+          : null;
+      if (v.vahvistettu && ikaProf === p.ika) {
+        paras = { rivi: ehdokas, lahde: v.lahde! };
         break;
       }
-      // Ei vahvistusta: pidetaan ehdokas tallessa, mutta merkitaan
-      // seura vahvistamattomaksi.
+      if (v.vahvistettu && varalla === null) {
+        varalla = { rivi: ehdokas, lahde: v.lahde! };
+      }
+    }
+
+    if (paras !== null) {
+      ehdokkaat.push(paras.rivi);
+      vahvistusLahde = paras.lahde;
+    } else if (varalla !== null) {
+      ehdokkaat.push(varalla.rivi);
+      vahvistusLahde = varalla.lahde;
+    } else if (nimiOsumat.length > 0) {
+      // Nimi osui, mutta seura ei vahvistunut yhdellakaan ehdokkaalla.
+      ehdokkaat.push(nimiOsumat[0]);
       seuraTuntematon = true;
-      ehdokkaat.push(ehdokas);
     }
 
     if (ehdokkaat.length === 0) {

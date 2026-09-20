@@ -26,10 +26,12 @@ import type {
   NameType,
 } from 'recharts/types/component/DefaultTooltipContent';
 import { useApi } from '@/hooks/useApi';
+import { KausiTrendi } from '@/components/KausiTrendi';
 import {
   getYouthStatsAll,
   getSeasonPlayers,
   getPlayerRounds,
+  getTrendit,
   filterReliableTeams,
   type YouthStats,
   type SeasonPlayer,
@@ -372,6 +374,17 @@ export default function PelaikaPage() {
     refetch,
   } = useApi(() => getSeasonPlayers(kausi), [kausi]);
 
+  // Kausitrendi laajana: kolmijaon viivat ja lukutaulukko. Oma haku, jotta
+  // sivun muut osat näkyvät vaikka trendi ei latautuisi.
+  const { data: trendit } = useApi(async () => {
+    try {
+      return await getTrendit();
+    } catch (e) {
+      console.error('[peliaika] kausitrendien haku epäonnistui:', e);
+      return null;
+    }
+  }, []);
+
   // Joukkuekaavio + InsightBar käyttävät edelleen youth-stats-dataa.
   const { data: statsData, loading: statsLoading } = useApi(
     () => getYouthStatsAll(kausi),
@@ -492,6 +505,17 @@ export default function PelaikaPage() {
           }
           info="Joukkueet joissa 17–21-vuotiaiden peliaikaosuus on vähintään 25 % / kaikki joukkueet."
         />
+      </section>
+
+      {/* Kausitrendi laajana: kolmijako ja lukutaulukko */}
+      <section className="bg-navy-700/40 border border-navy-600 rounded-lg p-5">
+        {trendit === null ? (
+          <div className="text-sm text-white/60">
+            Kausitrendiä ei voitu ladata juuri nyt.
+          </div>
+        ) : (
+          <KausiTrendi trendit={trendit} laaja />
+        )}
       </section>
 
       {/* Joukkuekaavio */}

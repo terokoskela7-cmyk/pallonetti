@@ -30,30 +30,26 @@ import type {
 } from 'recharts/types/component/DefaultTooltipContent';
 import { useApi } from '@/hooks/useApi';
 import {
-  getKansalaisuudet,
   getYouthStatsAll,
   getYouthAggregation,
   getOfficialStats,
   getU21RoundTrend,
+  getTrendit,
   filterReliableTeams,
   buildU23Players,
   type YouthStats,
 } from '@/services/api';
 import { useValittuKausi } from '@/hooks/useKausi';
+import { KausiTrendi } from '@/components/KausiTrendi';
+import { VertailuRivi } from '@/components/VertailuRivi';
 import {
   NUORET_LABEL,
   NUORET_MAX,
-  ALLE_21_LABEL,
   NUORET_LABEL_PITKA,
 } from '@/constants/ika';
 import { pros } from '@/utils/luvut';
 import { Hero } from '@/components/Hero';
 import { ResearchCard } from '@/components/ResearchCard';
-
-// CIES Football Observatory 2025: Tanskan Superliga, alle 21-vuotiaiden osuus
-// peliajasta. Ei tavoite vaan vertailuluku — ja se koskee ALLE 21-vuotiaita,
-// ei sivuston 17–21-päämittaria. Vertaa tähän vain alle 21 -lukua.
-const CIES_TANSKA_PCT = 11.7;
 
 // ============================================================
 // Sivuston rakenne — opastaa käyttäjää
@@ -91,22 +87,6 @@ function laskeNuortenOsuus(teams: YouthStats[]): number | null {
   const total = teams.reduce((s, t) => s + t.totalMinutes, 0);
   const u21 = teams.reduce((s, t) => s + t.minuutitNuoret, 0);
   return total > 0 ? (u21 / total) * 100 : null;
-}
-
-/**
- * Alle 21-vuotiaiden osuus (ikä ≤ 20) — ainoa luku jota saa verrata CIES:n
- * kansainväliseen vertailuun. Sivuston päämittari on 17–21, joka on tätä
- * suurempi; niiden sekoittaminen liioittelisi Suomen lukua.
- *
- * Suomen luku on YLÄRAJA: CIES laskee osuuden vain maajoukkuekelpoisista
- * pelaajista, tässä ovat mukana kaikki alle 21-vuotiaat.
- */
-function calcAlle21Pct(teams: YouthStats[]): number | null {
-  if (teams.length === 0) return null;
-  if (teams.some((t) => t.minuutitAlle21 === undefined)) return null;
-  const total = teams.reduce((s, t) => s + t.totalMinutes, 0);
-  const alle21 = teams.reduce((s, t) => s + (t.minuutitAlle21 ?? 0), 0);
-  return total > 0 ? (alle21 / total) * 100 : null;
 }
 
 function formatRelativeTime(iso: string): string {
@@ -322,17 +302,17 @@ export default function HomePage() {
     return { stats, agg, official };
   }, [kausi]);
 
-  // Kansalaisuustiedot: vain osalla kausista. Epäonnistuminen ei kaada
-  // sivua, mutta se ei myöskään saa näyttää nollalta — silloin rivi pysyy
-  // nykyisessä "enintään X %" -muodossa.
-  const { data: kansalaisuus } = useApi(async () => {
+  // Kausitrendit: kaikki kaudet kerralla. Samasta vastauksesta tulevat
+  // sekä kaavio että vertailurivi, jolloin ne eivät voi näyttää eri
+  // lukua samasta kaudesta. Epäonnistuminen ei kaada sivua.
+  const { data: trendit } = useApi(async () => {
     try {
-      return await getKansalaisuudet(kausi);
+      return await getTrendit();
     } catch (e) {
-      console.error('[etusivu] kansalaisuustietojen haku epäonnistui:', e);
+      console.error('[etusivu] kausitrendien haku epäonnistui:', e);
       return null;
     }
-  }, [kausi]);
+  }, []);
 
   // U23 = kaikki topYouthPlayers (backend suodattaa jo U23:iin).
   const kaikkiNuoret = useMemo(() => {
@@ -376,38 +356,9 @@ export default function HomePage() {
   const players = nuoretPelaajat;
   const topPlayer = players[0] ?? null;
 
-  // Kansainvälinen vertailu tehdään ALLE 21 -luvulla, ei 17–21-päämittarilla.
-  // Puuttuva arvo on null, ei 0 — nolla väittäisi että Suomi on tasan Tanskan
-  // tasolla. null renderöidään "ei dataa".
-  const alle21Pct = calcAlle21Pct(veikkausliiga);
-  const alle21VsTanska: number | null =
-    alle21Pct === null ? null : alle21Pct - CIES_TANSKA_PCT;
-
-  // Vertailurivin teksti. Kun kansalaisuusdataa on, Suomen kansalaisille
-  // mennyt osuus näytetään erikseen. Se on ALARAJA, joten sanamuoto on
-  // "noin" ja luku pyöristetään kokonaisluvuksi — tarkempi esitys
-  // väittäisi tarkkuutta jota lähteessä ei ole.
-  const suomalaistenOsuus = kansalaisuus?.saatavilla
-    ? kansalaisuus.osuusAlle21Suomalaiset ?? null
-    : null;
-  const vertailuTeksti =
-    alle21Pct === null
-      ? ALLE_21_LABEL + ': ei dataa'
-      : suomalaistenOsuus !== null
-        ? ALLE_21_LABEL +
-          ': ' +
-          pros(alle21Pct) +
-          ' · Suomen kansalaisille noin ' +
-          pros(Math.round(suomalaistenOsuus), 0) +
-          ' · Tanska ' +
-          pros(CIES_TANSKA_PCT) +
-          ' (CIES 2025)'
-        : ALLE_21_LABEL +
-          ': enintään ' +
-          pros(alle21Pct) +
-          ' · Tanska ' +
-          pros(CIES_TANSKA_PCT) +
-          ' (CIES 2025)';
+  // Vertailurivi lukee saman trendipisteen kuin kaavio: valitun kauden
+  // luvut tulevat yhdestä lähteestä, eivät kahdesta eri hausta.
+  const valittuTrendi = (trendit ?? []).find((t) => t.kausi === kausi) ?? null;
 
   return (
     <div className="px-6 py-10 md:py-16 space-y-14">
@@ -451,7 +402,7 @@ export default function HomePage() {
             to="/about"
             icon={HelpCircle}
             title="Tietoa"
-            body="Datalähteet, metodologia, ikähaarukan määritelmä ja tekijän yhteystiedot."
+            body="Datalähteet, metodologia, ikähaarukan määritelmä ja lukujen varaumat."
           />
         </div>
       </section>
@@ -464,21 +415,6 @@ export default function HomePage() {
             label={'Nuorten osuus peliajasta (' + NUORET_LABEL + ')'}
             value={pros(pct)}
             accent="aurora"
-            compare={
-              // Vertailu Tanskaan tehdään alle 21 -luvulla, ei tämän kortin
-              // 17–21-luvulla. Puuttuva arvo → "ei dataa", ei nollaa.
-              alle21Pct === null || alle21VsTanska === null
-                ? { tone: 'neutral', text: ALLE_21_LABEL + ': ei dataa' }
-                : {
-                      // Sävy on epäsymmetrinen ja perustuu YLÄRAJAAN. Jos
-                      // yläraja jää Tanskan alle, Suomi on varmasti perässä —
-                      // punainen. Jos yläraja ylittää Tanskan, siitä EI seuraa
-                      // että Suomi olisi edellä: Suomen kansalaisten osuus on
-                      // alaraja, ja Tanskan luku jää näiden väliin. Neutraali.
-                      tone: alle21VsTanska < 0 ? 'red' : 'neutral',
-                      text: vertailuTeksti,
-                    }
-            }
           />
           <KpiCard
             label={'Nuoria pelaajia (' + NUORET_LABEL + ')'}
@@ -499,24 +435,31 @@ export default function HomePage() {
         <p className="text-[11px] text-white/40 mt-3 max-w-3xl leading-relaxed">
           Sivuston päämittari on {NUORET_LABEL_PITKA} osuus peliajasta.
           Kansainvälinen vertailu tehdään erikseen alle 21-vuotiaiden luvulla,
-          joka on pienempi.{' '}
-          {suomalaistenOsuus !== null ? (
-            <>
-              Suomen kansalaisten osuus perustuu Veikkausliigan rekisteriin:
-              kaksoiskansalaisuus ei näy siinä, joten luku on alaraja. CIES
-              laskee osuuden vain maajoukkuekelpoisista pelaajista.
-            </>
-          ) : (
-            <>
-              Suomen luku on yläraja: CIES laskee osuuden vain
-              maajoukkuekelpoisista pelaajista, kun taas tässä ovat mukana
-              kaikki alle 21-vuotiaat.
-            </>
-          )}
+          joka on pienempi. Vertailurivi ja sen selite ovat kausitrendin alla.
         </p>
       </section>
 
-      {/* ---------- Osio 4 — Kierrostrendi ---------- */}
+      {/* ---------- Osio 4 — Kausitrendi + vertailurivi ---------- */}
+      <section className="bg-navy-700/40 border border-navy-600 rounded-lg p-5 space-y-5">
+        {trendit === null ? (
+          <div className="text-sm text-white/60">
+            Kausitrendiä ei voitu ladata juuri nyt. Kauden omat luvut näkyvät
+            yllä.
+          </div>
+        ) : (
+          <>
+            <KausiTrendi trendit={trendit} />
+            <div className="pt-4 border-t border-navy-600">
+              <VertailuRivi
+                osuusAlle21={valittuTrendi?.osuusAlle21 ?? null}
+                jako={valittuTrendi?.alle21Jako ?? null}
+              />
+            </div>
+          </>
+        )}
+      </section>
+
+      {/* ---------- Osio 5 — Kierrostrendi ---------- */}
       <section className="bg-navy-700/40 border border-navy-600 rounded-lg p-5">
         <div className="flex items-baseline justify-between gap-3 mb-4">
           <h2 className="text-base font-medium flex items-center gap-2">
@@ -532,7 +475,7 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* ---------- Osio 5 — INFO-accordion + missio ---------- */}
+      {/* ---------- Osio 6 — INFO-accordion + missio ---------- */}
       <section className="space-y-8">
         <div className="bg-navy-700/40 border border-navy-600 rounded-lg overflow-hidden">
           <button

@@ -578,6 +578,31 @@ export const getPlayerRounds = (
   fetchApi(`/season-players/${season}/${encodeURIComponent(slug)}/rounds`);
 
 // ============================================
+// KAUSITRENDIT — yksi piste per kausi
+// ============================================
+/** Alle 21 -osuuden kolmijako, % liigan minuuttikapasiteetista. */
+export interface Kolmijako {
+  fin: number;
+  muu: number;
+  eiTietoa: number;
+}
+
+export interface TrendiKausi {
+  kausi: number;
+  /** Päämittari 17–21. null = kaudelta ei ole dataa (ei 0). */
+  osuus1721: number | null;
+  osuusAlle21: number | null;
+  /** null, kun kaudelta ei ole kansalaisuustietoa. */
+  alle21Jako: Kolmijako | null;
+  kesken: boolean;
+  otteluitaPelattu: number | null;
+  pelaajia: number | null;
+}
+
+/** Kaikki tuodut kaudet, vanhin ensin. Laskenta tehdään palvelimella. */
+export const getTrendit = (): Promise<TrendiKausi[]> => fetchApi('/trendit');
+
+// ============================================
 // KAUDET — valitsimen lähde
 // ============================================
 export interface KausiInfo {
@@ -605,8 +630,10 @@ export interface KansalaisuusTiedot {
   osuus1721?: number | null;
   osuus1721Suomalaiset?: number | null;
   osuusAlle21?: number | null;
-  /** Suomen kansalaisille mennyt osuus. ALARAJA — ks. backendin kommentti. */
+  /** Suomen kansalaisille mennyt osuus, Veikkausliigan rekisterin mukaan. */
   osuusAlle21Suomalaiset?: number | null;
+  /** Alle 21 -osuuden kolmijako; null kun kaudelta ei ole tietoa. */
+  alle21Jako?: Kolmijako | null;
 }
 
 /**

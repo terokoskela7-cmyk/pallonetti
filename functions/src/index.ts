@@ -2094,8 +2094,18 @@ app.post('/api/admin/cache-cleanup', async (_req, res) => {
 // Firebase Functions Export
 // ============================================
 
-/** Main API function - handles all /api/* routes */
-export const api = functions.region(REGION).https.onRequest(app);
+/**
+ * Main API function - handles all /api/* routes.
+ *
+ * Muistia ja aikaa on enemman kuin oletus (256 MB / 60 s): trendireitti
+ * lukee seitseman kauden suoritukset ja nimittajat, ja kylmakaynnistyksen
+ * kanssa oletusraja tuli vastaan. Nama arvot koskevat koko API-funktiota,
+ * joten ne eivat ole reittikohtainen kiertotie vaan yhteinen varmuusvara.
+ */
+export const api = functions
+  .region(REGION)
+  .runWith({ timeoutSeconds: 120, memory: '512MB' })
+  .https.onRequest(app);
 
 /**
  * Kytkin ajastetulle API-Football-refreshille.

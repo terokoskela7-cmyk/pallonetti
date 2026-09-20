@@ -599,8 +599,23 @@ export interface TrendiKausi {
   pelaajia: number | null;
 }
 
-/** Kaikki tuodut kaudet, vanhin ensin. Laskenta tehdään palvelimella. */
-export const getTrendit = (): Promise<TrendiKausi[]> => fetchApi('/trendit');
+/**
+ * Kaikki tuodut kaudet, vanhin ensin. Laskenta tehdään palvelimella.
+ *
+ * Yksi uudelleenyritys: pyyntö käy läpi seitsemän kauden aineiston, ja
+ * kylmä funktio ehti kerran kaatua ensimmäiseen kutsuun. Käyttäjälle
+ * virheteksti tavallisella latauksella on huonompi kuin yksi hiljainen
+ * uusinta. Toinen epäonnistuminen näytetään.
+ */
+export async function getTrendit(): Promise<TrendiKausi[]> {
+  try {
+    return await fetchApi<TrendiKausi[]>('/trendit');
+  } catch (e) {
+    console.warn('[trendit] ensimmäinen yritys epäonnistui, yritetään uudelleen:', e);
+    await new Promise((r) => setTimeout(r, 1200));
+    return fetchApi<TrendiKausi[]>('/trendit');
+  }
+}
 
 // ============================================
 // KAUDET — valitsimen lähde

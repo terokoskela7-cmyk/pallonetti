@@ -23,30 +23,11 @@
 | **Frontend** | `https://pallonetti-fi.web.app` (Firebase Hosting) |
 | **Backend** | `https://europe-west1-pallonetti-fi.cloudfunctions.net/api` |
 | **Region** | europe-west1 (kaikki Functions) |
-| **API-versio** | `1.9.0` — tarkistettavissa `GET /api/health` (myos `/health` funktiota suoraan kutsuttaessa) |
+| **API-versio** | `2.0.0` — tarkistettavissa `GET /api/health` (myos `/health` funktiota suoraan kutsuttaessa) |
 | **Firebase-projekti** | `pallonetti-fi` |
-| **API-Football-tilaus** | Pro (tukee 2026-kauden dataa) |
-| **RAPIDAPI_KEY** | `functions/.env` (CI-step luo secretistä), luetaan axios-interceptorissa per pyyntö |
 | **Viimeisin commit (`main` & `origin/main`)** | `eedb231` — *refactor: poista kuollut youthPlayersU21-laskenta dataAggregatorista* |
 | **GitHub-repo** | https://github.com/terokoskela7-cmyk/pallonetti |
 | **Paikallinen koodikanta** | `C:\Users\TeroKoskela\OneDrive - Suomen Palloliitto\Tiedostot\GitHub\pallonetti\` |
-
-### Verifioitu API-Football sarjalista (2026-05-17)
-
-Tarkistettu suoraan `GET /leagues?country=Finland&season=2026`:
-
-| League ID | Sarja | Tyyppi |
-|---|---|---|
-| **244** | Veikkausliiga | League — pääsarja |
-| **1087** | Ykkösliiga | League |
-| **245** | Ykkönen | League |
-| **640** | Kansallinen Liiga (naisten) | League — Sprint 6+ |
-| 247/248/249 | Kakkonen (Lohko A/B/C) | League — myöhemmin |
-| 899 | League Cup | Cup |
-| 901 | Ykköscup | Cup |
-| 246 | Suomen Cup | Cup |
-
-**KRIITTINEN:** Älä koskaan käytä ID:tä 245 Ykkösliigan synonyyminä — se on Ykkönen. Älä käytä ID:tä 246 Ykkönen-synonyyminä — se on Suomen Cup. League ID -bugi korjattu commitilla *fix: korjaa Ykkosliiga (1087) ja Ykkonen (245) league ID:t*.
 
 ### Youth-stats endpointit (toimivat tuotannossa)
 
@@ -54,8 +35,6 @@ Tarkistettu suoraan `GET /leagues?country=Finland&season=2026`:
 GET /api/youth-stats/2026         → vain Veikkausliiga, { success, data: YouthStats[] }
 GET /api/youth-stats/2026/all     → kolme sarjaa yhdistettynä, { veikkausliiga, ykkosliiga, ykkonen }
 ```
-
-Backend käyttää `fetchAllPages`-helperia, joka käy automaattisesti läpi API-Footballin 20:n erissä paginoidut sivut. Cache-avain sisältää league-ID:n: `youth_stats_${league}_${season}`.
 
 ---
 
@@ -67,13 +46,10 @@ pallonetti/
 ├── functions/                ← Firebase Functions backend (TS, Node 20)
 │   └── src/
 │       ├── index.ts          ← 21 API-endpointia, Express
-│       ├── config.ts         ← Ympäristö/avainten luku
 │       ├── api/
-│       │   ├── footballApi.ts       ← API-Football (RapidAPI)
 │       │   ├── fbrefApi.ts          ← FBref scraper (xG, xA)
 │       │   └── transfermarktApi.ts  ← Transfermarkt markkina-arvot
 │       ├── services/
-│       │   ├── dataAggregator.ts    ← Yhdistää lähteet
 │       │   └── cacheService.ts      ← Firestore-cache
 │       ├── types/index.ts           ← TS-tyypit
 │       └── utils/rateLimiter.ts     ← (ks. huomautus alla)
@@ -131,7 +107,7 @@ pallonetti/
 `HomePage.tsx` riveillä 87–108: `sparkline={[15, 17, 19, 22, vPct]}` jne. Vain viimeinen arvo on todellinen — vuosien 2022–2025 historia on keksitty. Korvattava TASO-/historia-datasta kun saatavilla.
 
 ### `rateLimiter.ts` on in-memory
-Cloud Functions on stateless → Map-pohjainen rate limiter nollautuu jokaisen kutsun välillä. MVP:ssä riittää että API-Football-rate-limit hoidetaan Firestore-cachella, mutta tiedosto on tällä hetkellä turha. Joko poistettava tai korvattava Firestore-pohjaisella.
+Cloud Functions on stateless → Map-pohjainen rate limiter nollautuu jokaisen kutsun välillä. Tiedosto on tällä hetkellä turha. Joko poistettava tai korvattava Firestore-pohjaisella.
 
 ---
 
@@ -209,7 +185,6 @@ firebase deploy --only functions,hosting,firestore
 |---|---|
 | `FIREBASE_PROJECT_ID` | `pallonetti-fi` |
 | `FIREBASE_SERVICE_ACCOUNT` | Service account JSON base64-koodattuna |
-| `RAPIDAPI_KEY` | RapidAPI dashboard → API-Football |
 | `FIREBASE_API_URL` | `https://europe-west1-pallonetti-fi.cloudfunctions.net/api` |
 
 ### Smoke-testit deployn jälkeen
@@ -296,10 +271,14 @@ https://images.unsplash.com/photo-1574629810360-7efbbe195018?auto=format&fit=cro
 
 ## 8. DATALÄHTEET
 
-### API-Football (RapidAPI) — pääläde
-- League IDs: 244 (Veikkausliiga), 1087 (Ykkösliiga), 245 (Ykkönen)
-- Pro-tilaus
-- Älä koskaan kutsu suoraan frontendistä — aina backendin kautta
+### Veikkausliigan tilastovienti — päälähde
+- Kauden Excel-vienti → `suoritukset`, `nimittajat`, `kaudet`, `seasons/{kausi}/players`
+- Kaikki peliaikaluvut lasketaan tästä
+- Tuonti tehdään admin-sivulta tai kahden lipun skriptillä (ks. 3.5)
+
+### Veikkausliigan pelaajarekisteri
+- Kansalaisuus ja pelipaikka pelaajan profiilisivulta
+- Yksi koodi per pelaaja: ei kerro kaksoiskansalaisuutta
 
 ### FBref (scraper)
 - xG / xA -tiedot
@@ -341,7 +320,7 @@ Erilliset Firebase-projektit, ei jaettua dataa MVP:ssä.
 | Pallonetti.fi (julkinen U23) | `pallonetti-fi` | `C:\Users\TeroKoskela\OneDrive - Suomen Palloliitto\Tiedostot\GitHub\pallonetti\` |
 
 Mahdollinen linkitys (Q4 2026, ei nyt):
-TalentMaster-pilottiseuran juniori → näkyy pallonetti.fi /pelaaja/:id:ssä normaalisti API-Footballista → (manuaalinen) "Kehittyi [Seura]-akatemiassa" -merkintä. Ei automaattista Firebase-integraatiota.
+TalentMaster-pilottiseuran juniori → näkyy pallonetti.fi /pelaaja/:slug:ssä normaalisti kausituonnin datasta → (manuaalinen) "Kehittyi [Seura]-akatemiassa" -merkintä. Ei automaattista Firebase-integraatiota.
 
 ---
 

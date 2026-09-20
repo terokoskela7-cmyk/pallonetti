@@ -330,6 +330,11 @@ export default function AboutPage() {
           kumpaankin suuntaan.
         </p>
         <p>
+          Suomen kansalaisten ja muun maakoodin osuudet pyöristetään
+          tavallisesti, ja pyöristyksen jäännös näkyy ei tietoa -sarakkeessa,
+          joten se voi poiketa omasta tarkasta arvostaan kymmenesosalla.
+        </p>
+        <p>
           Pelaajan sivun luvut tulevat virallisista tilastoista sellaisenaan.
           Lukuja ei yhdistellä useasta lähteestä, jottei pelaajalle synny
           numeroita, joita mikään yksittäinen lähde ei kerro.

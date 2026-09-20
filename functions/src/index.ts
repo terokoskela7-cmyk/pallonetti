@@ -35,7 +35,7 @@ import {
 } from './services/kausiData';
 import { haeSiirto } from './services/siirrot';
 import { parseExcelBuffer, writeRoundData } from './services/excelImport';
-import { parsiKausiExcel } from './services/kausiImport';
+import { parsiKausiExcel, VIESTI_VAARA_SARJA } from './services/kausiImport';
 import {
   esikatseleKausituonti,
   kirjoitaKausituonti,
@@ -1816,6 +1816,12 @@ async function lueTuontiTiedosto(
  */
 function parsiTuonti(buffer: Buffer): ReturnType<typeof parsiKausiExcel> {
   const tulos = parsiKausiExcel(buffer);
+  // Vaara sarja on oma tilanteensa: kayttaja on lahettanyt oikean
+  // muotoisen tiedoston vaarasta sarjasta, joten viesti kertoo sen
+  // sellaisenaan eika seurayhteenvetoarvauksen takaa.
+  if (tulos.virheet.includes(VIESTI_VAARA_SARJA)) {
+    throw new Error(VIESTI_VAARA_SARJA);
+  }
   if (tulos.virheet.length > 0) {
     const puuttuvat = tulos.virheet.slice(0, 5).join('; ');
     throw new Error(

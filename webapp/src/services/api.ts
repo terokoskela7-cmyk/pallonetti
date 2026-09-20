@@ -175,11 +175,6 @@ export const getPlayers = (season: number, filters?: PlayerFilters): Promise<Pla
   return fetchApi(`/players/${season}?${params}`);
 };
 
-export const getPlayersWithMarketValues = (
-  season: number
-): Promise<Array<Player & { marketValue?: number }>> =>
-  fetchApi(`/players/${season}/market-values`);
-
 // ============================================
 // YOUTH STATS (Core feature)
 // ============================================
@@ -465,74 +460,6 @@ export async function getOfficialStats(year: number): Promise<OfficialStatsRespo
 }
 
 // ============================================
-// TRANSFERMARKT (backend scrape)
-// ============================================
-export interface TransfermarktPlayerDetail {
-  tmId: string;
-  name: string;
-  url: string;
-  imageUrl: string | null;
-  marketValue: number | null;
-  marketValueRaw: string | null;
-  shirtNumber: number | null;
-  position: string | null;
-  nationality: string[];
-  birthPlace: string | null;
-  height: string | null;
-  foot: string | null;
-  agent: string | null;
-  contractExpires: string | null;
-  loanFrom: string | null;
-  loanExpires: string | null;
-  internationalTeam: string | null;
-  caps: number | null;
-  goals: number | null;
-  fetchedAt: string;
-  expiresAt: string;
-  source: 'transfermarkt.com';
-}
-
-export interface TransfermarktIndexEntry {
-  tmId: string;
-  name: string;
-  marketValue: number | null;
-  updatedAt: string;
-}
-
-export const getTransfermarktPlayer = (
-  name: string,
-  season: number,
-): Promise<TransfermarktPlayerDetail> =>
-  fetchApi(
-    `/transfermarkt/player/${encodeURIComponent(name)}?season=${season}`,
-  );
-
-export const getTransfermarktLeague = (
-  season: number,
-): Promise<TransfermarktIndexEntry[]> =>
-  fetchApi(`/transfermarkt/league/${season}`);
-
-/** "€600k", "€1.2m", "€1.5bn", null jos arvo puuttuu tai 0. */
-export function formatMarketValue(
-  value: number | null | undefined,
-): string | null {
-  if (value === null || value === undefined || value === 0) return null;
-  // Desimaalierotin on pilkku myös markkina-arvoissa.
-  const fi = (x: number, d: number): string =>
-    x.toLocaleString('fi-FI', {
-      minimumFractionDigits: d,
-      maximumFractionDigits: d,
-    });
-  if (value >= 1_000_000_000) return '€' + fi(value / 1_000_000_000, 1) + 'bn';
-  if (value >= 1_000_000) {
-    const m = value / 1_000_000;
-    return m >= 10 ? '€' + fi(m, 0) + 'm' : '€' + fi(m, 1) + 'm';
-  }
-  if (value >= 1_000) return '€' + fi(value / 1_000, 0) + 'k';
-  return '€' + fi(value, 0);
-}
-
-// ============================================
 // MATCHES
 // ============================================
 export type MatchStatus = 'SCHEDULED' | 'LIVE' | 'IN_PLAY' | 'FINISHED' | 'POSTPONED';
@@ -561,19 +488,6 @@ export const getMatches = (
   if (status === 'recent') return fetchApi(`/matches/${season}/recent`);
   return fetchApi(`/matches/${season}`);
 };
-
-// ============================================
-// MARKET VALUES
-// ============================================
-export interface TeamMarketValue {
-  team: string;
-  totalValue: number;
-  playerCount: number;
-  averageValue: number;
-}
-
-export const getTeamMarketValues = (): Promise<TeamMarketValue[]> =>
-  fetchApi('/team-market-values');
 
 // ============================================
 // ADMIN

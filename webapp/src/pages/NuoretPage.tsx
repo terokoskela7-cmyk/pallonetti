@@ -2,15 +2,9 @@ import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Info } from 'lucide-react';
 import { useApi } from '@/hooks/useApi';
-import {
-  getSeasonPlayers,
-  getTransfermarktLeague,
-  formatMarketValue,
-  type SeasonPlayer,
-} from '@/services/api';
-import { useKausi, useValittuKausi } from '@/hooks/useKausi';
+import { getSeasonPlayers, type SeasonPlayer } from '@/services/api';
+import { useValittuKausi } from '@/hooks/useKausi';
 import { IKAKAISTAT, kaistalla } from '@/constants/ika';
-import { MARKKINA_ARVOT_NAKYVISSA } from '@/constants/ominaisuudet';
 import { Hero } from '@/components/Hero';
 
 const AVATAR_COLORS = ['#00D4FF', '#00FF88', '#6366f1', '#f59e0b', '#ef4444'];
@@ -36,17 +30,9 @@ function getInitials(p: SeasonPlayer): string {
 interface PlayerCardProps {
   player: SeasonPlayer;
   index: number;
-  marketValue: number | null;
-  /** Tosi kun katsotaan mennyttä kautta: arvo on tämänhetkinen, ei kauden. */
-  menneKausi: boolean;
 }
 
-function PlayerCard({
-  player,
-  index,
-  marketValue,
-  menneKausi,
-}: PlayerCardProps) {
+function PlayerCard({ player, index }: PlayerCardProps) {
   const initials = getInitials(player);
   const avatarColor = AVATAR_COLORS[index % AVATAR_COLORS.length];
 
@@ -109,17 +95,6 @@ function PlayerCard({
           🔥 {player.maaliTotal} maalia
         </div>
       )}
-
-      {MARKKINA_ARVOT_NAKYVISSA && marketValue !== null && (
-        <div className="flex items-baseline justify-between border-t border-navy-600 pt-2 -mb-1">
-          <span className="text-[10px] uppercase tracking-wider text-white/40">
-            {menneKausi ? 'Nykyinen arvo' : 'Markkina-arvo'}
-          </span>
-          <span className="text-sm font-bold text-amber-400 font-mono tabular">
-            {formatMarketValue(marketValue)}
-          </span>
-        </div>
-      )}
     </Link>
   );
 }
@@ -140,55 +115,12 @@ function LoadingSkeleton() {
 
 export default function NuoretPage() {
   const kausi = useValittuKausi();
-  const { kaudet } = useKausi();
-  // Markkina-arvo on nykyhetken tieto, ei kauden aikainen. Uusimmalla
-  // kaudella se kuvaa kautta riittävän hyvin; menneillä kausilla se on
-  // nimettävä auki, ettei sitä lueta kyseisen kauden arvona.
-  const uusinKausi = kaudet.length > 0 ? kaudet[0].kausi : kausi;
-  const menneKausi = kausi < uusinKausi;
   const [filter, setFilter] = useState<AgeFilter>('all');
 
   const { data, loading, error } = useApi(
     () => getSeasonPlayers(kausi),
     [kausi],
   );
-
-  // Transfermarkt-markkina-arvot ladataan rinnakkain — jos endpoint palauttaa
-  // virheen tai tyhjän, kortit näkyvät ilman markkina-arvoa.
-  const { data: tmEntries } = useApi(
-    async () => {
-      try {
-        return await getTransfermarktLeague(kausi);
-      } catch {
-        return [] as Awaited<ReturnType<typeof getTransfermarktLeague>>;
-      }
-    },
-    [kausi],
-  );
-
-  // Sukunimi → marketValue -Map (viimeinen sana, lowercase). Sama logiikka
-  // kuin backendin batch-funktiossa.
-  const marketValueBySurname = useMemo(() => {
-    const map = new Map<string, number>();
-    for (const e of tmEntries ?? []) {
-      if (e.marketValue === null || e.marketValue === undefined) continue;
-      const surname = e.name.split(/\s+/).filter(Boolean).pop()?.toLowerCase();
-      if (!surname) continue;
-      const existing = map.get(surname);
-      if (existing === undefined || e.marketValue > existing) {
-        map.set(surname, e.marketValue);
-      }
-    }
-    return map;
-  }, [tmEntries]);
-
-  function lookupMarketValue(player: SeasonPlayer): number | null {
-    const surname = player.sukunimi.trim().toLowerCase();
-    if (!surname) return null;
-    const mv = marketValueBySurname.get(surname) ?? null;
-    // Yli 5M € on lähes varmasti väärä TM-match Veikkausliigan pelaajalle.
-    return mv !== null && mv <= 5_000_000 ? mv : null;
-  }
 
   // Kaikki seurannassa olevat pelaajat = ne joilla on peliaikaa.
   const tracked = useMemo(
@@ -268,8 +200,6 @@ export default function NuoretPage() {
               key={player.slug}
               player={player}
               index={i}
-              marketValue={lookupMarketValue(player)}
-              menneKausi={menneKausi}
             />
           ))}
         </div>
@@ -277,7 +207,6 @@ export default function NuoretPage() {
 
       <div className="text-xs text-white/40 text-center pt-2">
         Lähde: Veikkausliiga.com (viralliset tilastot)
-        {MARKKINA_ARVOT_NAKYVISSA ? ' + Transfermarkt (markkina-arvo)' : ''}
       </div>
     </div>
   );

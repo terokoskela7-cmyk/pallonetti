@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom';
-import { ExternalLink, Mail, Database, Users } from 'lucide-react';
+import { ExternalLink, Database } from 'lucide-react';
 import { useValittuKausi } from '@/hooks/useKausi';
 import { useApi } from '@/hooks/useApi';
 import { getKansalaisuudet } from '@/services/api';
@@ -12,6 +12,14 @@ import { ALLE_21_MAX, CIES_TANSKA_PCT, NUORET_MIN, NUORET_MAX } from '@/constant
 // Nama ovat julkaistuja lukuja, eivat oman ajon tulosta, joten ne ovat
 // vakioita ja vuosi sanotaan auki. Suomen luvut haetaan aina ajosta.
 // ============================================
+/**
+ * CIES:n julkaisut, joista luvut ovat perasin. Linkit nakyvat sivulla,
+ * jotta lukija paasee alkulahteelle.
+ */
+const CIES_SARJAT_URL =
+  'https://football-observatory.com/Best-development-leagues-for-young-domestic-3602';
+const CIES_SEURAT_URL = 'https://football-observatory.com/WeeklyPost551';
+
 /** CIES 2025: alle 21-vuotiaiden osuus peliajasta, karkisarjat. */
 const CIES_2025 = [
   { sarja: 'Australian A-League Men', pct: 17.7 },
@@ -23,10 +31,6 @@ const CIES_2025_HANNAT = [
   { sarja: 'Englannin Valioliiga', pct: 2.4 },
   { sarja: 'Italian Serie A', pct: 1.9 },
 ];
-/** CIES syyskuu 2026: FC Nordsjaelland, seurataso. */
-const NORDSJAELLAND_2026 = 48.1;
-const NORDSJAELLAND_5V = 44.7;
-
 /** Kaudet, joiden luvut nimetaan tekstissa. */
 const VERTAILUKAUSI = 2025;
 const ALKUKAUSI = 2020;
@@ -96,8 +100,13 @@ export default function AboutPage() {
         getKansalaisuudet(VERTAILUKAUSI),
         getKansalaisuudet(ALKUKAUSI),
       ]).then(([nyt, ennen]) => ({
-        nyt: nyt.saatavilla ? nyt.osuusAlle21 : null,
-        ennen: ennen.saatavilla ? ennen.osuusAlle21 : null,
+        // CIES mittaa maajoukkuekelpoisia, joten vertailtava luku on
+        // Suomen kansalaisten osuus. Kaikkien alle 21-vuotiaiden osuus
+        // naytetaan erikseen omalla nimellaan, ei CIES-vertailussa.
+        nytFin: nyt.saatavilla ? nyt.osuusAlle21Suomalaiset : null,
+        nytKaikki: nyt.saatavilla ? nyt.osuusAlle21 : null,
+        ennenFin: ennen.saatavilla ? ennen.osuusAlle21Suomalaiset : null,
+        ennenKaikki: ennen.saatavilla ? ennen.osuusAlle21 : null,
       })),
     [],
   );
@@ -127,7 +136,15 @@ export default function AboutPage() {
         </p>
         <p>
           <strong className="text-white/80">Mitä muualla mitataan.</strong>{' '}
-          CIES:n vuoden 2025 vertailussa mitataan, kuinka suuri osa sarjan
+          <a
+            href={CIES_SARJAT_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-ice hover:text-white transition-colors"
+          >
+            CIES:n vuoden 2025 vertailussa
+          </a>{' '}
+          mitataan, kuinka suuri osa sarjan
           peliajasta meni alle 21-vuotiaille pelaajille, jotka ovat kelpoisia
           maansa maajoukkueeseen. Kärjessä{' '}
           {CIES_2025.map((x, i) => (
@@ -148,18 +165,18 @@ export default function AboutPage() {
         </p>
         <p>
           <strong className="text-white/80">Missä Suomi on.</strong>{' '}
-          {suomi && suomi.nyt !== null ? (
+          {suomi && suomi.nytFin !== null ? (
             <>
-              Veikkausliigassa alle 21-vuotiaat saivat kaudella{' '}
-              {VERTAILUKAUSI} enintään{' '}
-              <span className="tabular">{pros(suomi.nyt)}</span> peliajasta.
-              Luku on yläraja, koska siinä ovat mukana myös pelaajat, jotka
-              eivät ole kelpoisia Suomen maajoukkueeseen.
-              {suomi.ennen !== null && (
+              CIES:n mittari koskee maajoukkuekelpoisia pelaajia, joten
+              Veikkausliigasta vertailukelpoinen luku on Suomen kansalaisille
+              mennyt peliaika: kaudella {VERTAILUKAUSI} se oli{' '}
+              <span className="tabular">{pros(suomi.nytFin)}</span>{' '}
+              Veikkausliigan rekisterin mukaan.
+              {suomi.ennenFin !== null && (
                 <>
                   {' '}
                   Vuonna {ALKUKAUSI} vastaava luku oli{' '}
-                  <span className="tabular">{pros(suomi.ennen)}</span>.
+                  <span className="tabular">{pros(suomi.ennenFin)}</span>.
                 </>
               )}
             </>
@@ -172,14 +189,46 @@ export default function AboutPage() {
           )}
         </p>
         <p>
+          <strong className="text-white/80">Mitä luku ei kerro.</strong>{' '}
+          Luvut on laskettu olemassa olevasta datasta, ja niissä voi olla pieniä
+          heittoja. Kansalaisuus on rekisterin nykyinen merkintä eikä kauden
+          aikainen, eikä rekisteri tunne kaksoiskansalaisuutta. Luku voi siksi
+          poiketa todellisesta kumpaankin suuntaan. Maajoukkuekelpoisuus ei
+          myöskään seuraa suoraan kansalaisuudesta, joten luku on CIES:n
+          mittarin likiarvo eikä sama asia.
+        </p>
+        {suomi && suomi.nytKaikki !== null && (
+          <p>
+            <strong className="text-white/80">
+              Kaikkien alle 21-vuotiaiden osuus.
+            </strong>{' '}
+            Kansalaisuudesta riippumatta alle 21-vuotiaat saivat kaudella{' '}
+            {VERTAILUKAUSI} <span className="tabular">{pros(suomi.nytKaikki)}</span>{' '}
+            peliajasta
+            {suomi.ennenKaikki !== null && (
+              <>
+                {' '}
+                ja vuonna {ALKUKAUSI}{' '}
+                <span className="tabular">{pros(suomi.ennenKaikki)}</span>
+              </>
+            )}
+            . Tämä on sivuston oma luku, eikä sitä verrata yllä oleviin
+            CIES-lukuihin: mittari on eri.
+          </p>
+        )}
+        <p>
           <strong className="text-white/80">
             Seuratason kärki on Tanskassa.
           </strong>{' '}
-          FC Nordsjælland on CIES:n syyskuun 2026 tutkimuksessa maailman
-          kärjessä:{' '}
-          <span className="tabular">{pros(NORDSJAELLAND_2026)}</span> kauden
-          2026 peliajasta alle 21-vuotiaille. Viiden vuoden tarkastelussa luku
-          on <span className="tabular">{pros(NORDSJAELLAND_5V)}</span>.
+          <a
+            href={CIES_SEURAT_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-ice hover:text-white transition-colors"
+          >
+            CIES:n seuravertailussa
+          </a>{' '}
+          kärjessä on FC Nordsjælland.
         </p>
         <p>
           <strong className="text-white/80">Mitä tämä sivusto mittaa.</strong>{' '}
@@ -232,11 +281,6 @@ export default function AboutPage() {
             description="Kesken kauden tapahtuneet siirrot ja lainat. Lähde on rivikohtainen ja näkyy linkkinä pelaajan omalla sivulla, eikä merkintää tehdä ilman lähdettä."
           />
         </div>
-        <p>
-          Transfermarktista on aiemmin haettu pelaajakuvia ja pelipaikkoja, ja
-          ne näkyvät välimuistista. Uusia hakuja ei tehdä, eikä markkina-arvoja
-          näytetä.
-        </p>
       </Section>
 
       <Section title="Metodologia">
@@ -248,9 +292,11 @@ export default function AboutPage() {
         </p>
         <p>
           Kansalaisuus esitetään kolmijakona: Suomen kansalaisuus rekisterissä,
-          muu maakoodi, ja ei tietoa. Rekisteri kertoo yhden koodin pelaajaa
-          kohden eikä tunne kaksoiskansalaisuutta, joten Suomen kansalaisten
-          osuus on alaraja eikä sitä esitetä tarkkana lukuna.
+          muu maakoodi, ja ei tietoa. Luvut on laskettu olemassa olevasta
+          datasta, ja niissä voi olla pieniä heittoja. Kansalaisuus on
+          rekisterin nykyinen merkintä eikä kauden aikainen, eikä rekisteri
+          tunne kaksoiskansalaisuutta. Luku voi siksi poiketa todellisesta
+          kumpaankin suuntaan.
         </p>
         <p>
           Pelaajan sivun luvut tulevat virallisista tilastoista sellaisenaan.
@@ -259,40 +305,9 @@ export default function AboutPage() {
         </p>
       </Section>
 
-      <Section title="Tekijä">
-        <div className="flex items-start gap-3">
-          <Users className="w-4 h-4 text-ice shrink-0 mt-0.5" />
-          <div>
-            <p>
-              <strong className="text-white/80">Tero Koskela</strong> —
-              Palloliiton HHL-palvelupäällikkö,{' '}
-              <a
-                href="https://talentmaster.fi"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-ice hover:text-white transition-colors"
-              >
-                TalentMaster
-              </a>
-              -perustaja.
-            </p>
-            <p className="mt-2">
-              <a
-                href="mailto:tero@talentmaster.fi"
-                className="text-ice hover:text-white transition-colors inline-flex items-center gap-1.5"
-              >
-                <Mail className="w-3.5 h-3.5" />
-                tero@talentmaster.fi
-              </a>
-            </p>
-          </div>
-        </div>
-      </Section>
-
       <Section title="Rajoitukset">
         <ul className="list-disc list-inside space-y-1">
-          <li>Naisten Kansallinen Liiga ei vielä mukana</li>
-          <li>Veikkausliiga on ainoa pääsarja (Ykkösliiga ja Ykkönen tulossa)</li>
+          <li>Vain Veikkausliiga</li>
           <li>Pelaajat ilman ikätietoa eivät näy ikäryhmätilastoissa</li>
           <li>
             Kansalaisuus on yhden rekisterin tieto: kaksoiskansalaisuus ei näy,

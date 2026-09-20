@@ -42,6 +42,21 @@ const VALINNAISET_SARAKKEET = [
   'Maalit',
 ] as const;
 
+// ---------- Sarjarajaus ----------
+
+/**
+ * Ainoa tuettu sarja. Sivusto laskee Veikkausliigan lukuja, ja nimittajat
+ * (joukkueen ottelut) ovat sarjakohtaisia: toisen sarjan rivit sekoittuisivat
+ * samoihin avaimiin ja vaarentaisivat osuudet. Ykkosliiga tulee omana
+ * tyonaan, jolloin sarja lisataan avaimiin.
+ */
+export const TUETTU_SARJA = 'Veikkausliiga';
+
+/** Kayttajalle nakyva viesti vaaran sarjan tiedostosta. */
+export const VIESTI_VAARA_SARJA =
+  'Tiedostossa on muun sarjan rivejä (esim. Ykkösliiga). ' +
+  'Vain Veikkausliiga on tuettu.';
+
 // ---------- Tyypit ----------
 
 /** Yksi lähderivi = pelaaja × kausi × vaihe × joukkue. */
@@ -307,6 +322,8 @@ function lueRivitAlueelta(sheet: XLSX.WorkSheet): unknown[][] {
  */
 export function parsiKausiExcel(buffer: Buffer): TuontiTulos {
   const virheet: string[] = [];
+  /** Muun sarjan rivit: sarjan nimi -> Excel-rivinumerot. */
+  const muutSarjat = new Map<string, number[]>();
   const suoritukset: SuoritusRivi[] = [];
   const ohitetut: OhitettuRivi[] = [];
   const varoitukset: Varoitus[] = [];
@@ -388,7 +405,18 @@ export function parsiKausiExcel(buffer: Buffer): TuontiTulos {
       continue;
     }
 
-    // 4) Kausi on oltava nelinumeroinen vuosi → muuten koko tiedosto hylätään
+    // 4) Sarja: vain Veikkausliiga. Muun sarjan rivi ei ole virhe rivissa
+    //    vaan vaara tiedosto, joten se hylataan kokonaan silmukan jalkeen.
+    //    Tyhja sarja-arvo kelpaa: sarake on valinnainen.
+    const rivinSarja = toStr(kentta(rivi, 'Sarja'));
+    if (rivinSarja !== '' && rivinSarja.toLowerCase() !== TUETTU_SARJA.toLowerCase()) {
+      const rivitSarjalle = muutSarjat.get(rivinSarja) ?? [];
+      rivitSarjalle.push(excelRivi);
+      muutSarjat.set(rivinSarja, rivitSarjalle);
+      continue;
+    }
+
+    // 5) Kausi on oltava nelinumeroinen vuosi → muuten koko tiedosto hylätään
     const kausi = toStr(kentta(rivi, 'Kausi'));
     if (!/^\d{4}$/.test(kausi)) {
       virheet.push(
@@ -397,7 +425,7 @@ export function parsiKausiExcel(buffer: Buffer): TuontiTulos {
       continue;
     }
 
-    // 5) Nimittäjää ei saa arvata → 0 tai ei-numeerinen hylkää tiedoston
+    // 6) Nimittäjää ei saa arvata → 0 tai ei-numeerinen hylkää tiedoston
     const joukkueenOttelut = toNumOrNull(kentta(rivi, 'Joukkueen ottelut sarjassa'));
     if (joukkueenOttelut === null || joukkueenOttelut <= 0) {
       virheet.push(
@@ -408,7 +436,7 @@ export function parsiKausiExcel(buffer: Buffer): TuontiTulos {
       continue;
     }
 
-    // 6) Minuutit: puuttuva tai negatiivinen → ohitetaan ja raportoidaan
+    // 7) Minuutit: puuttuva tai negatiivinen → ohitetaan ja raportoidaan
     const minuutit = toNumOrNull(kentta(rivi, 'Pelatut minuutit (min)'));
     if (minuutit === null || minuutit < 0) {
       ohitetut.push({
@@ -460,6 +488,25 @@ export function parsiKausiExcel(buffer: Buffer): TuontiTulos {
           ottelut +
           ' ottelua',
       });
+    }
+  }
+
+  // Muun sarjan rivit hylkaavat koko tiedoston. Viesti on yksi ja sama
+  // riippumatta rivimaarasta; toinen rivi kertoo mita loytyi ja mista.
+  if (muutSarjat.size > 0) {
+    virheet.push(VIESTI_VAARA_SARJA);
+    for (const [sarjanNimi, rivinumerot] of muutSarjat) {
+      const nayta = rivinumerot.slice(0, 5).join(', ');
+      virheet.push(
+        'Sarja "' +
+          sarjanNimi +
+          '": ' +
+          rivinumerot.length +
+          ' riviä (rivit ' +
+          nayta +
+          (rivinumerot.length > 5 ? ', …' : '') +
+          ')',
+      );
     }
   }
 

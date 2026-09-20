@@ -5,7 +5,6 @@
 // ============================================
 import axios from 'axios';
 
-const TM_BASE = 'https://transfermarkt.com';
 const TM_API_BASE = 'https://transfermarkt-api.vercel.app';
 
 // Veikkausliiga joukkueiden Transfermarkt-ID:t

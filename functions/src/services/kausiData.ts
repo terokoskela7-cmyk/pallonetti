@@ -1,7 +1,7 @@
 // ============================================
 // KAUSIDATA — lukumalli suoritukset- ja nimittajat-kokoelmille
 //
-// Korvaa API-Footballin endpointtien /api/youth-stats, /api/players ja
+// Korvaa aiemman ulkoisen rajapinnan endpointit /api/youth-stats, /api/players ja
 // /api/teams datalähteenä. Kaava on sama kuin tuonnin esikatselussa:
 //
 //   osuus = Σ nuorten minuutit / Σ (joukkueen ottelut vaiheessa × 90 × 11)

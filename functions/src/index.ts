@@ -33,6 +33,7 @@ import {
   laskeTopPelaajat,
   paatteleIkahaarukka,
 } from './services/kausiData';
+import { haeSiirto } from './services/siirrot';
 import { parseExcelBuffer, writeRoundData } from './services/excelImport';
 import { parsiKausiExcel } from './services/kausiImport';
 import {
@@ -1069,10 +1070,20 @@ app.get('/api/season-players/:season/:slug', async (req, res) => {
       res.status(404).json({ success: false, error: 'Pelaajaa ei löytynyt' });
       return;
     }
+    // Siirto tai laina kesken kauden (B5). Lahde on repon datatiedosto,
+    // jossa jokaisella rivilla on julkinen lahde-URL. Jos pelaajalle ei
+    // loydy rivia, kentta on null eika sivulla nay merkintaa.
+    const d = doc.data() ?? {};
+    const siirto = haeSiirto(
+      season,
+      (d.etunimi as string) ?? '',
+      (d.sukunimi as string) ?? '',
+      [...((d.joukkueet as string[]) ?? []), (d.joukkue as string) ?? ''],
+    );
     res.set('Cache-Control', 'public, max-age=3600');
     res.json({
       success: true,
-      data: toSeasonPlayer(doc.id, doc.data()),
+      data: { ...toSeasonPlayer(doc.id, d), siirto },
       source: 'firestore',
       timestamp: new Date().toISOString(),
     });

@@ -591,6 +591,23 @@ export const getCacheStats = (): Promise<{
 // SEASON PLAYERS (Firestore Excel-import data — Vaihe B)
 // Lähde: seasons/{season}/players ja rounds/*/players.
 // ============================================
+/**
+ * Kesken kauden tapahtunut siirto tai laina ulkomaille (B5).
+ *
+ * Lahde on aina mukana: pelaajasivu nayttaa merkinnan vain, jos lahde on
+ * olemassa, eika merkintaa tehda ilman sita.
+ */
+export interface Siirto {
+  pelaaja: string;
+  seura: string;
+  uusi_seura: string;
+  maa: string;
+  tyyppi: 'siirto' | 'laina';
+  /** null, kun lahde ei kerro tarkkaa paivaa. */
+  pvm: string | null;
+  lahde_url: string;
+}
+
 export interface SeasonPlayer {
   slug: string;
   etunimi: string;
@@ -602,6 +619,8 @@ export interface SeasonPlayer {
   aloituksetTotal: number;
   maaliTotal: number;
   lastUpdatedRound: number;
+  /** Vain yksittaisen pelaajan haussa; listassa kentta puuttuu. */
+  siirto?: Siirto | null;
 }
 
 export interface PlayerRound {

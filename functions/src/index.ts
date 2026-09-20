@@ -895,6 +895,11 @@ app.get('/api/kansalaisuudet/:season', async (req, res) => {
     const osuus = (osa: number): number | null =>
       kapasiteetti > 0 ? Math.round((osa / kapasiteetti) * 1000) / 10 : null;
 
+    // Kolmijako lasketaan ensin, jotta Suomen kansalaisten osuus voidaan
+    // ottaa siita: muuten sama luku pyoristyisi kahdella eri tavalla ja
+    // Tietoa-sivu nayttaisi eri prosentin kuin /peliaika-sivun taulukko.
+    const jako = laskeKolmijako(suoritukset, kapasiteetti, luokat, ALLE_21_MAX);
+
     res.set('Cache-Control', 'public, max-age=600');
     res.json({
       success: true,
@@ -909,15 +914,11 @@ app.get('/api/kansalaisuudet/:season', async (req, res) => {
         osuus1721Suomalaiset: osuus(minuutit(NUORET_MAX, true)),
         /** Alle 21 (ikä ≤ 20) — CIES-vertailun luku, kaikki pelaajat. */
         osuusAlle21: osuus(minuutit(ALLE_21_MAX, false)),
-        /** Sama, vain Suomen kansalaisille. */
-        osuusAlle21Suomalaiset: osuus(minuutit(ALLE_21_MAX, true)),
+        /** Sama, vain Suomen kansalaisille — sama luku kuin kolmijaon FIN. */
+        osuusAlle21Suomalaiset:
+          jako !== null ? jako.fin : osuus(minuutit(ALLE_21_MAX, true)),
         /** Alle 21 -osuuden kolmijako: FIN / muu maakoodi / ei tietoa. */
-        alle21Jako: laskeKolmijako(
-          suoritukset,
-          kapasiteetti,
-          luokat,
-          ALLE_21_MAX,
-        ),
+        alle21Jako: jako,
       },
       source: 'veikkausliiga-rekisteri',
       timestamp: new Date().toISOString(),

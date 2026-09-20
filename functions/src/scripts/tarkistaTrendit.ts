@@ -69,9 +69,11 @@ async function main(): Promise<void> {
           ', tuonnin kausidokumentissa ' + pros(tuonnista),
       );
     }
-    // 2) Kolmijaon on summauduttava alle 21 -osuuteen.
+    // 2) Naytettyjen osien on summauduttava TASAN naytettyyn
+    //    kokonaislukuun. Toleranssia ei anneta: lukija laskee osat yhteen
+    //    ruudulta, ja 0,1 %-yksikon ero nakyy siina.
     if (summa !== null && t.osuusAlle21 !== null) {
-      if (Math.abs(summa - t.osuusAlle21) > 0.1) {
+      if (Math.round(summa * 10) !== Math.round(t.osuusAlle21 * 10)) {
         virheita++;
         console.log(
           '  ✗ ' + t.kausi + ': kolmijaon summa ' + pros(summa) +

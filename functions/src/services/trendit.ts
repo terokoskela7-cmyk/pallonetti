@@ -88,9 +88,59 @@ export function luokitteleKansalaisuudet(
 }
 
 /**
+ * Suurimman jaannoksen pyoristys yhteen desimaaliin.
+ *
+ * Jos jokainen osa pyoristetaan erikseen, nautetyt osat eivat summaudu
+ * naytettyyn kokonaislukuun: kausi 2021 nayttai 9,6 + 1,3 + 0,2 = 11,1 %
+ * kun kokonaisluku oli 11,2 %. Lukija ei voi tietaa, kumpi luvuista on
+ * vaarin — siksi osat pyoristetaan yhdessa niin, etta summa on aina
+ * naytetty kokonaisluku.
+ *
+ * Osat kasitellaan kymmenesosina kokonaislukuina, jolloin liukuluvun
+ * epatarkkuus ei paase vertailuun.
+ */
+export function pyoristaOsatSummaan(
+  osat: number[],
+  summa: number,
+): number[] {
+  const tavoite = Math.round(summa * 10);
+  const kymmenesosat = osat.map((x) => x * 10);
+  const alarajat = kymmenesosat.map((x) => Math.floor(x));
+  const jaannokset = kymmenesosat.map((x, i) => ({ i, j: x - alarajat[i] }));
+  let jaljella = tavoite - alarajat.reduce((a, b) => a + b, 0);
+
+  // Vajaus jaetaan suurimman jaannoksen mukaan, ylitys otetaan pois
+  // pienimman jaannoksen mukaan. Molemmat suunnat tarvitaan, koska
+  // kokonaisluku on pyoristetty erikseen.
+  const jarjestys = jaannokset
+    .slice()
+    .sort((a, b) => (jaljella > 0 ? b.j - a.j : a.j - b.j));
+  const tulos = alarajat.slice();
+  let k = 0;
+  while (jaljella !== 0 && jarjestys.length > 0) {
+    const kohde = jarjestys[k % jarjestys.length].i;
+    if (jaljella > 0) {
+      tulos[kohde] += 1;
+      jaljella -= 1;
+    } else if (tulos[kohde] > 0) {
+      tulos[kohde] -= 1;
+      jaljella += 1;
+    }
+    k++;
+    // Varmistus: jos kaikki osat ovat nollassa eika ylitysta voi ottaa
+    // mistaan, lopetetaan sen sijaan etta jaataisiin silmukkaan.
+    if (k > jarjestys.length * 2 && jaljella < 0) break;
+  }
+  return tulos.map((x) => x / 10);
+}
+
+/**
  * Kolmijako prosentteina kapasiteetista. `eiTietoa` lasketaan jaannoksena
- * kokonaisosuudesta, jolloin osat summautuvat aina kokonaisuuteen — myos
- * silloin kun pelaajalla ei ole kansalaisuusdokumenttia lainkaan.
+ * kokonaisosuudesta, jolloin osat kattavat myos pelaajat joilla ei ole
+ * kansalaisuusdokumenttia lainkaan.
+ *
+ * Naytettavat osat pyoristetaan yhdessa kokonaisosuuteen, jotta ne
+ * summautuvat siihen myos ruudulla.
  */
 export function laskeKolmijako(
   suoritukset: SuoritusDoc[],
@@ -103,11 +153,11 @@ export function laskeKolmijako(
   const fin = minuutit(suoritukset, ikaRaja, luokat.fin);
   const muu = minuutit(suoritukset, ikaRaja, luokat.muu);
   const eiTietoa = Math.max(0, yht - fin - muu);
-  return {
-    fin: osuus(fin, kapasiteetti) ?? 0,
-    muu: osuus(muu, kapasiteetti) ?? 0,
-    eiTietoa: osuus(eiTietoa, kapasiteetti) ?? 0,
-  };
+
+  const tarkat = [fin, muu, eiTietoa].map((x) => (x / kapasiteetti) * 100);
+  const kokonaisuus = osuus(yht, kapasiteetti) ?? 0;
+  const [a, b, c] = pyoristaOsatSummaan(tarkat, kokonaisuus);
+  return { fin: a, muu: b, eiTietoa: c };
 }
 
 /**

@@ -38,7 +38,16 @@ import {
 } from './services/trendit';
 import { ALLE_21_MAX, NUORET_MAX } from './services/ikarajat';
 import { parseExcelBuffer, writeRoundData } from './services/excelImport';
-import { parsiKausiExcel, VIESTI_VAARA_SARJA } from './services/kausiImport';
+import {
+  parsiKausiExcel,
+  VIESTI_TUNTEMATON_SARJA,
+  VIESTI_MONTA_SARJAA,
+  sarjaAvain,
+  sarjaAvaimesta,
+  projektioId,
+  OLETUSSARJA,
+  TUETUT_SARJAT,
+} from './services/kausiImport';
 import {
   esikatseleKausituonti,
   kirjoitaKausituonti,
@@ -70,6 +79,35 @@ if (!admin.apps.length) {
 
 // API_VERSION: muuta tätä joka deployssa, jotta Firebase tunnistaa muutoksen.
 const API_VERSION = '2.0.0'; // tyo 4: ulkoinen tilastorajapinta poistettu
+
+// ============================================
+// Sarjaparametri
+//
+// Jokainen kausikysely koskee yhta sarjaa. Oletus on Veikkausliiga,
+// jotta vanhat osoitteet toimivat muuttumattomina. Arvo "kaikki"
+// tarkoittaa kaikkia sarjoja; sita kayttaa vain trendinakyma.
+//
+// Tuntematonta sarjaa ei tulkita oletukseksi: se olisi hiljainen
+// vaarinymmarrys, jossa kayttaja luulee katsovansa toista sarjaa.
+// ============================================
+const KAIKKI_SARJAT = 'kaikki';
+
+function pyydettySarja(arvo: unknown): string | null {
+  const teksti = typeof arvo === 'string' ? arvo.trim() : '';
+  if (teksti === '') return OLETUSSARJA;
+  if (sarjaAvain(teksti) === KAIKKI_SARJAT) return KAIKKI_SARJAT;
+  return sarjaAvaimesta(teksti);
+}
+
+/** Virhevastaus tuntemattomalle sarjalle. */
+function sarjaVirhe(res: Response, arvo: unknown): void {
+  res.status(400).json({
+    success: false,
+    error:
+      'Tuntematon sarja: ' + String(arvo) + '. Tuetut: ' +
+      TUETUT_SARJAT.join(', ') + ', ' + KAIKKI_SARJAT + '.',
+  });
+}
 
 // ============================================
 // Express API App
@@ -112,8 +150,13 @@ app.get('/api/teams/:season', async (req, res) => {
     res.status(400).json({ success: false, error: 'season on virheellinen' });
     return;
   }
+  const sarja = pyydettySarja(req.query.sarja);
+  if (sarja === null || sarja === KAIKKI_SARJAT) {
+    sarjaVirhe(res, req.query.sarja);
+    return;
+  }
   try {
-    const { suoritukset, nimittajat } = await lueKausi(admin.firestore(), season);
+    const { suoritukset, nimittajat } = await lueKausi(admin.firestore(), season, sarja);
     const teams = laskeJoukkueet(season, suoritukset, nimittajat);
     res.set('Cache-Control', 'public, max-age=3600');
     res.json({
@@ -146,9 +189,14 @@ app.get('/api/players/:season', async (req, res) => {
     res.status(400).json({ success: false, error: 'season on virheellinen' });
     return;
   }
+  const sarja = pyydettySarja(req.query.sarja);
+  if (sarja === null || sarja === KAIKKI_SARJAT) {
+    sarjaVirhe(res, req.query.sarja);
+    return;
+  }
   try {
     const { teamId, minAge, maxAge, minMinutes, limit } = req.query;
-    const { suoritukset } = await lueKausi(admin.firestore(), season);
+    const { suoritukset } = await lueKausi(admin.firestore(), season, sarja);
     const kaikki = laskeKaudenPelaajat(suoritukset);
 
     let players = kaikki;
@@ -200,9 +248,14 @@ app.get('/api/youth-stats/:season', async (req, res) => {
     res.status(400).json({ success: false, error: 'season on virheellinen' });
     return;
   }
+  const sarja = pyydettySarja(req.query.sarja);
+  if (sarja === null || sarja === KAIKKI_SARJAT) {
+    sarjaVirhe(res, req.query.sarja);
+    return;
+  }
   try {
     const db = admin.firestore();
-    const { suoritukset, nimittajat } = await lueKausi(db, season);
+    const { suoritukset, nimittajat } = await lueKausi(db, season, sarja);
     const stats = laskeJoukkueidenOsuudet(
       season,
       suoritukset,
@@ -232,9 +285,12 @@ app.get('/api/youth-stats/:season', async (req, res) => {
 /**
  * GET /api/youth-stats/:season/all
  *
- * Kausituonnin lahde kattaa vain Veikkausliigan. Ykkosliiga ja Ykkonen
- * palautetaan tyhjina JA merkitaan erikseen puuttuviksi, jottei tyhjaa
- * listaa lueta nollaksi.
+ * Molemmat tuetut sarjat samassa vastauksessa. Ykkonen ei ole tuonnissa
+ * mukana, joten se palautetaan tyhjana JA merkitaan erikseen puuttuvaksi,
+ * jottei tyhjaa listaa lueta nollaksi.
+ *
+ * Sarjat luetaan erikseen, koska nimittaja on sarjakohtainen: yhteinen
+ * laskenta sekoittaisi kapasiteetit.
  */
 app.get('/api/youth-stats/:season/all', async (req, res) => {
   const season = parseInt(req.params.season, 10);
@@ -244,23 +300,34 @@ app.get('/api/youth-stats/:season/all', async (req, res) => {
   }
   try {
     const db = admin.firestore();
-    const { suoritukset, nimittajat } = await lueKausi(db, season);
+    const paivitetty = new Date().toISOString();
+    const [vl, yl] = await Promise.all([
+      lueKausi(db, season, 'Veikkausliiga'),
+      lueKausi(db, season, 'Ykkösliiga'),
+    ]);
     const veikkausliiga = laskeJoukkueidenOsuudet(
       season,
-      suoritukset,
-      nimittajat,
-      new Date().toISOString(),
+      vl.suoritukset,
+      vl.nimittajat,
+      paivitetty,
+    );
+    const ykkosliiga = laskeJoukkueidenOsuudet(
+      season,
+      yl.suoritukset,
+      yl.nimittajat,
+      paivitetty,
     );
     res.set('Cache-Control', 'public, max-age=3600');
     res.json({
       success: true,
-      data: { veikkausliiga, ykkosliiga: [], ykkonen: [] },
+      data: { veikkausliiga, ykkosliiga, ykkonen: [] },
       dataSaatavilla: {
         veikkausliiga: veikkausliiga.length > 0,
-        ykkosliiga: false,
+        ykkosliiga: ykkosliiga.length > 0,
         ykkonen: false,
       },
-      ikahaarukka: paatteleIkahaarukka(suoritukset),
+      ikahaarukka: paatteleIkahaarukka(vl.suoritukset),
+      ikahaarukkaYkkosliiga: paatteleIkahaarukka(yl.suoritukset),
       source: 'kausituonti',
       timestamp: new Date().toISOString(),
     });
@@ -278,8 +345,13 @@ app.get('/api/youth-aggregation/:season', async (req, res) => {
     res.status(400).json({ success: false, error: 'season on virheellinen' });
     return;
   }
+  const sarja = pyydettySarja(req.query.sarja);
+  if (sarja === null || sarja === KAIKKI_SARJAT) {
+    sarjaVirhe(res, req.query.sarja);
+    return;
+  }
   try {
-    const { suoritukset, nimittajat } = await lueKausi(admin.firestore(), season);
+    const { suoritukset, nimittajat } = await lueKausi(admin.firestore(), season, sarja);
     const yhteenveto = laskeLiigaYhteenveto(season, suoritukset, nimittajat);
     const teamBreakdown = laskeJoukkueidenOsuudet(
       season,
@@ -330,7 +402,10 @@ app.get('/api/youth-aggregation/:season', async (req, res) => {
 function toSeasonPlayer(id: string, data: admin.firestore.DocumentData | undefined) {
   const d = data ?? {};
   return {
-    slug: id,
+    // Dokumentin tunniste on {sarja}_{slug}, joten slug luetaan kentasta.
+    // Vanhoissa dokumenteissa kenttaa ei ole ja tunniste on pelkka slug.
+    slug: (d.slug as string) ?? id,
+    sarja: (d.sarja as string) ?? OLETUSSARJA,
     etunimi: (d.etunimi as string) ?? '',
     sukunimi: (d.sukunimi as string) ?? '',
     ika: (d.ika as number) ?? 0,
@@ -456,9 +531,21 @@ app.get('/api/kansalaisuudet/:season', async (req, res) => {
  * Puuttuva arvo on null eika 0 — nolla vaittaisi, ettei nuorille mennyt
  * yhtaan minuuttia.
  */
-app.get('/api/trendit', async (_req, res) => {
+app.get('/api/trendit', async (req, res) => {
+  const sarja = pyydettySarja(req.query.sarja);
+  if (sarja === null) {
+    sarjaVirhe(res, req.query.sarja);
+    return;
+  }
   try {
-    const trendit = await laskeTrendit(admin.firestore());
+    // "kaikki" palauttaa molempien sarjojen pisteet samassa listassa;
+    // jokainen piste kertoo sarjansa, joten muoto on sama kummassakin
+    // tapauksessa eika kutsujan tarvitse haarautua.
+    const trendit = await laskeTrendit(
+      admin.firestore(),
+      new Date().getFullYear(),
+      sarja === KAIKKI_SARJAT ? null : sarja,
+    );
     res.set('Cache-Control', 'public, max-age=3600');
     res.json({
       success: true,
@@ -474,10 +561,16 @@ app.get('/api/trendit', async (_req, res) => {
   }
 });
 
-app.get('/api/kaudet', async (_req, res) => {
+app.get('/api/kaudet', async (req, res) => {
+  const sarja = pyydettySarja(req.query.sarja);
+  if (sarja === null) {
+    sarjaVirhe(res, req.query.sarja);
+    return;
+  }
   try {
     const snap = await admin.firestore().collection('kaudet').get();
     const kaudet = snap.docs
+      .filter((doc) => doc.data().vanhentunut !== true)
       .map((doc) => {
         const d = doc.data();
         // tuotu_pvm on Firestore-Timestamp. Ilman muunnosta se serialisoituu
@@ -498,7 +591,8 @@ app.get('/api/kaudet', async (_req, res) => {
         };
       })
       .filter((k) => !isNaN(k.kausi))
-      .sort((a, b) => b.kausi - a.kausi);
+      .filter((k) => sarja === KAIKKI_SARJAT || k.sarja === sarja)
+      .sort((a, b) => b.kausi - a.kausi || a.sarja.localeCompare(b.sarja));
 
     res.set('Cache-Control', 'public, max-age=300');
     res.json({
@@ -523,6 +617,11 @@ app.get('/api/season-players/:season', async (req, res) => {
     res.status(400).json({ success: false, error: 'season on virheellinen' });
     return;
   }
+  const sarja = pyydettySarja(req.query.sarja);
+  if (sarja === null || sarja === KAIKKI_SARJAT) {
+    sarjaVirhe(res, req.query.sarja);
+    return;
+  }
   try {
     const snap = await admin
       .firestore()
@@ -536,6 +635,9 @@ app.get('/api/season-players/:season', async (req, res) => {
     // puuttuva kenttä tarkoittaa "ei vanhentunut".
     const players = snap.docs
       .filter((doc) => doc.data().vanhentunut !== true)
+      // Sarja muistissa samasta syysta kuin vanhentunut: vanhoista
+      // dokumenteista kentta puuttuu ja tarkoittaa oletussarjaa.
+      .filter((doc) => (doc.data().sarja || OLETUSSARJA) === sarja)
       .map((doc) => toSeasonPlayer(doc.id, doc.data()));
     res.set('Cache-Control', 'public, max-age=3600');
     res.json({
@@ -617,14 +719,25 @@ app.get('/api/season-players/:season/:slug', async (req, res) => {
       .json({ success: false, error: 'season tai slug puuttuu/virheellinen' });
     return;
   }
+  const sarja = pyydettySarja(req.query.sarja);
+  if (sarja === null || sarja === KAIKKI_SARJAT) {
+    sarjaVirhe(res, req.query.sarja);
+    return;
+  }
   try {
-    const doc = await admin
+    const pelaajat = admin
       .firestore()
       .collection('seasons')
       .doc(String(season))
-      .collection('players')
-      .doc(slug)
-      .get();
+      .collection('players');
+    // Ensisijaisesti sarjallinen tunniste. Ennen migraatiota
+    // Veikkausliigan dokumentit ovat viela vanhalla tunnisteella, joten
+    // oletussarjalla kokeillaan sita toisena — nain sivu toimii ennen ja
+    // jalkeen migraation.
+    let doc = await pelaajat.doc(projektioId({ sarja, slug })).get();
+    if (!doc.exists && sarja === OLETUSSARJA) {
+      doc = await pelaajat.doc(slug).get();
+    }
     // Vanhentunut projektio käsitellään kuin puuttuvaa: pelaaja ei ole
     // tämän kauden aineistossa, jolloin käyttöliittymä kertoo sen.
     if (!doc.exists || doc.data()?.vanhentunut === true) {
@@ -1225,11 +1338,11 @@ async function lueTuontiTiedosto(
  */
 function parsiTuonti(buffer: Buffer): ReturnType<typeof parsiKausiExcel> {
   const tulos = parsiKausiExcel(buffer);
-  // Vaara sarja on oma tilanteensa: kayttaja on lahettanyt oikean
-  // muotoisen tiedoston vaarasta sarjasta, joten viesti kertoo sen
-  // sellaisenaan eika seurayhteenvetoarvauksen takaa.
-  if (tulos.virheet.includes(VIESTI_VAARA_SARJA)) {
-    throw new Error(VIESTI_VAARA_SARJA);
+  // Sarjavirhe on oma tilanteensa: kayttaja on lahettanyt oikean
+  // muotoisen tiedoston, jossa on vaara tai useampi sarja. Viesti kertoo
+  // sen sellaisenaan eika seurayhteenvetoarvauksen takaa.
+  for (const sarjaViesti of [VIESTI_TUNTEMATON_SARJA, VIESTI_MONTA_SARJAA]) {
+    if (tulos.virheet.includes(sarjaViesti)) throw new Error(sarjaViesti);
   }
   if (tulos.virheet.length > 0) {
     const puuttuvat = tulos.virheet.slice(0, 5).join('; ');

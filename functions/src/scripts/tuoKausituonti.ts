@@ -172,6 +172,10 @@ async function main(): Promise<void> {
     console.log('  tilannekuva  ' + t + '  — ei muutosta edelliseen tilannekuvaan');
   }
   console.log('  vanhentuneita suorituksia merkitty: ' + yhteenveto.vanhentuneet.length);
+  console.log('  vanhentuneita nimittäjiä merkitty:   ' +
+    yhteenveto.vanhentuneetNimittajat.length);
+  console.log('  vanhentuneita kausidokumentteja:     ' +
+    yhteenveto.vanhentuneetKaudet.length);
   console.log('  vanhentuneita projektioita merkitty: ' +
     yhteenveto.vanhentuneetProjektiot.length);
   for (const v of yhteenveto.vanhentuneetProjektiot.slice(0, 5)) {

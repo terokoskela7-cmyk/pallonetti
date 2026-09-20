@@ -25,6 +25,10 @@ import {
   SuoritusRivi,
   nimittajaId,
   suoritusId,
+  kausiId,
+  projektioId,
+  sarjaAvain,
+  OLETUSSARJA,
 } from './kausiImport';
 
 /** Firestoressa on 500 operaation yläraja per batch. */
@@ -89,6 +93,10 @@ export interface KirjoitusYhteenveto {
    */
   vanhentuneetProjektiot: string[];
   batchejaAjettu: number;
+  /** Vanhentuneiksi merkityt nimittajat (id). */
+  vanhentuneetNimittajat: string[];
+  /** Vanhentuneiksi merkityt kausidokumentit (id). */
+  vanhentuneetKaudet: string[];
   /** Kirjoitetut tilannekuvat: 'seasons/2026/tilannekuvat/2026-09-19'. */
   tilannekuvat: string[];
   /**
@@ -128,11 +136,18 @@ export async function arvioiMuutokset(
   const olemassa = new Set<string>();
   let vanhentuu = 0;
 
+  // Vain saman sarjan dokumentit: toisen sarjan rivit eivat vanhene
+  // talla tuonnilla. Puuttuva sarja-kentta tarkoittaa Veikkausliigaa,
+  // joten suodatus tehdaan muistissa eika where-ehdolla — where jattaisi
+  // kentattomat dokumentit kokonaan pois.
+  const tuonninSarjat = new Set(tulos.suoritukset.map((s) => s.sarja));
   for (const kausi of kaudet) {
     const snap = await kokoelma(db, 'suoritukset', asetukset)
       .where('kausi', '==', kausi)
       .get();
     for (const doc of snap.docs) {
+      const d = doc.data() as { sarja?: string };
+      if (!tuonninSarjat.has(d.sarja || OLETUSSARJA)) continue;
       olemassa.add(doc.id);
     }
   }
@@ -161,6 +176,7 @@ export async function arvioiMuutokset(
 export function rakennaTilannekuva(
   tulos: TuontiTulos,
   kausi: string,
+  sarja: string = OLETUSSARJA,
 ): {
   seurat: Record<string, number>;
   pelaajat: Array<{
@@ -177,13 +193,13 @@ export function rakennaTilannekuva(
 } {
   const otteluita = new Map<string, number>();
   for (const n of tulos.nimittajat) {
-    if (n.kausi !== kausi) continue;
+    if (n.kausi !== kausi || n.sarja !== sarja) continue;
     otteluita.set(n.joukkue, (otteluita.get(n.joukkue) || 0) + n.ottelut);
   }
 
   const perPelaaja = new Map<string, Map<string, { min: number; ottelut: number }>>();
   for (const x of tulos.suoritukset) {
-    if (x.kausi !== kausi) continue;
+    if (x.kausi !== kausi || x.sarja !== sarja) continue;
     if (!perPelaaja.has(x.slug)) perPelaaja.set(x.slug, new Map());
     const perSeura = perPelaaja.get(x.slug)!;
     const e = perSeura.get(x.joukkue) || { min: 0, ottelut: 0 };
@@ -195,7 +211,7 @@ export function rakennaTilannekuva(
   return {
     seurat: Object.fromEntries(otteluita),
     pelaajat: tulos.projektiot
-      .filter((p) => p.kausi === kausi)
+      .filter((p) => p.kausi === kausi && p.sarja === sarja)
       .map((p) => ({
         slug: p.slug,
         pelaajaAvain: p.pelaajaAvain,
@@ -259,11 +275,18 @@ async function onkoSamaKuinEdellinen(
   pvm: string,
   seurat: Record<string, number>,
   pelaajat: TilannekuvaPelaaja[],
+  sarja: string = OLETUSSARJA,
 ): Promise<boolean> {
-  const edelliset = await tilannekuvat.orderBy('pvm', 'desc').limit(1).get();
-  if (edelliset.empty) return false;
+  // Vertailu vain saman sarjan tilannekuviin: toisen sarjan tilannekuva
+  // on eri asia, eika sen sisalto kerro tasta sarjasta mitaan. Puuttuva
+  // sarja-kentta tarkoittaa Veikkausliigaa.
+  const kaikki = await tilannekuvat.orderBy('pvm', 'desc').get();
+  const omat = kaikki.docs.filter(
+    (d) => ((d.data() as { sarja?: string }).sarja || OLETUSSARJA) === sarja,
+  );
+  if (omat.length === 0) return false;
 
-  const edellinen = edelliset.docs[0];
+  const edellinen = omat[0];
   const edellisenSeurat = (edellinen.data().seurat ?? {}) as Record<string, number>;
   const pelaajaSnap = await edellinen.ref.collection('pelaajat').get();
   const edellisenPelaajat = pelaajaSnap.docs.map((d) => {
@@ -281,7 +304,7 @@ async function onkoSamaKuinEdellinen(
   const sama =
     tilannekuvanTiiviste(edellisenSeurat, edellisenPelaajat) ===
     tilannekuvanTiiviste(seurat, pelaajat);
-  if (sama && edellinen.id !== pvm) return true;
+  if (sama && edellinen.id !== sarjaAvain(sarja) + '_' + pvm) return true;
   return sama;
 }
 
@@ -449,6 +472,8 @@ export async function kirjoitaKausituonti(
     kirjoitettu: { suoritukset: 0, nimittajat: 0, kaudet: 0, projektiot: 0 },
     vanhentuneet: [],
     vanhentuneetProjektiot: [],
+    vanhentuneetNimittajat: [],
+    vanhentuneetKaudet: [],
     batchejaAjettu: 0,
     tilannekuvat: [],
     tilannekuvatOhitettu: [],
@@ -470,6 +495,7 @@ export async function kirjoitaKausituonti(
   // ---------- Nimittäjät ----------
   await kirjoitaErissa(db, tulos.nimittajat, yhteenveto, (batch, n: Nimittaja) => {
     batch.set(kokoelma(db, 'nimittajat', asetukset).doc(nimittajaId(n)), {
+      sarja: n.sarja,
       kausi: n.kausi,
       vaihe: n.vaihe,
       joukkue: n.joukkue,
@@ -477,6 +503,7 @@ export async function kirjoitaKausituonti(
       kapasiteetti_min: n.kapasiteetti_min,
       tuonti_id: asetukset.tuontiId,
       tuotu_pvm: tuotuPvm,
+      vanhentunut: false,
     });
   });
   yhteenveto.kirjoitettu.nimittajat = tulos.nimittajat.length;
@@ -507,7 +534,11 @@ export async function kirjoitaKausituonti(
   });
   yhteenveto.kirjoitettu.suoritukset = tulos.suoritukset.length;
 
-  // ---------- Projektio seasons/{kausi}/players/{slug} ----------
+  // ---------- Projektio seasons/{kausi}/players/{sarja}_{slug} ----------
+  // Kausidokumentti pysyy sarjattomana, koska sen alla on myos
+  // kansalaisuudet ja tilannekuvat. Sarja on pelaajadokumentin avaimessa,
+  // jolloin sama pelaaja voi olla samalla kaudella molemmissa sarjoissa
+  // ilman etta dokumentit osuvat toisiinsa.
   // Johdetaan aina samasta ajosta kuin suoritukset — ei koskaan kirjoiteta
   // erikseen, jotta se ei voi eriytyä lähteestä.
   await kirjoitaErissa(db, tulos.projektiot, yhteenveto, (batch, p: KausiProjektio) => {
@@ -515,8 +546,10 @@ export async function kirjoitaKausituonti(
       .collection((asetukset.kokoelmaEtuliite || '') + 'seasons')
       .doc(p.kausi)
       .collection('players')
-      .doc(p.slug);
+      .doc(projektioId(p));
     batch.set(ref, {
+      sarja: p.sarja,
+      slug: p.slug,
       etunimi: p.etunimi,
       sukunimi: p.sukunimi,
       ika: p.ika,
@@ -555,10 +588,12 @@ export async function kirjoitaKausituonti(
       perJoukkue.set(n.joukkue, (perJoukkue.get(n.joukkue) || 0) + n.ottelut);
     }
 
-    for (const kausi of tulos.kaudet.map((k) => k.kausi)) {
+    for (const k of tulos.kaudet) {
+      const kausi = k.kausi;
       const { seurat, pelaajat: pelaajaDokumentit } = rakennaTilannekuva(
         tulos,
         kausi,
+        k.sarja,
       );
       const projektiot = pelaajaDokumentit;
 
@@ -566,6 +601,9 @@ export async function kirjoitaKausituonti(
         .collection((asetukset.kokoelmaEtuliite || '') + 'seasons')
         .doc(kausi)
         .collection('tilannekuvat');
+      // Sarja on osa tilannekuvan avainta: muuten kahden sarjan saman
+      // paivan tilannekuvat kirjoittaisivat toistensa yli.
+      const tilannekuvaId = sarjaAvain(k.sarja) + '_' + pvm;
 
       // Sama sisältö kahtena eri päivänä antaisi käyrälle välin, jolla ei
       // ole pelattu mitään — se vihjaisi tapahtumasta jota ei tapahtunut.
@@ -574,17 +612,19 @@ export async function kirjoitaKausituonti(
         pvm,
         seurat,
         pelaajaDokumentit,
+        k.sarja,
       );
       if (muuttumaton) {
         yhteenveto.tilannekuvatOhitettu.push(
-          'seasons/' + kausi + '/tilannekuvat/' + pvm,
+          'seasons/' + kausi + '/tilannekuvat/' + tilannekuvaId,
         );
         continue;
       }
 
-      const tilannekuvaRef = tilannekuvat.doc(pvm);
+      const tilannekuvaRef = tilannekuvat.doc(tilannekuvaId);
       await tilannekuvaRef.set({
         pvm,
+        sarja: k.sarja,
         kausi,
         pelaajia: projektiot.length,
         seurat,
@@ -598,12 +638,15 @@ export async function kirjoitaKausituonti(
         pelaajaDokumentit,
         yhteenveto,
         (batch, p: (typeof pelaajaDokumentit)[number]) => {
-          batch.set(tilannekuvaRef.collection('pelaajat').doc(p.slug), p);
+          batch.set(
+            tilannekuvaRef.collection('pelaajat').doc(projektioId({ sarja: k.sarja, slug: p.slug })),
+            { ...p, sarja: k.sarja },
+          );
         },
       );
 
       yhteenveto.tilannekuvat.push(
-        'seasons/' + kausi + '/tilannekuvat/' + pvm,
+        'seasons/' + kausi + '/tilannekuvat/' + tilannekuvaId,
       );
     }
   }
@@ -611,13 +654,20 @@ export async function kirjoitaKausituonti(
   // ---------- Vanhentuneiden merkintä ----------
   // Pelaaja joka on poistunut lähdeaineistosta jää muuten Firestoreen
   // elämään. Merkitään, ei poisteta.
-  for (const kausi of tulos.kaudet.map((k) => k.kausi)) {
+  for (const k of tulos.kaudet) {
+    const kausi = k.kausi;
     const snap = await kokoelma(db, 'suoritukset', asetukset)
       .where('kausi', '==', kausi)
       .get();
-    const vanhat = snap.docs.filter(
-      (d) => (d.data() as { tuonti_id?: string }).tuonti_id !== asetukset.tuontiId,
-    );
+    // VAIN SAMA SARJA. Ilman tata Ykkosliigan tuonti merkitsisi saman
+    // kauden Veikkausliigan rivit vanhentuneiksi ja nollaisi sen luvut.
+    // Suodatus muistissa, koska vanhoissa dokumenteissa ei ole
+    // sarja-kenttaa: where jattaisi ne pois ja ne jaisivat ikuisiksi.
+    const vanhat = snap.docs.filter((d) => {
+      const x = d.data() as { tuonti_id?: string; sarja?: string };
+      if ((x.sarja || OLETUSSARJA) !== k.sarja) return false;
+      return x.tuonti_id !== asetukset.tuontiId;
+    });
     await kirjoitaErissa(db, vanhat, yhteenveto, (batch, doc) => {
       batch.set(doc.ref, { vanhentunut: true }, { merge: true });
     });
@@ -638,17 +688,43 @@ export async function kirjoitaKausituonti(
     }
   }
 
+  // Sama nimittajille. TAMA ON KRIITTINEN: nimittaja on osuuden nimittaja,
+  // joten vanha nimittajadokumentti kasvattaa kapasiteettia ja pienentaa
+  // osuutta. Ennen sarjan lisaysta avaimet pysyivat samoina ja vanha
+  // dokumentti ylikirjoittui, joten tata ei tarvittu — nyt tarvitaan.
+  for (const k of tulos.kaudet) {
+    const kausi = k.kausi;
+    const snap = await kokoelma(db, 'nimittajat', asetukset)
+      .where('kausi', '==', kausi)
+      .get();
+    const vanhat = snap.docs.filter((d) => {
+      const x = d.data() as { tuonti_id?: string; sarja?: string };
+      if ((x.sarja || OLETUSSARJA) !== k.sarja) return false;
+      return x.tuonti_id !== asetukset.tuontiId;
+    });
+    await kirjoitaErissa(db, vanhat, yhteenveto, (batch, doc) => {
+      batch.set(doc.ref, { vanhentunut: true }, { merge: true });
+    });
+    for (const doc of vanhat) {
+      yhteenveto.vanhentuneetNimittajat.push(doc.id);
+    }
+  }
+
   // Sama projektiolle: seasons/{kausi}/players -dokumentti jonka tuonti_id
   // on vanha tarkoittaa pelaajaa joka on poistunut lähdeaineistosta.
-  for (const kausi of tulos.kaudet.map((k) => k.kausi)) {
+  for (const k of tulos.kaudet) {
+    const kausi = k.kausi;
     const snap = await db
       .collection((asetukset.kokoelmaEtuliite || '') + 'seasons')
       .doc(kausi)
       .collection('players')
       .get();
-    const vanhat = snap.docs.filter(
-      (d) => (d.data() as { tuonti_id?: string }).tuonti_id !== asetukset.tuontiId,
-    );
+    // Sama sarjarajaus kuin suorituksille, samasta syysta.
+    const vanhat = snap.docs.filter((d) => {
+      const x = d.data() as { tuonti_id?: string; sarja?: string };
+      if ((x.sarja || OLETUSSARJA) !== k.sarja) return false;
+      return x.tuonti_id !== asetukset.tuontiId;
+    });
     await kirjoitaErissa(db, vanhat, yhteenveto, (batch, doc) => {
       batch.set(doc.ref, { vanhentunut: true }, { merge: true });
     });
@@ -657,11 +733,31 @@ export async function kirjoitaKausituonti(
     }
   }
 
+  // Sama kausidokumenteille. Vanha sarjaton tunniste ({kausi}) jaisi
+  // muuten elamaan uuden ({sarja}_{kausi}) rinnalle, jolloin kausi
+  // esiintyisi kahdesti kausilistassa ja trendikaaviossa.
+  for (const k of tulos.kaudet) {
+    const snap = await kokoelma(db, 'kaudet', asetukset).get();
+    const vanhat = snap.docs.filter((d) => {
+      const x = d.data() as { vuosi?: number; sarja?: string; tuonti_id?: string };
+      const dokKausi = String(x.vuosi ?? d.id);
+      if (dokKausi !== k.kausi) return false;
+      if ((x.sarja || OLETUSSARJA) !== k.sarja) return false;
+      return d.id !== kausiId(k);
+    });
+    await kirjoitaErissa(db, vanhat, yhteenveto, (batch, doc) => {
+      batch.set(doc.ref, { vanhentunut: true }, { merge: true });
+    });
+    for (const doc of vanhat) {
+      yhteenveto.vanhentuneetKaudet.push(doc.id);
+    }
+  }
+
   // ---------- Kausidokumentit viimeisenä ----------
   await kirjoitaErissa(db, tulos.kaudet, yhteenveto, (batch, k) => {
     const data: Record<string, unknown> = {
       vuosi: parseInt(k.kausi, 10),
-      sarja: paatteleSarja(tulos.suoritukset, k.kausi),
+      sarja: k.sarja,
       vaiheet: k.vaiheet,
       tuotu_pvm: tuotuPvm,
       lahde_tiedosto: asetukset.lahdeTiedosto,
@@ -670,13 +766,14 @@ export async function kirjoitaKausituonti(
       osuus_runkosarja: k.osuus_runkosarja,
       joukkueet: k.joukkueet,
       pelaajat: k.pelaajat,
+      vanhentunut: false,
     };
     // Seurojen suurin ottelumaara: kesken oleva kausi merkitaan talla
     // ("kesken, N/22+ ottelua pelattu"). Lasketaan tuonnissa, jottei
     // trendinakyman tarvitse laskea sita joka pyynnolla.
     const otteluitaSeuroittain = new Map<string, number>();
     for (const n of tulos.nimittajat) {
-      if (n.kausi !== k.kausi) continue;
+      if (n.kausi !== k.kausi || n.sarja !== k.sarja) continue;
       otteluitaSeuroittain.set(
         n.joukkue,
         (otteluitaSeuroittain.get(n.joukkue) || 0) + n.ottelut,
@@ -693,18 +790,13 @@ export async function kirjoitaKausituonti(
     if (asetukset.kierros !== undefined && asetukset.kierros !== null) {
       data.kierros_tilanne = asetukset.kierros;
     }
-    batch.set(kokoelma(db, 'kaudet', asetukset).doc(k.kausi), data, {
+    batch.set(kokoelma(db, 'kaudet', asetukset).doc(kausiId(k)), data, {
       merge: true,
     });
   });
   yhteenveto.kirjoitettu.kaudet = tulos.kaudet.length;
 
   return yhteenveto;
-}
-
-function paatteleSarja(suoritukset: SuoritusRivi[], kausi: string): string {
-  const rivi = suoritukset.find((s) => s.kausi === kausi && s.sarja);
-  return rivi ? rivi.sarja : 'Veikkausliiga';
 }
 
 /** Ajaa kirjoitukset enintään BATCH_KOKO operaation erissä. */

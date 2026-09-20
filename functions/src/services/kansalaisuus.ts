@@ -257,7 +257,7 @@ export function parsiProfiili(html: string, vlId: string): Profiili {
   const otsikko = teksti.lastIndexOf(' RPM ');
   const taulukko = otsikko >= 0 ? teksti.slice(otsikko + 5) : teksti;
   const riviRe =
-    /(20\d{2})\s+([A-ZÅÄÖ][A-Za-zÅÄÖåäö.'\-]*(?:\s+[A-Za-zÅÄÖåäö.'\-]+){0,3}?)\s+(?=\d+\s+\d+\s)/g;
+    /(20\d{2})\s+([A-ZÅÄÖ][A-Za-zÅÄÖåäö.'-]*(?:\s+[A-Za-zÅÄÖåäö.'-]+){0,3}?)\s+(?=\d+\s+\d+\s)/g;
   let rm: RegExpExecArray | null;
   while ((rm = riviRe.exec(taulukko)) !== null) {
     const kausi = rm[1];

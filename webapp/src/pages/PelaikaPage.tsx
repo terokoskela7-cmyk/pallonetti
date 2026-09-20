@@ -673,8 +673,8 @@ export default function PelaikaPage() {
         </span>
         <span className="w-px h-3 bg-white/20" />
         <span>
-          Lähteet: <span className="text-white/60">Veikkausliiga.com</span> ·{' '}
-          <span className="text-white/60">API-Football</span>
+          Lähde: <span className="text-white/60">Veikkausliiga.com</span>{' '}
+          (viralliset tilastot)
         </span>
       </footer>
     </div>

@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { ArrowLeft, Info, TrendingUp } from 'lucide-react';
+import { ArrowLeft, ExternalLink, Info, TrendingUp } from 'lucide-react';
 import {
   LineChart,
   Line,
@@ -23,6 +23,7 @@ import {
   formatMarketValue,
   type SeasonPlayer,
   type PlayerRound,
+  type Siirto,
 } from '@/services/api';
 import { useKausi, useValittuKausi } from '@/hooks/useKausi';
 import { MARKKINA_ARVOT_NAKYVISSA } from '@/constants/ominaisuudet';
@@ -220,6 +221,42 @@ function ProgressionChart({ rounds }: { rounds: PlayerRound[] }) {
   );
 }
 
+/**
+ * Siirto- tai lainamerkinta (B5).
+ *
+ * Merkinta tehdaan vain, kun rivilla on julkinen lahde, ja lahde nakyy
+ * linkkina. Siirtosummia ei nayteta. Jos lahde ei kerro tarkkaa paivaa,
+ * naytetaan "kesa {kausi}" eika keksita paivaa.
+ */
+function SiirtoMerkinta({ siirto, kausi }: { siirto: Siirto; kausi: number }) {
+  const otsikko =
+    siirto.tyyppi === 'laina' ? 'Lainalla' : 'Siirtynyt kesken kauden';
+  const paiva = siirto.pvm
+    ? new Date(siirto.pvm).toLocaleDateString('fi-FI', {
+        day: 'numeric',
+        month: 'numeric',
+        year: 'numeric',
+      })
+    : `kesä ${kausi}`;
+  return (
+    <div className="mt-3 rounded-lg border border-aurora/30 bg-aurora/5 px-3 py-2 text-sm">
+      <span className="text-white/90">
+        {otsikko}: {siirto.uusi_seura}, {siirto.maa}
+      </span>
+      <span className="text-white/40"> · {paiva}</span>
+      <a
+        href={siirto.lahde_url}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="ml-2 inline-flex items-center gap-1 text-ice hover:text-white transition-colors"
+      >
+        Lähde
+        <ExternalLink className="w-3 h-3" />
+      </a>
+    </div>
+  );
+}
+
 export default function PelaajaPage() {
   const params = useParams<{ slug: string }>();
   const slug = params.slug ?? '';
@@ -329,6 +366,9 @@ export default function PelaajaPage() {
               </>
             )}
           </div>
+          {player.siirto && (
+            <SiirtoMerkinta siirto={player.siirto} kausi={kausi} />
+          )}
         </div>
       </header>
 

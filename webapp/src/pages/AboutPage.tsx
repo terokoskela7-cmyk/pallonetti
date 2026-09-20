@@ -1,6 +1,35 @@
 import { Link } from 'react-router-dom';
 import { ExternalLink, Mail, Database, Users } from 'lucide-react';
 import { useValittuKausi } from '@/hooks/useKausi';
+import { useApi } from '@/hooks/useApi';
+import { getKansalaisuudet } from '@/services/api';
+import { pros } from '@/utils/luvut';
+import { ALLE_21_MAX, CIES_TANSKA_PCT, NUORET_MIN, NUORET_MAX } from '@/constants/ika';
+
+// ============================================
+// CIES Football Observatory -vertailuluvut.
+//
+// Nama ovat julkaistuja lukuja, eivat oman ajon tulosta, joten ne ovat
+// vakioita ja vuosi sanotaan auki. Suomen luvut haetaan aina ajosta.
+// ============================================
+/** CIES 2025: alle 21-vuotiaiden osuus peliajasta, karkisarjat. */
+const CIES_2025 = [
+  { sarja: 'Australian A-League Men', pct: 17.7 },
+  { sarja: 'Serbian Super Liga', pct: 15.8 },
+  { sarja: 'Tanskan Superliga', pct: CIES_TANSKA_PCT },
+];
+/** Sama mittari, vertailun toinen paa. */
+const CIES_2025_HANNAT = [
+  { sarja: 'Englannin Valioliiga', pct: 2.4 },
+  { sarja: 'Italian Serie A', pct: 1.9 },
+];
+/** CIES syyskuu 2026: FC Nordsjaelland, seurataso. */
+const NORDSJAELLAND_2026 = 48.1;
+const NORDSJAELLAND_5V = 44.7;
+
+/** Kaudet, joiden luvut nimetaan tekstissa. */
+const VERTAILUKAUSI = 2025;
+const ALKUKAUSI = 2020;
 
 function Section({
   title,
@@ -19,28 +48,37 @@ function Section({
   );
 }
 
+/**
+ * Lahdekortti. `url` on valinnainen: osalla lahteista ei ole yhta osoitetta,
+ * vaan lahde on rivikohtainen (siirrot). Silloin nimi nayttaa linkilta
+ * nayttamatta olematonta osoitetta.
+ */
 function SourceItem({
   name,
   url,
   description,
 }: {
   name: string;
-  url: string;
+  url?: string;
   description: string;
 }) {
   return (
     <div className="flex items-start gap-3 bg-navy-700/40 border border-navy-600 rounded-lg p-4">
       <Database className="w-4 h-4 text-ice shrink-0 mt-0.5" />
       <div className="min-w-0">
-        <a
-          href={url}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="text-white/90 font-medium hover:text-ice transition-colors inline-flex items-center gap-1"
-        >
-          {name}
-          <ExternalLink className="w-3 h-3" />
-        </a>
+        {url ? (
+          <a
+            href={url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-white/90 font-medium hover:text-ice transition-colors inline-flex items-center gap-1"
+          >
+            {name}
+            <ExternalLink className="w-3 h-3" />
+          </a>
+        ) : (
+          <span className="text-white/90 font-medium">{name}</span>
+        )}
         <p className="text-xs text-white/50 mt-1">{description}</p>
       </div>
     </div>
@@ -49,6 +87,21 @@ function SourceItem({
 
 export default function AboutPage() {
   const kausi = useValittuKausi();
+
+  // Suomen luvut tulevat ajosta, eivat tekstista. Jos haku ei onnistu,
+  // kappale kertoo sen eika nayta vanhaa lukua uutena.
+  const { data: suomi } = useApi(
+    () =>
+      Promise.all([
+        getKansalaisuudet(VERTAILUKAUSI),
+        getKansalaisuudet(ALKUKAUSI),
+      ]).then(([nyt, ennen]) => ({
+        nyt: nyt.saatavilla ? nyt.osuusAlle21 : null,
+        ennen: ennen.saatavilla ? ennen.osuusAlle21 : null,
+      })),
+    [],
+  );
+
   return (
     <div className="px-6 py-10 md:py-16 max-w-3xl mx-auto space-y-10">
       {/* Hero */}
@@ -67,58 +120,92 @@ export default function AboutPage() {
 
       <Section title="Miksi tämä on olemassa?">
         <p>
-          CIES Football Observatoryn tutkimus 50 eurooppalaisesta liigasta osoittaa:
-          maat joissa nuoret saavat eniten peliaikaa, tuottavat eniten huippupelaajia.
-          Tanskan Superliga johtaa Euroopassa alle 21-vuotiaiden peliajalla (11,7 %).
+          Nuorten peliaika on mitattava asia, ja sitä mitataan muualla. CIES
+          Football Observatory seuraa 50 sarjaa ja julkaisee, kuinka suuri osa
+          peliajasta menee alle 21-vuotiaille. Suomen Veikkausliigasta vastaavaa
+          julkista lukua ei ole ollut. Tämä sivusto laskee sen.
         </p>
         <p>
-          Suomessa ei ole ollut julkisesti saatavilla työkalua, jolla seurata
-          nuorten pelaajien peliaikaa Veikkausliigassa. pallonetti.fi täyttää
-          tämän aukon.
-        </p>
-      </Section>
-
-      <Section title="Pohjoinen malli — Tanska edelläkävijänä">
-        <p>
-          Pohjoismaissa Tanska on ottanut selvän johtoroolin nuorten pelaajien
-          kehittämisessä. CIES:n data: Tanskan Superliga on maailman kolmanneksi
-          paras alle 21-vuotiaiden peliajan suhteen ({' '}
-          <span className="tabular">11,7 %</span>).
-        </p>
-        <p>
-          <strong className="text-white/80">FC Nordsjælland</strong> on Euroopan #1
-          kehitysseura <span className="tabular">44,7 %</span> alle 21-vuotiaiden minuuteilla.
-          Heidän Right to Dream -mallinsa on Pohjoismaiden vastaus Red Bullille:
-          kehitä nuoria, anna peliaikaa, myy voitolla. Mohammed Kudus ja Mikkel
-          Damsgaard ovat tämän mallin tähtituotteita.
-        </p>
-        <p>
-          <strong className="text-white/80">Norjan Eliteserien</strong> ({' '}
-          <span className="tabular">20,2 %</span> alle 21-vuotiaiden minuutit) ja{' '}
-          <strong className="text-white/80">Ruotsin Allsvenskan</strong> ({' '}
-          <span className="tabular">22,4 %</span>) ovat myös edelläkävijöitä
-          nuorten panostuksessa. Molemmat maat ovat tuottaneet merkittävästi
-          ulkomaille myytyjä pelaajia.
+          <strong className="text-white/80">Mitä muualla mitataan.</strong>{' '}
+          CIES:n vuoden 2025 vertailussa mitataan, kuinka suuri osa sarjan
+          peliajasta meni alle 21-vuotiaille pelaajille, jotka ovat kelpoisia
+          maansa maajoukkueeseen. Kärjessä{' '}
+          {CIES_2025.map((x, i) => (
+            <span key={x.sarja}>
+              {i > 0 ? (i === CIES_2025.length - 1 ? ' ja ' : ', ') : ''}
+              {x.sarja} <span className="tabular">{pros(x.pct)}</span>
+            </span>
+          ))}
+          .{' '}
+          {' '}Toisessa päässä{' '}
+          {CIES_2025_HANNAT.map((x, i) => (
+            <span key={x.sarja}>
+              {i > 0 ? ' ja ' : ''}
+              {x.sarja} <span className="tabular">{pros(x.pct)}</span>
+            </span>
+          ))}
+          .
         </p>
         <p>
-          Suomen Veikkausliigassa tilanne on ollut pitkään epäselvä — tarkkaa
-          dataa ei ole ollut julkisesti saatavilla. pallonetti.fi muuttaa tämän.
-          Seuraamalla 17–21-vuotiaiden peliaikaa teemme kehityksen mitattavaksi ja
-          vertailukelpoiseksi.
+          <strong className="text-white/80">Missä Suomi on.</strong>{' '}
+          {suomi && suomi.nyt !== null ? (
+            <>
+              Veikkausliigassa alle 21-vuotiaat saivat kaudella{' '}
+              {VERTAILUKAUSI} enintään{' '}
+              <span className="tabular">{pros(suomi.nyt)}</span> peliajasta.
+              Luku on yläraja, koska siinä ovat mukana myös pelaajat, jotka
+              eivät ole kelpoisia Suomen maajoukkueeseen.
+              {suomi.ennen !== null && (
+                <>
+                  {' '}
+                  Vuonna {ALKUKAUSI} vastaava luku oli{' '}
+                  <span className="tabular">{pros(suomi.ennen)}</span>.
+                </>
+              )}
+            </>
+          ) : (
+            <>
+              Veikkausliigan luku lasketaan tämän sivuston omasta aineistosta.
+              Se ei juuri nyt latautunut, joten sitä ei näytetä tässä — luvut
+              näkyvät etusivulla ja Peliaika-sivulla.
+            </>
+          )}
+        </p>
+        <p>
+          <strong className="text-white/80">
+            Seuratason kärki on Tanskassa.
+          </strong>{' '}
+          FC Nordsjælland on CIES:n syyskuun 2026 tutkimuksessa maailman
+          kärjessä:{' '}
+          <span className="tabular">{pros(NORDSJAELLAND_2026)}</span> kauden
+          2026 peliajasta alle 21-vuotiaille. Viiden vuoden tarkastelussa luku
+          on <span className="tabular">{pros(NORDSJAELLAND_5V)}</span>.
+        </p>
+        <p>
+          <strong className="text-white/80">Mitä tämä sivusto mittaa.</strong>{' '}
+          Seuraamme Veikkausliigan {NUORET_MIN}–{NUORET_MAX}-vuotiaiden
+          peliaikaa: kuka pelaa, kuinka paljon ja missä seurassa. Ikähaarukka on
+          laajempi kuin CIES:n, joten kansainvälisissä vertailuissa näytämme
+          erikseen alle 21-vuotiaiden osuuden.
         </p>
       </Section>
 
       <Section title="Miten ikähaarukka määritellään?">
         <p>
-          <strong className="text-white/80">Nuoret (17–21 v)</strong> = sivuston
-          päämittari. Kaudella {kausi} mukana ovat vuosina {kausi - 21}–{kausi - 17}
-          syntyneet.
+          <strong className="text-white/80">
+            Nuoret ({NUORET_MIN}–{NUORET_MAX} v)
+          </strong>{' '}
+          = sivuston päämittari. Kaudella {kausi} mukana ovat vuosina{' '}
+          <span className="tabular">{kausi - NUORET_MAX}</span>–
+          <span className="tabular">{kausi - NUORET_MIN}</span> syntyneet.
         </p>
         <p>
-          <strong className="text-white/80">Alle 21-vuotiaat</strong> = syntynyt{' '}
-          <span className="tabular">{kausi - 21}</span> tai myöhemmin.
-          {kausi - 20} tai myöhemmin. Tätä lukua käytetään vain
-          kansainvälisessä CIES-vertailussa, ja se on päämittaria pienempi.
+          <strong className="text-white/80">Alle 21-vuotiaat</strong> = enintään{' '}
+          {ALLE_21_MAX}-vuotiaat, eli kaudella {kausi} vuonna{' '}
+          <span className="tabular">{kausi - ALLE_21_MAX}</span> tai myöhemmin
+          syntyneet. Tätä lukua käytetään vain kansainvälisessä CIES-vertailussa,
+          ja se on päämittaria pienempi. Luvut eivät ole saman asian kaksi
+          esitystapaa, vaan eri joukot.
         </p>
 
         <p>
@@ -131,29 +218,44 @@ export default function AboutPage() {
       <Section title="Datalähteet">
         <div className="grid grid-cols-1 gap-3">
           <SourceItem
-            name="API-Football (RapidAPI)"
-            url="https://www.api-football.com/"
-            description="Pelaajatiedot, ikä, joukkueet, ottelut, kokoonpanot. Päätietolähde peliaika- ja ikälaskelmiin."
+            name="Veikkausliiga.com — viralliset tilastot"
+            url="https://www.veikkausliiga.com/"
+            description="Minuutit, ottelut, aloitukset ja maalit. Kauden tilastovienti on sivuston päälähde, ja kaikki peliaikaluvut lasketaan siitä."
           />
           <SourceItem
-            name="Veikkausliiga.com"
+            name="Veikkausliiga.com — pelaajarekisteri"
             url="https://www.veikkausliiga.com/"
-            description="Viralliset tilastot: minuutit, maalit, syötöt, ottelut ja vaiheet. Kausivienti on sivuston päälähde."
+            description="Kansalaisuus ja pelipaikka pelaajan omalta profiilisivulta. Rekisteri kertoo yhden koodin pelaajaa kohden."
+          />
+          <SourceItem
+            name="Seurojen ja median tiedotteet"
+            description="Kesken kauden tapahtuneet siirrot ja lainat. Lähde on rivikohtainen ja näkyy linkkinä pelaajan omalla sivulla, eikä merkintää tehdä ilman lähdettä."
           />
         </div>
+        <p>
+          Transfermarktista on aiemmin haettu pelaajakuvia ja pelipaikkoja, ja
+          ne näkyvät välimuistista. Uusia hakuja ei tehdä, eikä markkina-arvoja
+          näytetä.
+        </p>
       </Section>
 
       <Section title="Metodologia">
         <p>
-          Peliaika-% lasketaan jakamalla nuorten pelaajien peliminuutit
-          kaikilla peliminuuteilla kyseisessä joukkueessa tai liigassa.
-          Joukkueet joilla on alle 1 000 minuuttia dataa suljetaan pois
-          (datavaje-suodatus).
+          Peliaika-% lasketaan jakamalla ikäryhmän peliminuutit liigan tai
+          joukkueen koko minuuttikapasiteetilla, eli pelattujen otteluiden
+          minuuteilla. Näin osuudet ovat samassa yksikössä ja summautuvat: eri
+          nimittäjiä ei sekoiteta keskenään.
         </p>
         <p>
-          Yksittäisen pelaajan sivulla näkyvät minuutit/maalit/syötöt
-          yhdistelevät API-Footballin ja Veikkausliiga.comin tietoja.
-          Viralliset tilastot voittavat ristiriitatilanteissa.
+          Kansalaisuus esitetään kolmijakona: Suomen kansalaisuus rekisterissä,
+          muu maakoodi, ja ei tietoa. Rekisteri kertoo yhden koodin pelaajaa
+          kohden eikä tunne kaksoiskansalaisuutta, joten Suomen kansalaisten
+          osuus on alaraja eikä sitä esitetä tarkkana lukuna.
+        </p>
+        <p>
+          Pelaajan sivun luvut tulevat virallisista tilastoista sellaisenaan.
+          Lukuja ei yhdistellä useasta lähteestä, jottei pelaajalle synny
+          numeroita, joita mikään yksittäinen lähde ei kerro.
         </p>
       </Section>
 
@@ -191,8 +293,15 @@ export default function AboutPage() {
         <ul className="list-disc list-inside space-y-1">
           <li>Naisten Kansallinen Liiga ei vielä mukana</li>
           <li>Veikkausliiga on ainoa pääsarja (Ykkösliiga ja Ykkönen tulossa)</li>
-          
           <li>Pelaajat ilman ikätietoa eivät näy ikäryhmätilastoissa</li>
+          <li>
+            Kansalaisuus on yhden rekisterin tieto: kaksoiskansalaisuus ei näy,
+            eikä maajoukkuekelpoisuutta voi päätellä siitä
+          </li>
+          <li>
+            Siirtomerkinnät kattavat vain ne pelaajat, joille on löytynyt
+            julkinen lähde
+          </li>
         </ul>
       </Section>
 

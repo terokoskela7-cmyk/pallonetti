@@ -96,8 +96,13 @@ export default function AboutPage() {
         getKansalaisuudet(VERTAILUKAUSI),
         getKansalaisuudet(ALKUKAUSI),
       ]).then(([nyt, ennen]) => ({
-        nyt: nyt.saatavilla ? nyt.osuusAlle21 : null,
-        ennen: ennen.saatavilla ? ennen.osuusAlle21 : null,
+        // CIES mittaa maajoukkuekelpoisia, joten vertailtava luku on
+        // Suomen kansalaisten osuus. Kaikkien alle 21-vuotiaiden osuus
+        // naytetaan erikseen omalla nimellaan, ei CIES-vertailussa.
+        nytFin: nyt.saatavilla ? nyt.osuusAlle21Suomalaiset : null,
+        nytKaikki: nyt.saatavilla ? nyt.osuusAlle21 : null,
+        ennenFin: ennen.saatavilla ? ennen.osuusAlle21Suomalaiset : null,
+        ennenKaikki: ennen.saatavilla ? ennen.osuusAlle21 : null,
       })),
     [],
   );
@@ -148,18 +153,18 @@ export default function AboutPage() {
         </p>
         <p>
           <strong className="text-white/80">Missä Suomi on.</strong>{' '}
-          {suomi && suomi.nyt !== null ? (
+          {suomi && suomi.nytFin !== null ? (
             <>
-              Veikkausliigassa alle 21-vuotiaat saivat kaudella{' '}
-              {VERTAILUKAUSI} enintään{' '}
-              <span className="tabular">{pros(suomi.nyt)}</span> peliajasta.
-              Luku on yläraja, koska siinä ovat mukana myös pelaajat, jotka
-              eivät ole kelpoisia Suomen maajoukkueeseen.
-              {suomi.ennen !== null && (
+              CIES:n mittari koskee maajoukkuekelpoisia pelaajia, joten
+              Veikkausliigasta vertailukelpoinen luku on Suomen kansalaisille
+              mennyt peliaika: kaudella {VERTAILUKAUSI} se oli{' '}
+              <span className="tabular">{pros(suomi.nytFin)}</span>{' '}
+              Veikkausliigan rekisterin mukaan.
+              {suomi.ennenFin !== null && (
                 <>
                   {' '}
                   Vuonna {ALKUKAUSI} vastaava luku oli{' '}
-                  <span className="tabular">{pros(suomi.ennen)}</span>.
+                  <span className="tabular">{pros(suomi.ennenFin)}</span>.
                 </>
               )}
             </>
@@ -171,6 +176,35 @@ export default function AboutPage() {
             </>
           )}
         </p>
+        <p>
+          <strong className="text-white/80">Mitä luku ei kerro.</strong>{' '}
+          Rekisteri kertoo yhden koodin pelaajaa kohden eikä tunne
+          kaksoiskansalaisuutta, joten Suomen kansalaisten osuus on alaraja:
+          osa muun maakoodin pelaajista voi olla myös Suomen kansalaisia.
+          Rekisteri kertoo lisäksi pelaajan nykyisen merkinnän, ei sitä mikä se
+          oli kauden aikana. Maajoukkuekelpoisuus ei myöskään seuraa suoraan
+          kansalaisuudesta, joten luku on CIES:n mittarin likiarvo eikä sama
+          asia.
+        </p>
+        {suomi && suomi.nytKaikki !== null && (
+          <p>
+            <strong className="text-white/80">
+              Kaikkien alle 21-vuotiaiden osuus.
+            </strong>{' '}
+            Kansalaisuudesta riippumatta alle 21-vuotiaat saivat kaudella{' '}
+            {VERTAILUKAUSI} <span className="tabular">{pros(suomi.nytKaikki)}</span>{' '}
+            peliajasta
+            {suomi.ennenKaikki !== null && (
+              <>
+                {' '}
+                ja vuonna {ALKUKAUSI}{' '}
+                <span className="tabular">{pros(suomi.ennenKaikki)}</span>
+              </>
+            )}
+            . Tämä on sivuston oma luku, eikä sitä verrata yllä oleviin
+            CIES-lukuihin: mittari on eri.
+          </p>
+        )}
         <p>
           <strong className="text-white/80">
             Seuratason kärki on Tanskassa.

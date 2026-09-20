@@ -18,7 +18,7 @@ import { ALLE_21_MAX, CIES_TANSKA_PCT, NUORET_MIN, NUORET_MAX } from '@/constant
  */
 const CIES_SARJAT_URL =
   'https://football-observatory.com/Best-development-leagues-for-young-domestic-3602';
-const CIES_SEURAT_URL = 'https://football-observatory.com/WeeklyPost541';
+const CIES_SEURAT_URL = 'https://football-observatory.com/WeeklyPost551';
 
 /** CIES 2025: alle 21-vuotiaiden osuus peliajasta, karkisarjat. */
 const CIES_2025 = [
@@ -31,10 +31,6 @@ const CIES_2025_HANNAT = [
   { sarja: 'Englannin Valioliiga', pct: 2.4 },
   { sarja: 'Italian Serie A', pct: 1.9 },
 ];
-/** CIES syyskuu 2026: FC Nordsjaelland, seurataso. */
-const NORDSJAELLAND_2026 = 48.1;
-const NORDSJAELLAND_5V = 44.7;
-
 /** Kaudet, joiden luvut nimetaan tekstissa. */
 const VERTAILUKAUSI = 2025;
 const ALKUKAUSI = 2020;
@@ -224,19 +220,15 @@ export default function AboutPage() {
           <strong className="text-white/80">
             Seuratason kärki on Tanskassa.
           </strong>{' '}
-          FC Nordsjælland on{' '}
           <a
             href={CIES_SEURAT_URL}
             target="_blank"
             rel="noopener noreferrer"
             className="text-ice hover:text-white transition-colors"
           >
-            CIES:n syyskuun 2026 seuravertailussa
+            CIES:n seuravertailussa
           </a>{' '}
-          maailman kärjessä:{' '}
-          <span className="tabular">{pros(NORDSJAELLAND_2026)}</span> kauden
-          2026 peliajasta alle 21-vuotiaille. Viiden vuoden tarkastelussa luku
-          on <span className="tabular">{pros(NORDSJAELLAND_5V)}</span>.
+          kärjessä on FC Nordsjælland.
         </p>
         <p>
           <strong className="text-white/80">Mitä tämä sivusto mittaa.</strong>{' '}

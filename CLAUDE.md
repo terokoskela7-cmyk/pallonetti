@@ -179,6 +179,18 @@ ennen poistoa (commit-viesti tai loki), jotta poisto on jäljitettävissä.
 Sama koskee ad hoc -skriptejä: jos skripti kirjoittaa tuotantoon, sillä on
 oltava sama kahden lipun vartija ja sama esikatselu kuin kausituonnilla.
 
+### Tuotannon päätepisteen kutsuminen on tuotantotoimenpide
+
+Tuotannon päätepistettä ei kutsuta sen selvittämiseksi, mitä se tekee.
+Kutsu on sallittu vasta, kun **koodista on luettu**, että reitti on pelkkä
+luku. **HTTP-metodi ei riitä perusteeksi:** GET-reitti voi tyhjentää
+välimuistin, käynnistää uudelleenhaun tai kirjoittaa Firestoreen — näin
+kävi `refreshData`-funktiolla 20.9.2026, jolloin varmistuskutsu tyhjensi
+`cache`-kokoelman.
+
+Jos reitin vaikutus on epäselvä, testi ajetaan emulaattoria vasten, ei
+tuotantoa vasten.
+
 ---
 
 ## 4. DEPLOY

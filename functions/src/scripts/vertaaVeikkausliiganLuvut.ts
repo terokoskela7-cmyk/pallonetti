@@ -135,12 +135,24 @@ async function main(): Promise<void> {
     return;
   }
 
+  // Sama (sarja, kausi) kahdesti tarkoittaa, etta vanha kausidokumentti
+  // jai elamaan uuden rinnalle. Kaavio piirtaisi kauden kahdesti.
+  const parit = nyt.map((v) => v.kausi);
+  const kaksoiskappaleet = parit.filter((k, i) => parit.indexOf(k) !== i);
+  if (kaksoiskappaleet.length > 0) {
+    console.log('');
+    console.log(
+      '  ✗ sama kausi esiintyy kahdesti: ' +
+        Array.from(new Set(kaksoiskappaleet)).join(', '),
+    );
+  }
+
   const ennen: KaudenVedos[] = JSON.parse(fs.readFileSync(vertaa, 'utf-8'));
   const ennenKausittain = new Map(ennen.map((v) => [v.kausi, v]));
 
   console.log('');
   console.log('VERTAILU VEDOKSEEN ' + vertaa);
-  let eroja = 0;
+  let eroja = kaksoiskappaleet.length;
 
   for (const v of nyt) {
     const e = ennenKausittain.get(v.kausi);

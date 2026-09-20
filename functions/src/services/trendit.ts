@@ -19,6 +19,8 @@
 import { firestore } from 'firebase-admin';
 import { lueKausi, type SuoritusDoc } from './kausiData';
 import { ALLE_21_MAX, NUORET_MAX } from './ikarajat';
+import { OLETUSSARJA } from './kausiImport';
+import { onAkatemia } from './akatemiat';
 
 export interface Kolmijako {
   /** % liigan minuuttikapasiteetista. */
@@ -28,6 +30,8 @@ export interface Kolmijako {
 }
 
 export interface TrendiKausi {
+  /** Sarja, jota piste koskee. */
+  sarja: string;
   kausi: number;
   /** Paamittari: 17–21-vuotiaiden osuus kapasiteetista. */
   osuus1721: number | null;
@@ -41,6 +45,15 @@ export interface TrendiKausi {
   otteluitaPelattu: number | null;
   /** Pelaajia, joilla on peliaikaa. */
   pelaajia: number | null;
+  /**
+   * Sama luku ilman akatemiajoukkueita. null, jos kaudella ei ollut
+   * yhtaan akatemiajoukkuetta — silloin luku olisi sama kuin yllä, ja
+   * kahden identtisen luvun nayttaminen vihjaisi erosta jota ei ole.
+   */
+  osuus1721IlmanAkatemioita: number | null;
+  osuusAlle21IlmanAkatemioita: number | null;
+  /** Mitka akatemiajoukkueet olivat mukana talla kaudella. */
+  akatemiajoukkueet: string[];
 }
 
 /** Yksi desimaali, kuten muuallakin sivustolla. */
@@ -241,20 +254,45 @@ export async function laskeKaudenTrendi(
   kausi: number,
   kausiDoc: firestore.DocumentData | undefined,
   nytVuosi: number,
+  sarja: string = OLETUSSARJA,
 ): Promise<TrendiKausi> {
   const [{ suoritukset, nimittajat }, kansSnap] = await Promise.all([
-    lueKausi(db, kausi),
-    db
-      .collection('seasons')
-      .doc(String(kausi))
-      .collection('kansalaisuudet')
-      .get(),
+    lueKausi(db, kausi, sarja),
+    // Kansalaisuudet on haettu toistaiseksi vain oletussarjalle. Toisen
+    // sarjan kolmijako jaa nulliksi eika sita nayteta tyhjana — se on eri
+    // asia kuin "ei yhtaan Suomen kansalaista".
+    sarja === OLETUSSARJA
+      ? db
+          .collection('seasons')
+          .doc(String(kausi))
+          .collection('kansalaisuudet')
+          .get()
+      : Promise.resolve({ docs: [] as never[] }),
   ]);
   const kapasiteetti = nimittajat.reduce((a, n) => a + n.kapasiteetti_min, 0);
   const luokat = luokitteleKansalaisuudet(kansSnap.docs);
 
+  // Ilman akatemiajoukkueita: pois seka osoittajasta etta nimittajasta.
+  // Pelkka pelaajien poisto jattaisi kapasiteetin ennalleen ja pienentaisi
+  // osuutta vaarin perustein.
+  const akatemiat = Array.from(
+    new Set(nimittajat.filter((n) => onAkatemia(n.joukkue)).map((n) => n.joukkue)),
+  ).sort();
+  const kapasiteettiIlman = nimittajat
+    .filter((n) => !onAkatemia(n.joukkue))
+    .reduce((a, n) => a + n.kapasiteetti_min, 0);
+  const ilmanAkatemioita = suoritukset.filter((s) => !onAkatemia(s.joukkue));
+  const osuusIlman = (ikaRaja: number): number | null =>
+    akatemiat.length === 0
+      ? null
+      : osuus(minuutit(ilmanAkatemioita, ikaRaja, null), kapasiteettiIlman);
+
   return {
+    sarja,
     kausi,
+    osuus1721IlmanAkatemioita: osuusIlman(NUORET_MAX),
+    osuusAlle21IlmanAkatemioita: osuusIlman(ALLE_21_MAX),
+    akatemiajoukkueet: akatemiat,
     osuus1721: osuus(minuutit(suoritukset, NUORET_MAX, null), kapasiteetti),
     osuusAlle21: osuus(minuutit(suoritukset, ALLE_21_MAX, null), kapasiteetti),
     alle21Jako: laskeKolmijako(suoritukset, kapasiteetti, luokat, ALLE_21_MAX),
@@ -276,14 +314,27 @@ export async function laskeKaudenTrendi(
 export async function laskeTrendit(
   db: firestore.Firestore,
   nytVuosi: number = new Date().getFullYear(),
+  sarja: string | null = OLETUSSARJA,
 ): Promise<TrendiKausi[]> {
   const kaudetSnap = await db.collection('kaudet').get();
+  // Kausi luetaan vuosi-kentasta, ei dokumentin tunnisteesta: tunniste on
+  // sarjakohtainen ({sarja}_{kausi}), ja vanhoissa dokumenteissa se on
+  // pelkka vuosi. Puuttuva sarja-kentta tarkoittaa oletussarjaa.
   const kaudet = kaudetSnap.docs
-    .map((d) => ({ kausi: parseInt(d.id, 10), doc: d.data() }))
+    .filter((d) => d.data().vanhentunut !== true)
+    .map((d) => {
+      const x = d.data();
+      return {
+        kausi: (x.vuosi as number) ?? parseInt(d.id, 10),
+        sarja: (x.sarja as string) || OLETUSSARJA,
+        doc: x,
+      };
+    })
     .filter((k) => !isNaN(k.kausi))
-    .sort((a, b) => a.kausi - b.kausi);
+    .filter((k) => sarja === null || k.sarja === sarja)
+    .sort((a, b) => a.kausi - b.kausi || a.sarja.localeCompare(b.sarja));
 
   return Promise.all(
-    kaudet.map((k) => laskeKaudenTrendi(db, k.kausi, k.doc, nytVuosi)),
+    kaudet.map((k) => laskeKaudenTrendi(db, k.kausi, k.doc, nytVuosi, k.sarja)),
   );
 }

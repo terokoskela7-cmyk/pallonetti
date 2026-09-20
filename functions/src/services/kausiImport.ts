@@ -45,17 +45,45 @@ const VALINNAISET_SARAKKEET = [
 // ---------- Sarjarajaus ----------
 
 /**
- * Ainoa tuettu sarja. Sivusto laskee Veikkausliigan lukuja, ja nimittajat
- * (joukkueen ottelut) ovat sarjakohtaisia: toisen sarjan rivit sekoittuisivat
- * samoihin avaimiin ja vaarentaisivat osuudet. Ykkosliiga tulee omana
- * tyonaan, jolloin sarja lisataan avaimiin.
+ * Tuetut sarjat. Sarja on osa jokaista avainta, koska nimittaja
+ * (joukkueen ottelut) on sarjakohtainen: ilman sarjaa toisen sarjan
+ * minuutit sekoittuisivat samoihin avaimiin eivatka nayttaisi
+ * rikkinaisilta.
  */
-export const TUETTU_SARJA = 'Veikkausliiga';
+export const TUETUT_SARJAT = ['Veikkausliiga', 'Ykkösliiga'] as const;
 
-/** Kayttajalle nakyva viesti vaaran sarjan tiedostosta. */
-export const VIESTI_VAARA_SARJA =
-  'Tiedostossa on muun sarjan rivejä (esim. Ykkösliiga). ' +
-  'Vain Veikkausliiga on tuettu.';
+/** Oletussarja: vanhat osoitteet ja vanha data tarkoittavat Veikkausliigaa. */
+export const OLETUSSARJA = 'Veikkausliiga';
+
+/** Kayttajalle nakyva viesti, kun sarjaa ei tunneta. */
+export const VIESTI_TUNTEMATON_SARJA =
+  'Tiedostossa on sarja, jota ei tueta. Tuetut sarjat: ' +
+  TUETUT_SARJAT.join(', ') + '.';
+
+/** Kayttajalle nakyva viesti, kun tiedostossa on useampi sarja. */
+export const VIESTI_MONTA_SARJAA =
+  'Tiedostossa on useamman sarjan rivejä. Tuo yksi sarja kerrallaan, ' +
+  'jotta kummankin luvut pysyvät erillään.';
+
+/**
+ * Sarjan tunniste avaimissa ja osoitteissa: "Ykkösliiga" -> "ykkosliiga".
+ * Skandit korvataan, koska tunniste nakyy URL-parametrissa.
+ */
+export function sarjaAvain(sarja: string): string {
+  return String(sarja || OLETUSSARJA)
+    .toLowerCase()
+    .replace(/ä/g, 'a')
+    .replace(/ö/g, 'o')
+    .replace(/å/g, 'a')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+}
+
+/** Tunnisteesta takaisin sarjan nimeksi; tuntematon -> null. */
+export function sarjaAvaimesta(avain: string): string | null {
+  const a = sarjaAvain(avain);
+  return TUETUT_SARJAT.find((x) => sarjaAvain(x) === a) ?? null;
+}
 
 // ---------- Tyypit ----------
 
@@ -99,8 +127,9 @@ export interface Varoitus {
   kausi?: string;
 }
 
-/** nimittajat/{kausi}_{vaihe}_{joukkue} */
+/** nimittajat/{sarja}_{kausi}_{vaihe}_{joukkue} */
 export interface Nimittaja {
+  sarja: string;
   kausi: string;
   vaihe: string;
   joukkue: string;
@@ -110,6 +139,7 @@ export interface Nimittaja {
 
 /** Yhden kauden laskettu yhteenveto esikatselua varten. */
 export interface KausiYhteenveto {
+  sarja: string;
   kausi: string;
   vaiheet: string[];
   joukkueet: number;
@@ -126,8 +156,9 @@ export interface KausiYhteenveto {
   ottelut_max: number;
 }
 
-/** Projektio seasons/{kausi}/players/{slug} — pelaajan kausisumma yli vaiheiden JA seurojen. */
+/** Projektio seasons/{kausi}/players/{sarja}_{slug} — kausisumma yli vaiheiden JA seurojen. */
 export interface KausiProjektio {
+  sarja: string;
   kausi: string;
   slug: string;
   pelaajaAvain: string;
@@ -174,14 +205,17 @@ function turvallinenOsa(arvo: string): string {
   return String(arvo).replace(/\//g, '-').trim();
 }
 
-/** suoritukset/{kausi}_{vaihe}_{joukkue}_{pelaajaAvain} */
+/** suoritukset/{sarja}_{kausi}_{vaihe}_{joukkue}_{pelaajaAvain} */
 export function suoritusId(r: {
+  sarja?: string;
   kausi: string;
   vaihe: string;
   joukkue: string;
   pelaajaAvain: string;
 }): string {
   return (
+    sarjaAvain(r.sarja || OLETUSSARJA) +
+    '_' +
     turvallinenOsa(r.kausi) +
     '_' +
     turvallinenOsa(r.vaihe) +
@@ -192,19 +226,32 @@ export function suoritusId(r: {
   );
 }
 
-/** nimittajat/{kausi}_{vaihe}_{joukkue} */
+/** nimittajat/{sarja}_{kausi}_{vaihe}_{joukkue} */
 export function nimittajaId(n: {
+  sarja?: string;
   kausi: string;
   vaihe: string;
   joukkue: string;
 }): string {
   return (
+    sarjaAvain(n.sarja || OLETUSSARJA) +
+    '_' +
     turvallinenOsa(n.kausi) +
     '_' +
     turvallinenOsa(n.vaihe) +
     '_' +
     turvallinenOsa(n.joukkue)
   );
+}
+
+/** kaudet/{sarja}_{kausi} */
+export function kausiId(k: { sarja?: string; kausi: string }): string {
+  return sarjaAvain(k.sarja || OLETUSSARJA) + '_' + turvallinenOsa(k.kausi);
+}
+
+/** seasons/{kausi}/players/{sarja}_{slug} */
+export function projektioId(p: { sarja?: string; slug: string }): string {
+  return sarjaAvain(p.sarja || OLETUSSARJA) + '_' + turvallinenOsa(p.slug);
 }
 
 function toStr(v: unknown): string {
@@ -405,11 +452,13 @@ export function parsiKausiExcel(buffer: Buffer): TuontiTulos {
       continue;
     }
 
-    // 4) Sarja: vain Veikkausliiga. Muun sarjan rivi ei ole virhe rivissa
-    //    vaan vaara tiedosto, joten se hylataan kokonaan silmukan jalkeen.
-    //    Tyhja sarja-arvo kelpaa: sarake on valinnainen.
-    const rivinSarja = toStr(kentta(rivi, 'Sarja'));
-    if (rivinSarja !== '' && rivinSarja.toLowerCase() !== TUETTU_SARJA.toLowerCase()) {
+    // 4) Sarja. Tyhja arvo tarkoittaa oletussarjaa: sarake on valinnainen,
+    //    ja vanhat viennit ovat Veikkausliigaa. Tuntematon sarja on vaara
+    //    tiedosto, ei rivivirhe, joten se kerataan ja hylataan silmukan
+    //    jalkeen kerralla.
+    const rivinSarja = toStr(kentta(rivi, 'Sarja')) || OLETUSSARJA;
+    const tunnettuSarja = sarjaAvaimesta(rivinSarja);
+    if (tunnettuSarja === null) {
       const rivitSarjalle = muutSarjat.get(rivinSarja) ?? [];
       rivitSarjalle.push(excelRivi);
       muutSarjat.set(rivinSarja, rivitSarjalle);
@@ -455,7 +504,7 @@ export function parsiKausiExcel(buffer: Buffer): TuontiTulos {
       kausi,
       vaihe: toStr(kentta(rivi, 'Sarjan vaihe')),
       joukkue: toStr(kentta(rivi, 'Joukkue')),
-      sarja: toStr(kentta(rivi, 'Sarja')),
+      sarja: tunnettuSarja,
       pelaajaAvain: pelaajaAvaimeksi(etunimi, sukunimi),
       slug: toSlug(etunimi, sukunimi),
       etunimi,
@@ -491,10 +540,10 @@ export function parsiKausiExcel(buffer: Buffer): TuontiTulos {
     }
   }
 
-  // Muun sarjan rivit hylkaavat koko tiedoston. Viesti on yksi ja sama
-  // riippumatta rivimaarasta; toinen rivi kertoo mita loytyi ja mista.
+  // Tuntemattoman sarjan rivit hylkaavat koko tiedoston. Viesti on yksi ja
+  // sama riippumatta rivimaarasta; toinen rivi kertoo mita loytyi ja mista.
   if (muutSarjat.size > 0) {
-    virheet.push(VIESTI_VAARA_SARJA);
+    virheet.push(VIESTI_TUNTEMATON_SARJA);
     for (const [sarjanNimi, rivinumerot] of muutSarjat) {
       const nayta = rivinumerot.slice(0, 5).join(', ');
       virheet.push(
@@ -508,6 +557,15 @@ export function parsiKausiExcel(buffer: Buffer): TuontiTulos {
           ')',
       );
     }
+  }
+
+  // Yksi sarja per tiedosto. Kahden sarjan yhdistelma ei ole virheellista
+  // dataa, mutta se tekisi tuonnin vanhentuneiden merkinnasta
+  // moniselitteisen: merkinta kohdistuu aina yhteen sarjaan ja kauteen.
+  const tiedostonSarjat = Array.from(new Set(suoritukset.map((x) => x.sarja)));
+  if (tiedostonSarjat.length > 1) {
+    virheet.push(VIESTI_MONTA_SARJAA);
+    virheet.push('Tiedostossa: ' + tiedostonSarjat.join(', '));
   }
 
   // SheetJS pudotti nämä rivit kokonaan; ne ovat tyhjiä, joten dataa ei
@@ -579,6 +637,7 @@ export function parsiKausiExcel(buffer: Buffer): TuontiTulos {
     } else {
       nimMap.set(id, {
         n: {
+          sarja: s.sarja,
           kausi: s.kausi,
           vaihe: s.vaihe,
           joukkue: s.joukkue,
@@ -651,7 +710,7 @@ export function parsiKausiExcel(buffer: Buffer): TuontiTulos {
   // ---------- Siirrot kesken kauden ----------
   const pelaajanSeurat = new Map<string, Set<string>>();
   for (const s of uniikit) {
-    const avain = s.kausi + '|' + s.pelaajaAvain;
+    const avain = s.sarja + '|' + s.kausi + '|' + s.pelaajaAvain;
     if (!pelaajanSeurat.has(avain)) pelaajanSeurat.set(avain, new Set());
     pelaajanSeurat.get(avain)!.add(s.joukkue);
   }
@@ -660,12 +719,13 @@ export function parsiKausiExcel(buffer: Buffer): TuontiTulos {
       const osat = avain.split('|');
       varoitukset.push({
         tyyppi: 'siirto_kesken_kauden',
-        kausi: osat[0],
+        kausi: osat[1],
         viesti:
-          'Kausi ' +
           osat[0] +
-          ': ' +
+          ' ' +
           osat[1] +
+          ': ' +
+          osat[2] +
           ' pelasi seuroissa ' +
           Array.from(seurat).sort().join(' + '),
       });
@@ -705,11 +765,20 @@ export function laskeKaudet(
   suoritukset: SuoritusRivi[],
   nimittajat: Nimittaja[],
 ): KausiYhteenveto[] {
-  const kaudet = Array.from(new Set(suoritukset.map((s) => s.kausi))).sort();
+  // Ryhmittely on (sarja, kausi), ei pelkka kausi: sama kausi voi olla
+  // molemmissa sarjoissa, ja niiden nimittajat ovat eri.
+  const parit = Array.from(
+    new Set(suoritukset.map((s) => s.sarja + '|' + s.kausi)),
+  ).sort();
 
-  return kaudet.map((kausi) => {
-    const kaudenRivit = suoritukset.filter((s) => s.kausi === kausi);
-    const kaudenNim = nimittajat.filter((n) => n.kausi === kausi);
+  return parit.map((pari) => {
+    const [sarja, kausi] = pari.split('|');
+    const kaudenRivit = suoritukset.filter(
+      (s) => s.kausi === kausi && s.sarja === sarja,
+    );
+    const kaudenNim = nimittajat.filter(
+      (n) => n.kausi === kausi && n.sarja === sarja,
+    );
 
     const min = kaudenRivit.reduce((a, s) => a + s.minuutit, 0);
     const kap = kaudenNim.reduce((a, n) => a + n.kapasiteetti_min, 0);
@@ -727,6 +796,7 @@ export function laskeKaudet(
     const ottelumaarat = Array.from(perJoukkue.values()).sort((a, b) => a - b);
 
     return {
+      sarja,
       kausi,
       vaiheet: Array.from(new Set(kaudenNim.map((n) => n.vaihe))).sort(),
       joukkueet: perJoukkue.size,
@@ -752,10 +822,11 @@ export function laskeProjektiot(suoritukset: SuoritusRivi[]): KausiProjektio[] {
   const kartta = new Map<string, KausiProjektio & { minPerSeura: Map<string, number> }>();
 
   for (const s of suoritukset) {
-    const avain = s.kausi + '|' + s.slug;
+    const avain = s.sarja + '|' + s.kausi + '|' + s.slug;
     let p = kartta.get(avain);
     if (!p) {
       p = {
+        sarja: s.sarja,
         kausi: s.kausi,
         slug: s.slug,
         pelaajaAvain: s.pelaajaAvain,

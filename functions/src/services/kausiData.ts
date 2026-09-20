@@ -20,8 +20,11 @@
 // literaaleja (käytetään +-ketjutusta).
 // ============================================
 import type { firestore } from 'firebase-admin';
+import { OLETUSSARJA } from './kausiImport';
 
 export interface SuoritusDoc {
+  /** Puuttuva kentta tarkoittaa oletussarjaa (vanha data). */
+  sarja?: string;
   kausi: string;
   vaihe: string;
   joukkue: string;
@@ -38,6 +41,10 @@ export interface SuoritusDoc {
 }
 
 export interface NimittajaDoc {
+  /** Puuttuva kentta tarkoittaa oletussarjaa (vanha data). */
+  sarja?: string;
+  /** Puuttuva kentta tarkoittaa "ei vanhentunut". */
+  vanhentunut?: boolean;
   kausi: string;
   vaihe: string;
   joukkue: string;
@@ -116,6 +123,7 @@ export function joukkueTunniste(nimi: string): string {
 export async function lueKausi(
   db: firestore.Firestore,
   season: number,
+  sarja: string = OLETUSSARJA,
 ): Promise<{ suoritukset: SuoritusDoc[]; nimittajat: NimittajaDoc[] }> {
   const kausi = String(season);
   const [sSnap, nSnap] = await Promise.all([
@@ -123,11 +131,24 @@ export async function lueKausi(
     db.collection('nimittajat').where('kausi', '==', kausi).get(),
   ]);
 
+  // Sarja suodatetaan MUISTISSA, ei where-ehdolla. Vanhoissa
+  // dokumenteissa kenttaa ei ole, ja where jattaisi ne kokonaan pois —
+  // jolloin Veikkausliigan luvut muuttuisivat. Puuttuva kentta tarkoittaa
+  // oletussarjaa. Sama periaate kuin vanhentunut-kentalla.
+  const omaSarja = (x: { sarja?: string }): boolean =>
+    (x.sarja || OLETUSSARJA) === sarja;
+
   return {
     suoritukset: sSnap.docs
       .map((d) => d.data() as SuoritusDoc)
-      .filter((s) => s.vanhentunut !== true),
-    nimittajat: nSnap.docs.map((d) => d.data() as NimittajaDoc),
+      .filter((s) => s.vanhentunut !== true)
+      .filter(omaSarja),
+    // Nimittajat suodatetaan samoin kuin suoritukset: vanhentunut
+    // nimittaja kasvattaisi kapasiteettia ja pienentaisi osuutta.
+    nimittajat: nSnap.docs
+      .map((d) => d.data() as NimittajaDoc)
+      .filter((n) => n.vanhentunut !== true)
+      .filter(omaSarja),
   };
 }
 

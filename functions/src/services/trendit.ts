@@ -90,11 +90,9 @@ export function luokitteleKansalaisuudet(
 /**
  * Suurimman jaannoksen pyoristys yhteen desimaaliin.
  *
- * Jos jokainen osa pyoristetaan erikseen, nautetyt osat eivat summaudu
- * naytettyyn kokonaislukuun: kausi 2021 nayttai 9,6 + 1,3 + 0,2 = 11,1 %
- * kun kokonaisluku oli 11,2 %. Lukija ei voi tietaa, kumpi luvuista on
- * vaarin — siksi osat pyoristetaan yhdessa niin, etta summa on aina
- * naytetty kokonaisluku.
+ * Varamenetelma: kaytetaan vain, jos FIN ja muu pyoristyvat yhdessa yli
+ * kokonaisosuuden, jolloin jaannos menisi negatiiviseksi. Silloin osia on
+ * pakko siirtaa, ja suurin jaannos on rehellisin tapa valita mita.
  *
  * Osat kasitellaan kymmenesosina kokonaislukuina, jolloin liukuluvun
  * epatarkkuus ei paase vertailuun.
@@ -109,9 +107,6 @@ export function pyoristaOsatSummaan(
   const jaannokset = kymmenesosat.map((x, i) => ({ i, j: x - alarajat[i] }));
   let jaljella = tavoite - alarajat.reduce((a, b) => a + b, 0);
 
-  // Vajaus jaetaan suurimman jaannoksen mukaan, ylitys otetaan pois
-  // pienimman jaannoksen mukaan. Molemmat suunnat tarvitaan, koska
-  // kokonaisluku on pyoristetty erikseen.
   const jarjestys = jaannokset
     .slice()
     .sort((a, b) => (jaljella > 0 ? b.j - a.j : a.j - b.j));
@@ -127,11 +122,50 @@ export function pyoristaOsatSummaan(
       jaljella += 1;
     }
     k++;
-    // Varmistus: jos kaikki osat ovat nollassa eika ylitysta voi ottaa
-    // mistaan, lopetetaan sen sijaan etta jaataisiin silmukkaan.
     if (k > jarjestys.length * 2 && jaljella < 0) break;
   }
   return tulos.map((x) => x / 10);
+}
+
+/**
+ * Kolmijaon pyoristys: FIN ja muu pyoristetaan normaalisti, ja jaannos
+ * menee "ei tietoa" -sarakkeeseen.
+ *
+ * Suomen kansalaisten osuus on sivuston tarkein vertailuluku, eika sita
+ * siirreta muiden pyoristyksen takia: kaudella 2025 luku on 7,6 % (tarkka
+ * 7,552 %) eika 7,5 %. "Ei tietoa" on jo minuuttitasolla jaannos, joten
+ * pyoristyksen jaannos kuuluu juuri sinne.
+ *
+ * Jos FIN ja muu pyoristyvat yhdessa yli kokonaisosuuden, jaannos jaisi
+ * negatiiviseksi. Negatiivista osuutta ei nayteta, joten silloin palataan
+ * suurimman jaannoksen menetelmaan ja tapaus lokitetaan.
+ */
+export function pyoristaKolmijako(
+  finTarkka: number,
+  muuTarkka: number,
+  eiTietoaTarkka: number,
+  kokonaisuus: number,
+): Kolmijako {
+  const pyorista = (x: number): number => Math.round(x * 10) / 10;
+  const fin = pyorista(finTarkka);
+  const muu = pyorista(muuTarkka);
+  const eiTietoa = Math.round((kokonaisuus - fin - muu) * 10) / 10;
+
+  if (eiTietoa < 0) {
+    console.warn(
+      '[trendit] jaannos negatiivinen (' + eiTietoa + ') — ' +
+        'FIN ' + finTarkka.toFixed(3) + ', muu ' + muuTarkka.toFixed(3) +
+        ', ei tietoa ' + eiTietoaTarkka.toFixed(3) +
+        ', kokonaisuus ' + kokonaisuus +
+        '. Kaytetaan suurimman jaannoksen pyoristysta.',
+    );
+    const [a, b, c] = pyoristaOsatSummaan(
+      [finTarkka, muuTarkka, eiTietoaTarkka],
+      kokonaisuus,
+    );
+    return { fin: a, muu: b, eiTietoa: c };
+  }
+  return { fin, muu, eiTietoa };
 }
 
 /**
@@ -139,8 +173,8 @@ export function pyoristaOsatSummaan(
  * kokonaisosuudesta, jolloin osat kattavat myos pelaajat joilla ei ole
  * kansalaisuusdokumenttia lainkaan.
  *
- * Naytettavat osat pyoristetaan yhdessa kokonaisosuuteen, jotta ne
- * summautuvat siihen myos ruudulla.
+ * Naytettavat osat pyoristetaan niin, etta ne summautuvat
+ * kokonaisosuuteen myos ruudulla — ks. pyoristaKolmijako.
  */
 export function laskeKolmijako(
   suoritukset: SuoritusDoc[],
@@ -154,10 +188,13 @@ export function laskeKolmijako(
   const muu = minuutit(suoritukset, ikaRaja, luokat.muu);
   const eiTietoa = Math.max(0, yht - fin - muu);
 
-  const tarkat = [fin, muu, eiTietoa].map((x) => (x / kapasiteetti) * 100);
-  const kokonaisuus = osuus(yht, kapasiteetti) ?? 0;
-  const [a, b, c] = pyoristaOsatSummaan(tarkat, kokonaisuus);
-  return { fin: a, muu: b, eiTietoa: c };
+  const pr = (x: number): number => (x / kapasiteetti) * 100;
+  return pyoristaKolmijako(
+    pr(fin),
+    pr(muu),
+    pr(eiTietoa),
+    osuus(yht, kapasiteetti) ?? 0,
+  );
 }
 
 /**

@@ -11,11 +11,14 @@
 //   1. kaudet/{kausi}.osuus_koko_kausi — tuonnin laskema luku, eri
 //      koodipolku ja laskettu Excelista tuontihetkella
 //   2. kolmijaon summa — osien on summauduttava kokonaisosuudeksi
+//   3. FIN on pyoristetty itsenaan, ei siirretty summan takia
 //
 // Ajo:  node lib/scripts/tarkistaTrendit.js
 // ============================================
 import * as admin from 'firebase-admin';
-import { laskeTrendit } from '../services/trendit';
+import { laskeTrendit, luokitteleKansalaisuudet } from '../services/trendit';
+import { lueKausi } from '../services/kausiData';
+import { ALLE_21_MAX } from '../services/ikarajat';
 
 function pros(x: number | null): string {
   return x === null ? 'ei dataa' : x.toFixed(1).replace('.', ',') + ' %';
@@ -81,7 +84,43 @@ async function main(): Promise<void> {
         );
       }
     }
-    // 3) Alle 21 ei voi olla suurempi kuin 17–21: sama joukko, tiukempi raja.
+    // 3) FIN on naytettava luonnollisesti pyoristettyna. Suomen
+    //    kansalaisten osuus on tarkein vertailuluku, eika sita siirreta
+    //    muiden pyoristyksen takia. Poikkeus on vain se tapaus, jossa
+    //    jaannos menisi negatiiviseksi.
+    if (j) {
+      const kausiData = await lueKausi(db, t.kausi);
+      const kansSnap = await db
+        .collection('seasons')
+        .doc(String(t.kausi))
+        .collection('kansalaisuudet')
+        .get();
+      const luokat = luokitteleKansalaisuudet(kansSnap.docs);
+      const kap = kausiData.nimittajat.reduce(
+        (a, n) => a + n.kapasiteetti_min,
+        0,
+      );
+      const minuutit = (joukko: Set<string> | null): number =>
+        kausiData.suoritukset
+          .filter((x) => x.ika <= ALLE_21_MAX && (joukko === null || joukko.has(x.slug)))
+          .reduce((a, x) => a + x.minuutit, 0);
+      const finTarkka = (minuutit(luokat.fin) / kap) * 100;
+      const muuTarkka = (minuutit(luokat.muu) / kap) * 100;
+      const finLuonnollinen = Math.round(finTarkka * 10) / 10;
+      const muuLuonnollinen = Math.round(muuTarkka * 10) / 10;
+      const jaannos =
+        Math.round(((t.osuusAlle21 ?? 0) - finLuonnollinen - muuLuonnollinen) * 10) / 10;
+      if (jaannos >= 0 && j.fin !== finLuonnollinen) {
+        virheita++;
+        console.log(
+          '  ✗ ' + t.kausi + ': FIN naytetaan ' + pros(j.fin) +
+            ', luonnollinen pyoristys olisi ' + pros(finLuonnollinen) +
+            ' (tarkka ' + finTarkka.toFixed(3) + ' %)',
+        );
+      }
+    }
+
+    // 4) Alle 21 ei voi olla suurempi kuin 17–21: sama joukko, tiukempi raja.
     if (
       t.osuusAlle21 !== null &&
       t.osuus1721 !== null &&

@@ -14,6 +14,7 @@ import {
   onKesken,
   otteluitaPelattu,
   pyoristaOsatSummaan,
+  pyoristaKolmijako,
 } from '../services/trendit';
 import type { SuoritusDoc } from '../services/kausiData';
 
@@ -95,31 +96,66 @@ console.log('KOLMIJAKO');
 }
 
 console.log('');
-console.log('PYÖRISTYS — osat summautuvat näytettyyn kokonaislukuun');
+console.log('PYÖRISTYS — FIN luonnollisesti, jäännös "ei tietoa" -sarakkeeseen');
 {
-  // Nämä kaksi näyttivät aiemmin väärin: erikseen pyöristetyt osat
-  // antoivat 11,1 % ja 9,0 %, kun kokonaisluvut olivat 11,2 % ja 8,9 %.
-  vertaa('kausi 2021 -tapaus', pyoristaOsatSummaan([9.62, 1.31, 0.24], 11.2), [9.6, 1.3, 0.3]);
-  vertaa('kausi 2025 -tapaus', pyoristaOsatSummaan([7.63, 1.21, 0.16], 8.9), [7.6, 1.2, 0.1]);
-  // Tavallinen tapaus ei muutu.
-  vertaa('kausi 2026 -tapaus', pyoristaOsatSummaan([10.24, 2.78, 0.01], 13.0), [10.2, 2.8, 0]);
-  vertaa('nollat', pyoristaOsatSummaan([0, 0, 0], 0), [0, 0, 0]);
-  // Ylitys: osien alarajat ylittavat tavoitteen -> otetaan pois
-  // pienimman jaannoksen mukaan, ei jaada silmukkaan.
-  const ylitys = pyoristaOsatSummaan([1.0, 1.0], 1.5);
-  vertaa('ylitys summautuu tavoitteeseen', ylitys.reduce((a, b) => a + b, 0).toFixed(1), '1.5');
+  // Kausi 2025: tarkat arvot. FIN 7,552 pyöristyy 7,6:een, ja jäännös
+  // menee "ei tietoa" -sarakkeeseen. Aiemmin FIN siirtyi 7,5:een.
+  vertaa(
+    'kausi 2025',
+    pyoristaKolmijako(7.552, 1.164, 0.227, 8.9),
+    { fin: 7.6, muu: 1.2, eiTietoa: 0.1 },
+  );
+  // Kausi 2021: FIN 9,632 -> 9,6 (ei 9,7).
+  vertaa(
+    'kausi 2021',
+    pyoristaKolmijako(9.632, 1.299, 0.22, 11.2),
+    { fin: 9.6, muu: 1.3, eiTietoa: 0.3 },
+  );
+  vertaa(
+    'kausi 2026',
+    pyoristaKolmijako(10.24, 2.78, 0.006, 13.0),
+    { fin: 10.2, muu: 2.8, eiTietoa: 0 },
+  );
+  vertaa('nollat', pyoristaKolmijako(0, 0, 0, 0), { fin: 0, muu: 0, eiTietoa: 0 });
 
-  // Summa pitää kaikilla satunnaisilla jaoilla: pyöristys ei saa
-  // toimia vain käsin valituilla luvuilla.
-  let poikkeamia = 0;
+  // Negatiivinen jäännös: FIN ja muu pyöristyvät yhdessä yli
+  // kokonaisosuuden. Osuutta ei näytetä negatiivisena, vaan palataan
+  // suurimman jäännöksen menetelmään (ja tapaus lokitetaan).
+  const varalla = pyoristaKolmijako(5.06, 5.06, 0.0, 10.1);
+  vertaa('negatiivinen jäännös -> varamenetelmä', varalla, { fin: 5.1, muu: 5, eiTietoa: 0 });
+  vertaa(
+    'varamenetelmän summa täsmää',
+    (varalla.fin + varalla.muu + varalla.eiTietoa).toFixed(1),
+    '10.1',
+  );
+  vertaa('ei negatiivisia osia', [varalla.fin, varalla.muu, varalla.eiTietoa].every((x) => x >= 0), true);
+
+  // Summa pitää satunnaisilla jaoilla, ja FIN on luonnollisesti
+  // pyöristetty aina kun jäännös ei mene negatiiviseksi.
+  let summaPoikkeamia = 0;
+  let finPoikkeamia = 0;
   for (let i = 0; i < 2000; i++) {
-    const osat = [Math.random() * 12, Math.random() * 4, Math.random() * 2];
-    const summa = Math.round(osat.reduce((a, b) => a + b, 0) * 10) / 10;
-    const tulos = pyoristaOsatSummaan(osat, summa);
-    const saatu = Math.round(tulos.reduce((a, b) => a + b, 0) * 10);
-    if (saatu !== Math.round(summa * 10)) poikkeamia++;
+    const fin = Math.random() * 12;
+    const muu = Math.random() * 4;
+    const eiT = Math.random() * 2;
+    const kokonaisuus = Math.round((fin + muu + eiT) * 10) / 10;
+    const j = pyoristaKolmijako(fin, muu, eiT, kokonaisuus);
+    if (Math.round((j.fin + j.muu + j.eiTietoa) * 10) !== Math.round(kokonaisuus * 10)) {
+      summaPoikkeamia++;
+    }
+    // FIN saa siirtya vain silloin, kun luonnollinen pyoristys veisi
+    // jaannoksen negatiiviseksi — muuten se on pyoristettava itsenaan.
+    const finLuonnollinen = Math.round(fin * 10) / 10;
+    const muuLuonnollinen = Math.round(muu * 10) / 10;
+    const jaannos =
+      Math.round((kokonaisuus - finLuonnollinen - muuLuonnollinen) * 10) / 10;
+    if (jaannos >= 0 && j.fin !== finLuonnollinen) finPoikkeamia++;
   }
-  vertaa('2000 satunnaista jakoa summautuu', poikkeamia, 0);
+  vertaa('2000 satunnaista jakoa summautuu', summaPoikkeamia, 0);
+  vertaa('FIN luonnollisesti pyöristetty', finPoikkeamia, 0);
+
+  // Varamenetelma on yha olemassa ja summautuu.
+  vertaa('varamenetelmä summautuu', pyoristaOsatSummaan([9.62, 1.31, 0.24], 11.2), [9.6, 1.3, 0.3]);
 }
 
 console.log('');

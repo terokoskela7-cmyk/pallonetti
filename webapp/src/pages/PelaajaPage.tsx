@@ -1,4 +1,3 @@
-import { useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { ArrowLeft, ExternalLink, Info, TrendingUp } from 'lucide-react';
 import {
@@ -19,14 +18,11 @@ import { useApi } from '@/hooks/useApi';
 import {
   getSeasonPlayer,
   getPlayerRounds,
-  getTransfermarktPlayer,
-  formatMarketValue,
   type SeasonPlayer,
   type PlayerRound,
   type Siirto,
 } from '@/services/api';
-import { useKausi, useValittuKausi } from '@/hooks/useKausi';
-import { MARKKINA_ARVOT_NAKYVISSA } from '@/constants/ominaisuudet';
+import { useValittuKausi } from '@/hooks/useKausi';
 
 function fullName(p: SeasonPlayer): string {
   return `${p.etunimi} ${p.sukunimi}`.trim();
@@ -119,37 +115,19 @@ function StatBlock({ label, value, accent = 'white' }: StatBlockProps) {
   );
 }
 
-interface PlayerAvatarProps {
-  photoUrl?: string | null;
-  name: string;
-  size?: number;
-}
-
-function PlayerAvatar({ photoUrl, name, size = 80 }: PlayerAvatarProps) {
-  const [failed, setFailed] = useState(false);
-  const initials = getInitials(name);
-
-  if (!photoUrl || failed) {
-    return (
-      <div
-        className="rounded-full bg-ice/10 border border-ice/20 flex items-center justify-center font-bold text-ice shrink-0"
-        style={{ width: size, height: size, fontSize: size * 0.32 }}
-        aria-hidden="true"
-      >
-        {initials}
-      </div>
-    );
-  }
-
+/**
+ * Nimikirjainmerkki. Pelaajakuvia ei nayteta: ainoa kaytossa ollut
+ * kuvalahde oli Transfermarkt, jonka kaytto on lopetettu.
+ */
+function PlayerAvatar({ name, size = 80 }: { name: string; size?: number }) {
   return (
-    <img
-      src={photoUrl}
-      alt={name}
-      onError={() => setFailed(true)}
-      loading="eager"
-      className="rounded-full object-cover shrink-0 border border-navy-600"
-      style={{ width: size, height: size }}
-    />
+    <div
+      className="rounded-full bg-ice/10 border border-ice/20 flex items-center justify-center font-bold text-ice shrink-0"
+      style={{ width: size, height: size, fontSize: size * 0.32 }}
+      aria-hidden="true"
+    >
+      {getInitials(name)}
+    </div>
   );
 }
 
@@ -261,11 +239,6 @@ export default function PelaajaPage() {
   const params = useParams<{ slug: string }>();
   const slug = params.slug ?? '';
   const kausi = useValittuKausi();
-  const { kaudet } = useKausi();
-  // Markkina-arvo on nykyhetken tieto. Menneellä kaudella sitä ei esitetä
-  // kyseisen kauden arvona vaan nimetään auki.
-  const menneKausi = kausi < (kaudet.length > 0 ? kaudet[0].kausi : kausi);
-
   // Pääasiallinen lähde: Firestore-pelaaja slug:lla.
   const { data: player, loading, error } = useApi(
     () => getSeasonPlayer(kausi, slug),
@@ -287,26 +260,6 @@ export default function PelaajaPage() {
 
   const name = player ? fullName(player) : '';
 
-  // Transfermarkt: markkina-arvo, kuva, pelipaikka. Säilyy kuten ennen —
-  // cache-first backendissä; jos ei indeksoitu, jää nulliksi.
-  const { data: tmData } = useApi(
-    async () => {
-      if (!name) return null;
-      try {
-        return await getTransfermarktPlayer(name, kausi);
-      } catch {
-        return null;
-      }
-    },
-    [name, kausi],
-  );
-
-  const safeMarketValue = useMemo(() => {
-    if (!tmData || tmData.marketValue === null) return null;
-    // Yli 5M € on lähes varmasti väärä TM-match.
-    return tmData.marketValue <= 5_000_000 ? tmData.marketValue : null;
-  }, [tmData]);
-
   if (loading) return <LoadingState />;
   if (error) {
     return (
@@ -321,8 +274,6 @@ export default function PelaajaPage() {
   }
   if (!player) return <NotFoundState slug={slug} kausi={kausi} />;
 
-  const photoUrl = tmData?.imageUrl ?? null;
-  const position = tmData?.position ?? null;
   const hasRounds = (rounds?.length ?? 0) > 0;
 
   return (
@@ -346,7 +297,7 @@ export default function PelaajaPage() {
 
       {/* Header: avatar + nimi + meta */}
       <header className="bg-navy-700/40 border border-navy-600 rounded-xl p-6 flex items-start gap-5">
-        <PlayerAvatar photoUrl={photoUrl} name={name} size={80} />
+        <PlayerAvatar name={name} size={80} />
         <div className="min-w-0 flex-1">
           <div className="text-xs uppercase tracking-[0.2em] text-ice mb-1 font-medium">
             Veikkausliiga · Kausi {kausi}
@@ -354,9 +305,6 @@ export default function PelaajaPage() {
           <h1 className="text-2xl md:text-3xl font-light tracking-tight leading-tight">
             {name}
           </h1>
-          {position && (
-            <div className="mt-2 text-sm text-white/80">{position}</div>
-          )}
           <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-white/60">
             <span>{player.joukkue}</span>
             {player.ika > 0 && (
@@ -385,54 +333,6 @@ export default function PelaajaPage() {
         </div>
       </section>
 
-      {/* Transfermarkt — markkina-arvo + lisätiedot (≤ 5M € validointi). */}
-      {MARKKINA_ARVOT_NAKYVISSA && tmData && safeMarketValue !== null && (
-        <section className="bg-navy-700/40 border border-navy-600 rounded-xl p-5">
-          <div className="flex items-start gap-6">
-            <div className="flex-1">
-              <div className="text-xs uppercase tracking-wider text-white/40 mb-1">
-                {menneKausi ? 'Nykyinen arvo' : 'Markkina-arvo'}
-              </div>
-              <div className="text-3xl md:text-4xl font-bold text-ice font-mono tabular leading-none">
-                {formatMarketValue(safeMarketValue) ?? '—'}
-              </div>
-              {menneKausi && (
-                <div className="text-[11px] text-white/40 mt-1">
-                  Tämänhetkinen arvo, ei kauden {kausi} arvo.
-                </div>
-              )}
-              {tmData.contractExpires && (
-                <div className="text-xs text-white/50 mt-3">
-                  Sopimus voimassa:{' '}
-                  <span className="text-white/80">{tmData.contractExpires}</span>
-                </div>
-              )}
-            </div>
-            <div className="hidden md:flex flex-col items-end text-right text-xs text-white/50 space-y-1 max-w-[40%]">
-              {tmData.position && (
-                <div>
-                  Pelipaikka (TM):{' '}
-                  <span className="text-white/80">{tmData.position}</span>
-                </div>
-              )}
-              {tmData.height && (
-                <div>
-                  Pituus: <span className="text-white/80">{tmData.height}</span>
-                </div>
-              )}
-              {tmData.foot && (
-                <div>
-                  Jalka: <span className="text-white/80">{tmData.foot}</span>
-                </div>
-              )}
-            </div>
-          </div>
-          <div className="text-[10px] text-white/30 mt-4 uppercase tracking-wider">
-            Lähde: Transfermarkt
-          </div>
-        </section>
-      )}
-
       {/* Kehityskäyrä — minuutit per kierros (delta kierrosdatasta) */}
       <section className="bg-navy-700/40 border border-navy-600 rounded-xl p-5">
         <div className="flex items-baseline justify-between gap-3 mb-2">
@@ -459,9 +359,6 @@ export default function PelaajaPage() {
 
       <div className="text-xs text-white/40 pt-1">
         Lähde: Veikkausliiga.com (viralliset tilastot)
-        {MARKKINA_ARVOT_NAKYVISSA
-          ? ' + Transfermarkt (markkina-arvo, kuva, pelipaikka)'
-          : ''}
       </div>
     </div>
   );

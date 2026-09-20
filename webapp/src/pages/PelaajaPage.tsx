@@ -22,7 +22,7 @@ import {
   type PlayerRound,
   type Siirto,
 } from '@/services/api';
-import { useValittuKausi } from '@/hooks/useKausi';
+import { useValittuKausi, useValittuSarja } from '@/hooks/useKausi';
 
 function fullName(p: SeasonPlayer): string {
   return `${p.etunimi} ${p.sukunimi}`.trim();
@@ -239,10 +239,11 @@ export default function PelaajaPage() {
   const params = useParams<{ slug: string }>();
   const slug = params.slug ?? '';
   const kausi = useValittuKausi();
+  const sarja = useValittuSarja();
   // Pääasiallinen lähde: Firestore-pelaaja slug:lla.
   const { data: player, loading, error } = useApi(
-    () => getSeasonPlayer(kausi, slug),
-    [slug, kausi],
+    () => getSeasonPlayer(kausi, slug, sarja),
+    [slug, kausi, sarja],
   );
 
   // Kierrosdata kehityskäyrää varten.
@@ -250,12 +251,12 @@ export default function PelaajaPage() {
     async () => {
       if (!slug) return [] as PlayerRound[];
       try {
-        return await getPlayerRounds(kausi, slug);
+        return await getPlayerRounds(kausi, slug, sarja);
       } catch {
         return [] as PlayerRound[];
       }
     },
-    [slug, kausi],
+    [slug, kausi, sarja],
   );
 
   const name = player ? fullName(player) : '';
@@ -300,7 +301,7 @@ export default function PelaajaPage() {
         <PlayerAvatar name={name} size={80} />
         <div className="min-w-0 flex-1">
           <div className="text-xs uppercase tracking-[0.2em] text-ice mb-1 font-medium">
-            Veikkausliiga · Kausi {kausi}
+            {sarja} · Kausi {kausi}
           </div>
           <h1 className="text-2xl md:text-3xl font-light tracking-tight leading-tight">
             {name}
@@ -358,7 +359,7 @@ export default function PelaajaPage() {
       </section>
 
       <div className="text-xs text-white/40 pt-1">
-        Lähde: Veikkausliiga.com (viralliset tilastot)
+        Lähde: sarjan viralliset tilastot (kausivienti)
       </div>
     </div>
   );

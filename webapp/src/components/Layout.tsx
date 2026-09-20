@@ -43,6 +43,35 @@ function KausiValitsin({ mobiili = false }: { mobiili?: boolean }) {
   );
 }
 
+/**
+ * Sarjavalitsin kausivalitsimen vieressä. Lista tulee kausidatasta, joten
+ * uusi sarja ilmestyy tähän tuonnin jälkeen ilman koodimuutosta. Yhden
+ * sarjan tilanteessa valitsinta ei näytetä lainkaan: valinta, jossa on
+ * yksi vaihtoehto, on pelkkää kohinaa.
+ */
+function SarjaValitsin({ mobiili = false }: { mobiili?: boolean }) {
+  const { sarja, sarjat, setSarja, loading } = useKausi();
+
+  if (loading || sarjat.length < 2) return null;
+
+  return (
+    <label className={mobiili ? 'block' : 'hidden md:inline-flex items-center'}>
+      <span className="sr-only">Valitse sarja</span>
+      <select
+        value={sarja}
+        onChange={(e) => setSarja(e.target.value)}
+        className="bg-transparent text-sm text-ice px-3 py-1.5 border border-ice/40 rounded-md hover:border-ice/70 focus:border-ice focus:outline-none transition-colors cursor-pointer"
+      >
+        {sarjat.map((x) => (
+          <option key={x} value={x} className="bg-navy-800">
+            {x}
+          </option>
+        ))}
+      </select>
+    </label>
+  );
+}
+
 const navLinks: Array<{ to: string; label: string; end?: boolean }> = [
   { to: '/', label: 'etusivu', end: true },
   { to: '/peliaika', label: 'analyysi' },
@@ -117,6 +146,7 @@ export function Layout({ children }: LayoutProps) {
 
           {/* Oikea kulma: kausi-indikaattori + mobiili-toggle */}
           <div className="flex items-center gap-3">
+            <SarjaValitsin />
             <KausiValitsin />
             <button
               type="button"
@@ -178,6 +208,7 @@ export function Layout({ children }: LayoutProps) {
           ))}
         </nav>
         <div className="px-5 py-4 mt-2 border-t border-navy-700">
+          <SarjaValitsin mobiili />
           <KausiValitsin mobiili />
         </div>
       </aside>

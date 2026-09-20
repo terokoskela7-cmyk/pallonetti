@@ -27,6 +27,7 @@ import type {
 } from 'recharts/types/component/DefaultTooltipContent';
 import { useApi } from '@/hooks/useApi';
 import { KausiTrendi } from '@/components/KausiTrendi';
+import { onAkatemia, AKATEMIA_SELITE } from '@/constants/akatemiat';
 import {
   getYouthStatsAll,
   getSeasonPlayers,
@@ -37,7 +38,7 @@ import {
   type SeasonPlayer,
   type PlayerRound,
 } from '@/services/api';
-import { useValittuKausi } from '@/hooks/useKausi';
+import { useValittuKausi, useValittuSarja } from '@/hooks/useKausi';
 import { IKAKAISTAT, kaistalla, NUORET_LABEL } from '@/constants/ika';
 import { pros } from '@/utils/luvut';
 import { InsightBar } from '@/components/InsightBar';
@@ -146,7 +147,9 @@ function TeamBarChart({ teams }: { teams: YouthStats[] }) {
   const data = [...teams]
     .sort((a, b) => b.osuusNuoret - a.osuusNuoret)
     .map((t) => ({
-      team: shortenTeamName(t.teamName),
+      // Akatemiajoukkue merkitään tähdellä. Ilman merkintää lukija
+      // vertaisi kasvattajajoukkuetta ja tavallista seuraa suoraan.
+      team: shortenTeamName(t.teamName) + (onAkatemia(t.teamName) ? ' *' : ''),
       fullName: t.teamName,
       pct: t.osuusNuoret,
     }));
@@ -364,6 +367,7 @@ function PlayerProgressionPanel({
 export default function PelaikaPage() {
   const navigate = useNavigate();
   const kausi = useValittuKausi();
+  const sarja = useValittuSarja();
   const [selectedPlayer, setSelectedPlayer] = useState<SeasonPlayer | null>(null);
   const [activeFilter, setActiveFilter] = useState<FilterId>('minutes');
 
@@ -372,13 +376,13 @@ export default function PelaikaPage() {
     loading: playersLoading,
     error: playersError,
     refetch,
-  } = useApi(() => getSeasonPlayers(kausi), [kausi]);
+  } = useApi(() => getSeasonPlayers(kausi, sarja), [kausi, sarja]);
 
   // Kausitrendi laajana: kolmijaon viivat ja lukutaulukko. Oma haku, jotta
   // sivun muut osat näkyvät vaikka trendi ei latautuisi.
   const { data: trendit } = useApi(async () => {
     try {
-      return await getTrendit();
+      return await getTrendit('kaikki');
     } catch (e) {
       console.error('[peliaika] kausitrendien haku epäonnistui:', e);
       return null;
@@ -397,18 +401,21 @@ export default function PelaikaPage() {
     async () => {
       if (!selectedSlug) return null;
       try {
-        return await getPlayerRounds(kausi, selectedSlug);
+        return await getPlayerRounds(kausi, selectedSlug, sarja);
       } catch {
         return null;
       }
     },
-    [selectedSlug, kausi],
+    [selectedSlug, kausi, sarja],
   );
 
-  const veikkausliiga = useMemo(
-    () => (statsData ? filterReliableTeams(statsData.veikkausliiga) : []),
-    [statsData],
-  );
+  // Sama vastaus sisältää molemmat sarjat; valitaan se, jota katsotaan.
+  const veikkausliiga = useMemo(() => {
+    if (!statsData) return [];
+    const rivit =
+      sarja === 'Ykkösliiga' ? statsData.ykkosliiga : statsData.veikkausliiga;
+    return filterReliableTeams(rivit ?? []);
+  }, [statsData, sarja]);
 
   const players = useMemo(() => seasonPlayers ?? [], [seasonPlayers]);
   const withMinutes = useMemo(
@@ -448,7 +455,7 @@ export default function PelaikaPage() {
         <div className="absolute -bottom-16 -left-12 w-56 h-56 rounded-full bg-ice/10 blur-3xl" />
         <div className="relative">
           <div className="text-xs uppercase tracking-[0.2em] text-ice mb-3 font-medium">
-            Veikkausliiga · Kausi {kausi}
+            {sarja} · Kausi {kausi}
           </div>
           <h1 className="text-3xl md:text-4xl font-light tracking-tight leading-tight">
             Peliaika —{' '}
@@ -514,7 +521,7 @@ export default function PelaikaPage() {
             Kausitrendiä ei voitu ladata juuri nyt.
           </div>
         ) : (
-          <KausiTrendi trendit={trendit} laaja />
+          <KausiTrendi trendit={trendit} laaja sarja={sarja} />
         )}
       </section>
 
@@ -522,10 +529,15 @@ export default function PelaikaPage() {
       {veikkausliiga.length > 0 && (
         <section className="bg-navy-700/40 border border-navy-600 rounded-lg p-5">
           <SectionHeader
-            title="Nuorten peliaika joukkueittain (17–21 v)"
+            title={'Nuorten peliaika joukkueittain (17–21 v) — ' + sarja}
             hint={`${veikkausliiga.length} joukkuetta`}
           />
           <TeamBarChart teams={veikkausliiga} />
+          {veikkausliiga.some((t) => onAkatemia(t.teamName)) && (
+            <p className="text-[11px] text-white/40 mt-3 max-w-3xl leading-relaxed">
+              * {AKATEMIA_SELITE}
+            </p>
+          )}
           <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-4 text-xs text-white/40">
             <span className="flex items-center gap-1.5">
               <span className="w-2 h-2 rounded bg-[#22c55e]" /> ≥ 40 %

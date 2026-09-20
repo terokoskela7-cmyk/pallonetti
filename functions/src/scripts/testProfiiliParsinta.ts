@@ -24,6 +24,7 @@ import {
   nollaaTuntemattomat,
   haeTuntemattomat,
 } from './haeKansalaisuudet';
+import { vahvistaSeura } from '../services/kansalaisuus';
 
 const HAKEMISTO = path.join(__dirname, '../../test/fixtures/profiilit');
 
@@ -129,6 +130,65 @@ console.log('ei-tunnettua-koodia.html (koodi "XX")');
   // Tyhja lista tarkoittaa kutsujalle "ei tietoa": koodia ei arvata.
   vertaa('kansalaisuudet tyhja', p.kansalaisuudet, []);
   vertaa('koodi raportoitu', haeTuntemattomat().map((x) => x[0]), ['XX']);
+}
+
+// ---------- 7. Seuran vahvistus: hybridisääntö ----------
+console.log('');
+console.log('SEURAN VAHVISTUS');
+{
+  // Tapaus 1: tilastolistan sarake täsmää (päättynyt kausi).
+  vertaa(
+    'sarake täsmää',
+    vahvistaSeura(['KuPS'], 'KuPS', []),
+    { vahvistettu: true, lahde: 'lista' },
+  );
+
+  // Tapaus 2: sarakkeessa viiva (kuluva kausi, pelaaja lähtenyt).
+  // Profiilin kauden rivi vahvistaa.
+  vertaa(
+    'viiva -> profiili vahvistaa',
+    vahvistaSeura(['KuPS'], '-', ['KuPS']),
+    { vahvistettu: true, lahde: 'profiili' },
+  );
+
+  // Tapaus 3: sarakkeessa ERI seura (kesken kauden Suomessa vaihtanut).
+  // Profiilin rivi vahvistaa oikean seuran.
+  vertaa(
+    'eri seura -> profiili vahvistaa',
+    vahvistaSeura(['FC Inter'], 'SJK', ['FC Inter', 'SJK']),
+    { vahvistettu: true, lahde: 'profiili' },
+  );
+
+  // Kumpikaan ei vahvista -> vahvistamatta.
+  vertaa(
+    'kumpikaan ei vahvista',
+    vahvistaSeura(['KuPS'], '-', []),
+    { vahvistettu: false, lahde: null },
+  );
+  vertaa(
+    'eri seura molemmissa',
+    vahvistaSeura(['KuPS'], 'Ilves', ['HJK']),
+    { vahvistettu: false, lahde: null },
+  );
+
+  // Normalisointi: kirjainkoko ja välimerkit eivät saa kaataa vertailua.
+  vertaa(
+    'normalisointi (AC Oulu / ac oulu)',
+    vahvistaSeura(['AC Oulu'], 'ac  oulu', []),
+    { vahvistettu: true, lahde: 'lista' },
+  );
+
+  // Siirtynyt pelaaja: datassa kaksi seuraa, lista tuntee toisen.
+  vertaa(
+    'siirtynyt, lista tuntee toisen',
+    vahvistaSeura(['SJK', 'FC Inter'], 'SJK', []),
+    { vahvistettu: true, lahde: 'lista' },
+  );
+
+  vertaa('tyhjä datan seura', vahvistaSeura([], 'KuPS', ['KuPS']), {
+    vahvistettu: false,
+    lahde: null,
+  });
 }
 
 console.log('');

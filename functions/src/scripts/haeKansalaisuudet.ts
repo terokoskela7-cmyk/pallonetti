@@ -41,6 +41,7 @@ import {
   haeTuntemattomat,
   nimetTasmaavat,
   seuraAvain,
+  vahvistaSeura,
   type ListaRivi,
   type Profiili,
 } from '../services/kansalaisuus';
@@ -215,31 +216,50 @@ async function main(): Promise<void> {
       continue;
     }
 
-    // Seura varmennetaan profiilin KAUDEN RIVILTA, ei tilastolistan
-    // seura-sarakkeesta. Lista nayttaa paattyneella kaudella kauden seuran,
-    // mutta kuluvalla kaudella nykyisen seuran - ja viivan pelaajalle joka
-    // on lahtenyt. Kauden rivi ei muutu jalkikateen, joten sama saanto
-    // toimii kaikille kausille.
+    // Seura vahvistetaan hybridisaannolla (services/kansalaisuus.ts):
+    // tilastolistan sarake ensin, profiilin kauden rivi aina kun lista ei
+    // vahvista. Kumpikin lahde pettaa eri kausilla, eivatka paallekkain.
     //
-    // Jos pelaajalla on samalla kaudella rivi useassa seurassa, riittaa
-    // etta datan seura loytyy joltain rivilta.
+    // Samannimisia pelaajia on: ehdokkaista valitaan se joka tayttaa SEKA
+    // seuran ETTA ian. Pelkan seuran perusteella valittu ensimmainen osuma
+    // voi olla eri henkilo, jolloin ikatarkistus hylkaisi koko pelaajan.
     const ehdokkaat: typeof nimiOsumat = [];
     let seuraTuntematon = false;
+    let vahvistusLahde: 'lista' | 'profiili' | null = null;
+    let paras: { rivi: ListaRivi; lahde: 'lista' | 'profiili' } | null = null;
+    let varalla: { rivi: ListaRivi; lahde: 'lista' | 'profiili' } | null = null;
+
     for (const ehdokas of nimiOsumat) {
       const prof = await haeProfiiliValimuistista(ehdokas);
       if (prof === null) continue;
-      const profiilinSeurat = (prof.kaudenSeurat?.[kausi] ?? []).map(seuraAvain);
-      if (profiilinSeurat.length === 0) {
-        // Profiilissa ei ole kauden rivia lainkaan - seuraa ei voi varmentaa.
-        seuraTuntematon = true;
-        ehdokkaat.push(ehdokas);
-        continue;
-      }
-      if (profiilinSeurat.some((x) => omatSeurat.has(x))) {
-        ehdokkaat.push(ehdokas);
-        seuraTuntematon = false;
+      const v = vahvistaSeura(
+        [p.joukkue, ...(p.joukkueet || [])],
+        ehdokas.seura,
+        prof.kaudenSeurat?.[kausi] ?? [],
+      );
+      const ikaProf =
+        prof.syntymavuosi !== null
+          ? parseInt(kausi, 10) - prof.syntymavuosi
+          : null;
+      if (v.vahvistettu && ikaProf === p.ika) {
+        paras = { rivi: ehdokas, lahde: v.lahde! };
         break;
       }
+      if (v.vahvistettu && varalla === null) {
+        varalla = { rivi: ehdokas, lahde: v.lahde! };
+      }
+    }
+
+    if (paras !== null) {
+      ehdokkaat.push(paras.rivi);
+      vahvistusLahde = paras.lahde;
+    } else if (varalla !== null) {
+      ehdokkaat.push(varalla.rivi);
+      vahvistusLahde = varalla.lahde;
+    } else if (nimiOsumat.length > 0) {
+      // Nimi osui, mutta seura ei vahvistunut yhdellakaan ehdokkaalla.
+      ehdokkaat.push(nimiOsumat[0]);
+      seuraTuntematon = true;
     }
 
     if (ehdokkaat.length === 0) {
@@ -389,6 +409,7 @@ async function main(): Promise<void> {
           ],
           /** false = seura jai varmentamatta (VL nayttaa viivan). */
           seura_vahvistettu: !seuraTuntematon,
+          seura_vahvistus_lahde: vahvistusLahde,
           varmennus: seuraTuntematon ? 'nimi+ika' : 'nimi+seura+ika',
           // Pelipaikka on NYKYTIETO, ei kauden aikainen. Puuttuva arvo on
           // null, ei arvaus: pelipaikkaa ei paatella tilastoista.

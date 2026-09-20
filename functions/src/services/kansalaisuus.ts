@@ -294,3 +294,54 @@ export async function haeProfiili(polku: string, vlId: string): Promise<Profiili
 
 }
 
+
+// ============================================
+// SEURAN VAHVISTUS — yksi saanto, kaksi lahdetta
+// ============================================
+
+export interface SeuraVahvistus {
+  vahvistettu: boolean;
+  /** Kumpi lahde vahvisti. null = kumpikaan ei vahvistanut. */
+  lahde: 'lista' | 'profiili' | null;
+}
+
+/**
+ * Vahvistaa, pelasiko pelaaja datan mukaisessa seurassa kyseisella kaudella.
+ *
+ * Kaksi lahdetta, joista kumpikin pettaa eri tilanteessa:
+ *
+ *   Tilastolistan seurasarake toimii PAATTYNEELLA kaudella (kauden 2020
+ *   listassa 0 viivaa ja seuroina RoPS, FC Honka, HIFK), mutta KULUVALLA
+ *   kaudella se nayttaa NYKYISEN seuran ja viivan lahteneille.
+ *
+ *   Profiilin kauden rivi toimii kuluvalla kaudella, mutta vanhoilla
+ *   kausilla se PUUTTUU noin puolelta: Veikkausliigan profiilitaulukko ei
+ *   sisalla kaikkia pelaajan kausia. Kun rivi on, se on tarkka (otos 20
+ *   pelaajaa kaudelta 2020: rivi 10:lla, ja kaikilla 10 seura tasmasi).
+ *
+ * Siksi lista tarkistetaan ensin, ja profiilin rivia kaytetaan aina kun
+ * lista ei vahvista - oli syyna viiva tai eri seura. Jalkimmainen kattaa
+ * kesken kauden Suomessa seuraa vaihtaneet.
+ *
+ * Parametrit ovat normalisoimattomia; normalisointi tehdaan taalla.
+ */
+export function vahvistaSeura(
+  datanSeurat: string[],
+  listanSeura: string,
+  profiilinKaudenSeurat: string[],
+): SeuraVahvistus {
+  const omat = new Set(datanSeurat.filter(Boolean).map(seuraAvain));
+  if (omat.size === 0) return { vahvistettu: false, lahde: null };
+
+  const lista = seuraAvain(listanSeura);
+  if (lista && omat.has(lista)) {
+    return { vahvistettu: true, lahde: 'lista' };
+  }
+
+  const profiili = (profiilinKaudenSeurat || []).map(seuraAvain);
+  if (profiili.some((x) => omat.has(x))) {
+    return { vahvistettu: true, lahde: 'profiili' };
+  }
+
+  return { vahvistettu: false, lahde: null };
+}

@@ -46,6 +46,7 @@ import {
   haeProfiili,
   nimetTasmaavat,
   seuraAvain,
+  vahvistaSeura,
 } from './services/kansalaisuus';
 
 // Region: kaikki funktiot deployataan europe-west1:een (sama kuin TalentMaster-sisarprojekti)
@@ -1657,13 +1658,19 @@ async function haeUusienKansalaisuudet(
         for (const e of ehdokkaat) {
           const prof = await haeProfiili(e.polku, e.vlId);
           await new Promise((r) => setTimeout(r, VIIVE_MS));
-          const kaudenSeurat = (prof.kaudenSeurat?.[k.kausi] ?? []).map(seuraAvain);
+          // Sama hybridisaanto kuin komentoriviskriptissa: yksi funktio,
+          // yksi saanto (services/kansalaisuus.ts).
+          const vahvistus = vahvistaSeura(
+            [p.joukkue, ...(p.joukkueet || [])],
+            e.seura,
+            prof.kaudenSeurat?.[k.kausi] ?? [],
+          );
           const ikaProfiilista =
             prof.syntymavuosi !== null
               ? parseInt(k.kausi, 10) - prof.syntymavuosi
               : null;
           if (
-            kaudenSeurat.some((x) => omatSeurat.has(x)) &&
+            vahvistus.vahvistettu &&
             ikaProfiilista === p.ika &&
             prof.kansalaisuudet.length > 0
           ) {
@@ -1681,6 +1688,7 @@ async function haeUusienKansalaisuudet(
                 { lahde: 'veikkausliiga.com', id: e.vlId, arvo: koodi },
               ],
               seura_vahvistettu: true,
+              seura_vahvistus_lahde: vahvistus.lahde,
               varmennus: 'nimi+seura+ika',
               // Pelipaikka on NYKYTIETO, ei kauden aikainen - sama varauma
               // kuin kansalaisuudella. Puuttuva arvo on null, ei arvaus:

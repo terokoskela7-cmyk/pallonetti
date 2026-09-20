@@ -41,6 +41,7 @@ import {
   haeTuntemattomat,
   nimetTasmaavat,
   seuraAvain,
+  vahvistaSeura,
   type ListaRivi,
   type Profiili,
 } from '../services/kansalaisuus';
@@ -215,31 +216,30 @@ async function main(): Promise<void> {
       continue;
     }
 
-    // Seura varmennetaan profiilin KAUDEN RIVILTA, ei tilastolistan
-    // seura-sarakkeesta. Lista nayttaa paattyneella kaudella kauden seuran,
-    // mutta kuluvalla kaudella nykyisen seuran - ja viivan pelaajalle joka
-    // on lahtenyt. Kauden rivi ei muutu jalkikateen, joten sama saanto
-    // toimii kaikille kausille.
-    //
-    // Jos pelaajalla on samalla kaudella rivi useassa seurassa, riittaa
-    // etta datan seura loytyy joltain rivilta.
+    // Seura vahvistetaan hybridisaannolla (services/kansalaisuus.ts):
+    // tilastolistan sarake ensin, profiilin kauden rivi aina kun lista ei
+    // vahvista. Kumpikin lahde pettaa eri kausilla, eivatka paallekkain.
     const ehdokkaat: typeof nimiOsumat = [];
     let seuraTuntematon = false;
+    let vahvistusLahde: 'lista' | 'profiili' | null = null;
     for (const ehdokas of nimiOsumat) {
       const prof = await haeProfiiliValimuistista(ehdokas);
       if (prof === null) continue;
-      const profiilinSeurat = (prof.kaudenSeurat?.[kausi] ?? []).map(seuraAvain);
-      if (profiilinSeurat.length === 0) {
-        // Profiilissa ei ole kauden rivia lainkaan - seuraa ei voi varmentaa.
-        seuraTuntematon = true;
+      const v = vahvistaSeura(
+        [p.joukkue, ...(p.joukkueet || [])],
+        ehdokas.seura,
+        prof.kaudenSeurat?.[kausi] ?? [],
+      );
+      if (v.vahvistettu) {
         ehdokkaat.push(ehdokas);
-        continue;
-      }
-      if (profiilinSeurat.some((x) => omatSeurat.has(x))) {
-        ehdokkaat.push(ehdokas);
+        vahvistusLahde = v.lahde;
         seuraTuntematon = false;
         break;
       }
+      // Ei vahvistusta: pidetaan ehdokas tallessa, mutta merkitaan
+      // seura vahvistamattomaksi.
+      seuraTuntematon = true;
+      ehdokkaat.push(ehdokas);
     }
 
     if (ehdokkaat.length === 0) {
@@ -389,6 +389,7 @@ async function main(): Promise<void> {
           ],
           /** false = seura jai varmentamatta (VL nayttaa viivan). */
           seura_vahvistettu: !seuraTuntematon,
+          seura_vahvistus_lahde: vahvistusLahde,
           varmennus: seuraTuntematon ? 'nimi+ika' : 'nimi+seura+ika',
           // Pelipaikka on NYKYTIETO, ei kauden aikainen. Puuttuva arvo on
           // null, ei arvaus: pelipaikkaa ei paatella tilastoista.

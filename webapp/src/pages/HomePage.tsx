@@ -5,7 +5,6 @@ import {
   TrendingUp,
   Target,
   Rocket,
-  Loader2,
   Info,
   BarChart3,
   Users,
@@ -14,26 +13,11 @@ import {
   ChevronDown,
   type LucideIcon,
 } from 'lucide-react';
-import {
-  LineChart,
-  Line,
-  XAxis,
-  YAxis,
-  Tooltip,
-  CartesianGrid,
-  ResponsiveContainer,
-  type TooltipProps,
-} from 'recharts';
-import type {
-  ValueType,
-  NameType,
-} from 'recharts/types/component/DefaultTooltipContent';
 import { useApi } from '@/hooks/useApi';
 import {
   getYouthStatsAll,
   getYouthAggregation,
   getOfficialStats,
-  getU21RoundTrend,
   getTrendit,
   filterReliableTeams,
   buildU23Players,
@@ -147,123 +131,6 @@ function KpiCard({ label, value, hint, compare, accent = 'white' }: KpiCardProps
         </div>
       )}
     </div>
-  );
-}
-
-// ============================================================
-// Osio 3 — Kierroskohtainen U21 %-trendikaavio
-//
-// Data tulee backendin /api/u21-round-trend/:season -endpointista, joka
-// laskee aidon liigatason U21-osuuden kierroksittain (U21-pelaajien minuutit
-// / kaikki pelatut minuutit, päättyneistä otteluista). Tyhjätila jos endpoint
-// ei vastaa tai dataa ei vielä ole.
-// ============================================================
-interface TrendPoint {
-  round: number;
-  pct: number;
-}
-
-function TrendTooltip({ active, payload }: TooltipProps<ValueType, NameType>) {
-  if (!active || !payload || payload.length === 0) return null;
-  const d = payload[0].payload as TrendPoint;
-  return (
-    <div className="bg-navy-800 border border-navy-600 rounded-md shadow-xl px-3 py-2 text-xs">
-      <div className="text-white/90 font-medium">Kierros {d.round}</div>
-      <div className="text-ice tabular">
-        {pros(d.pct)}
-      </div>
-    </div>
-  );
-}
-
-function U21TrendChart() {
-  const kausi = useValittuKausi();
-  const { data, loading } = useApi(() => getU21RoundTrend(kausi), [kausi]);
-
-  const chartData = useMemo<TrendPoint[]>(
-    () => (data ?? []).map((d) => ({ round: d.round, pct: d.u21Pct })),
-    [data],
-  );
-
-  if (loading) {
-    return (
-      <div className="h-72 flex flex-col items-center justify-center gap-2">
-        <Loader2 className="w-6 h-6 text-ice animate-spin" />
-        <span className="text-sm text-white/50">Lasketaan kierrosdataa…</span>
-      </div>
-    );
-  }
-
-  if (chartData.length === 0) {
-    return (
-      <div className="h-72 flex flex-col items-center justify-center gap-2 text-center">
-        <Info className="w-6 h-6 text-white/30" />
-        <span className="text-sm text-white/50">
-          Kierroskohtaista dataa ei vielä saatavilla tälle kaudelle.
-        </span>
-      </div>
-    );
-  }
-
-  const maxPct = Math.max(...chartData.map((d) => d.pct));
-
-  return (
-    <>
-      <div style={{ width: '100%', height: 300 }}>
-        <ResponsiveContainer width="100%" height="100%">
-          <LineChart
-            data={chartData}
-            margin={{ top: 12, right: 16, bottom: 8, left: 0 }}
-          >
-            <CartesianGrid stroke="#1a2640" strokeDasharray="2 4" />
-            <XAxis
-              dataKey="round"
-              stroke="#8899AA"
-              tick={{ fontSize: 11, fill: '#A5B4C8' }}
-              tickLine={false}
-              axisLine={{ stroke: '#243350' }}
-              label={{
-                value: 'Kierros',
-                position: 'insideBottomRight',
-                offset: -4,
-                fill: '#5b6b82',
-                fontSize: 11,
-              }}
-            />
-            <YAxis
-              stroke="#8899AA"
-              tick={{ fontSize: 11, fill: '#A5B4C8' }}
-              tickLine={false}
-              axisLine={false}
-              unit=" %"
-              domain={[0, Math.ceil(maxPct + 2)]}
-            />
-            <Tooltip
-              content={<TrendTooltip />}
-              cursor={{ stroke: '#00D4FF', strokeOpacity: 0.3 }}
-            />
-            {/* Ei Tanska-vertailuviivaa: tämä sarja on 17–21-vuotiaiden osuus,
-                kun taas CIES:n Tanska-luku koskee alle 21-vuotiaita. Eri
-                mittarit samalla akselilla antaisivat väärän kuvan. */}
-            <Line
-              type="monotone"
-              dataKey="pct"
-              stroke="#00D4FF"
-              strokeWidth={2}
-              dot={{ fill: '#00D4FF', r: 2.5 }}
-              activeDot={{ r: 5 }}
-              isAnimationActive={false}
-            />
-          </LineChart>
-        </ResponsiveContainer>
-      </div>
-      <p className="text-[11px] text-white/40 mt-3">
-        17–21-vuotiaiden osuus peliajasta kierroksittain · vain päättyneet
-        ottelut · pelaajat joilla ei ikätietoa eivät vaikuta prosenttiin.
-        Kansainvälinen vertailu tehdään erikseen alle 21-vuotiaiden luvulla,
-        joka on tätä pienempi.
-      </p>
-    </>
   );
 }
 
@@ -457,23 +324,17 @@ export default function HomePage() {
             </div>
           </>
         )}
-      </section>
-
-      {/* ---------- Osio 5 — Kierrostrendi ---------- */}
-      <section className="bg-navy-700/40 border border-navy-600 rounded-lg p-5">
-        <div className="flex items-baseline justify-between gap-3 mb-4">
-          <h2 className="text-base font-medium flex items-center gap-2">
-            <TrendingUp className="w-4 h-4 text-ice" />
-            Nuorten osuus peliajasta (17–21 v) kierroksittain — Veikkausliiga{' '}
-            {kausi}
-          </h2>
-        </div>
-        <U21TrendChart />
-        <div className="flex flex-wrap items-center gap-x-5 gap-y-2 mt-5 pt-4 border-t border-navy-600">
+        <div className="flex flex-wrap items-center gap-x-5 gap-y-2 pt-4 border-t border-navy-600">
           <CtaLink to="/peliaika" label="Katso peliaika-analyysi" />
           <CtaLink to="/nuoret" label="Katso kaikki nuoret pelaajat" />
         </div>
       </section>
+
+      {/* Kierrostrendi piilotettu: /api/u21-round-trend nojaa
+          API-Footballiin, jonka ilmaissuunnitelma ei kata kautta 2026
+          ("Free plans do not have access to this season"). Osio naytti
+          siksi loputonta latausta. Tilalle tulee tilannekuviin perustuva
+          kayra (B3); reitti poistetaan tyossa 4. */}
 
       {/* ---------- Osio 6 — INFO-accordion + missio ---------- */}
       <section className="space-y-8">

@@ -19,7 +19,7 @@ import * as XLSX from 'xlsx';
 import { parsiKausiExcel } from '../services/kausiImport';
 import { kirjoitaKausituonti } from '../services/kausiImportKirjoitus';
 import { lueKausi } from '../services/kausiData';
-import { laskeTrendit } from '../services/trendit';
+import { laskeKolmijako, luokitteleKansalaisuudet } from '../services/trendit';
 
 if (!process.env.FIRESTORE_EMULATOR_HOST) {
   console.error(
@@ -54,10 +54,20 @@ function tiedosto(rivit: unknown[][]): Buffer {
   return XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' }) as Buffer;
 }
 
-/** Yksi rivi: 900 minuuttia, joukkueella 10 ottelua (kapasiteetti 9900). */
-function rivi(nimi: string, sarja: string, vaihe: string, joukkue: string): unknown[] {
+/**
+ * Yksi rivi. Oletus 900 minuuttia, joukkueella 10 ottelua (kapasiteetti
+ * 9 900). Minuutit annetaan sarjoittain eri suuruisina, jotta mahdollinen
+ * vuoto nakyisi lukuna eika peittyisi symmetriaan.
+ */
+function rivi(
+  nimi: string,
+  sarja: string,
+  vaihe: string,
+  joukkue: string,
+  minuutit = 900,
+): unknown[] {
   const [etu, suku] = nimi.split(' ');
-  return [etu, suku, '2026', sarja, vaihe, joukkue, 20, 900, 10, 10, 10, 0, 10];
+  return [etu, suku, '2026', sarja, vaihe, joukkue, 20, minuutit, 10, 10, 10, 0, 10];
 }
 
 async function main(): Promise<void> {
@@ -76,8 +86,9 @@ async function main(): Promise<void> {
   );
   const yl = parsiKausiExcel(
     tiedosto([
-      rivi('Otto Ruoppi', 'Ykkösliiga', 'Ykkösliiga', 'FC Lahti'),
-      rivi('Joku Pelaaja', 'Ykkösliiga', 'Ykkösliiga', 'JäPS'),
+      // Sama pelaaja, ERI minuutit: vuoto nakyisi kolmijaossa lukuna.
+      rivi('Otto Ruoppi', 'Ykkösliiga', 'Ykkösliiga', 'FC Lahti', 450),
+      rivi('Joku Pelaaja', 'Ykkösliiga', 'Ykkösliiga', 'JäPS', 450),
     ]),
   );
   vertaa('molemmat tiedostot kelpaavat', [vl.virheet, yl.virheet], [[], []]);
@@ -173,15 +184,110 @@ async function main(): Promise<void> {
   vertaa('YL suorituksia yhä 2', ylLopuksi.suoritukset.length, 2);
 
   console.log('');
-  console.log('4) SIIVOUS');
+  console.log('4) TILANNEKUVAT ERI SARJOILLE');
+  // Tilannekuva on kehityskayran lahde. Jos kaksi sarjaa kirjoittaisi
+  // saman paivan samaan dokumenttiin, kayra sekoittaisi sarjat.
+  const pvm = '2026-09-21';
+  await kirjoitaKausituonti(db, vl, {
+    kokoelmaEtuliite: etuliite,
+    tuontiId: 'testi-vl-tk',
+    lahdeTiedosto: 'vl.xlsx',
+    tilannekuvaPvm: pvm,
+  });
+  await kirjoitaKausituonti(db, yl, {
+    kokoelmaEtuliite: etuliite,
+    tuontiId: 'testi-yl-tk',
+    lahdeTiedosto: 'yl.xlsx',
+    tilannekuvaPvm: pvm,
+  });
+  const tkSnap = await db
+    .collection(etuliite + 'seasons')
+    .doc('2026')
+    .collection('tilannekuvat')
+    .get();
+  vertaa(
+    'saman päivän tilannekuvat ovat eri dokumentteja',
+    tkSnap.docs.map((d) => d.id).sort(),
+    ['veikkausliiga_2026-09-21', 'ykkosliiga_2026-09-21'],
+  );
+  vertaa(
+    'tilannekuva kertoo sarjansa',
+    tkSnap.docs.map((d) => d.data().sarja).sort(),
+    ['Veikkausliiga', 'Ykkösliiga'],
+  );
+  const vlTk = tkSnap.docs.find((d) => d.id.startsWith('veikkausliiga'))!;
+  const vlTkPelaajat = await vlTk.ref.collection('pelaajat').get();
+  vertaa(
+    'tilannekuvan pelaajat ovat vain oman sarjan',
+    vlTkPelaajat.docs.map((d) => d.id).sort(),
+    ['veikkausliiga_otto-ruoppi', 'veikkausliiga_roni-hudd'],
+  );
+
+  console.log('');
+  console.log('5) KANSALAISUUS LASKEE VAIN OMAN SARJAN MINUUTIT');
+  // Kansalaisuusdokumentti on kausikohtainen ja yhteinen molemmille
+  // sarjoille (avain on slug). Jos sarjarajaus vuotaisi, Ykkosliigan
+  // minuutit nakyisivat Veikkausliigan kolmijaossa.
+  await db
+    .collection(etuliite + 'seasons')
+    .doc('2026')
+    .collection('kansalaisuudet')
+    .doc('otto-ruoppi')
+    .set({
+      slug: 'otto-ruoppi',
+      nimi: 'Otto Ruoppi',
+      vlKansalaisuus: 'FIN',
+      seura_vahvistettu: true,
+      suomalainen: 'kylla',
+    });
+  // laskeTrendit lukee tuotantokokoelmista, joten tassa lasketaan
+  // kolmijako samoilla palasilla kuin reitti sen laskee.
+  const lueKolmijako = async (sarja: string) => {
+    const { suoritukset, nimittajat } = await lueTesti(sarja);
+    const kansSnap = await db
+      .collection(etuliite + 'seasons')
+      .doc('2026')
+      .collection('kansalaisuudet')
+      .get();
+    const kapasiteetti = nimittajat.reduce(
+      (a, x) => a + (x.kapasiteetti_min as number),
+      0,
+    );
+    const luokat = luokitteleKansalaisuudet(kansSnap.docs);
+    return laskeKolmijako(
+      suoritukset as unknown as Parameters<typeof laskeKolmijako>[0],
+      kapasiteetti,
+      luokat,
+      20,
+    );
+  };
+  // Veikkausliigassa Ruopilla on 900 min / 19 800 min = 4,5 %.
+  // Ykkosliigassa samalla pelaajalla 450 min / 19 800 min = 2,3 %.
+  // Jos sarjarajaus vuotaisi, VL nayttaisi 6,8 % (900 + 450).
+  vertaa('Veikkausliigan FIN-osuus', (await lueKolmijako('Veikkausliiga'))?.fin, 4.5);
+  vertaa('Ykkösliigan FIN-osuus', (await lueKolmijako('Ykkösliiga'))?.fin, 2.3);
+
+  console.log('');
+  console.log('6) SIIVOUS');
   for (const kok of ['suoritukset', 'nimittajat', 'kaudet']) {
     const snap = await db.collection(etuliite + kok).get();
     for (const d of snap.docs) await d.ref.delete();
     console.log('  poistettu ' + snap.size + ' dokumenttia: ' + etuliite + kok);
   }
-  const pSnap = await db.collection(etuliite + 'seasons').doc('2026').collection('players').get();
+  const kausiRef = db.collection(etuliite + 'seasons').doc('2026');
+  const pSnap = await kausiRef.collection('players').get();
   for (const d of pSnap.docs) await d.ref.delete();
   console.log('  poistettu ' + pSnap.size + ' projektiota');
+  const kSnap = await kausiRef.collection('kansalaisuudet').get();
+  for (const d of kSnap.docs) await d.ref.delete();
+  console.log('  poistettu ' + kSnap.size + ' kansalaisuusdokumenttia');
+  const tSnap = await kausiRef.collection('tilannekuvat').get();
+  for (const d of tSnap.docs) {
+    const p = await d.ref.collection('pelaajat').get();
+    for (const x of p.docs) await x.ref.delete();
+    await d.ref.delete();
+  }
+  console.log('  poistettu ' + tSnap.size + ' tilannekuvaa');
 
   console.log('');
   console.log(

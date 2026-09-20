@@ -9,6 +9,7 @@ import {
 } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { getKaudet, type KausiInfo } from '@/services/api';
+import { OLETUSSARJA, sarjaAvain, jarjestaSarjat } from '@/constants/sarjat';
 
 /**
  * Kauden valinta — yksi lähde koko sovellukselle.
@@ -25,10 +26,16 @@ import { getKaudet, type KausiInfo } from '@/services/api';
 interface KausiContextArvo {
   /** Valittu kausi. null vain niin kauan kuin lista latautuu. */
   kausi: number | null;
-  /** Saatavilla olevat kaudet, uusin ensin. */
+  /** Valitun sarjan kaudet, uusin ensin. */
   kaudet: KausiInfo[];
   /** Vaihda kausi. Säilyttää polun ja muut hakuparametrit. */
   setKausi: (kausi: number) => void;
+  /** Valittu sarja, esim. "Veikkausliiga". */
+  sarja: string;
+  /** Sarjat, joista on dataa. Johdetaan kausilistasta, ei kovakoodata. */
+  sarjat: string[];
+  /** Vaihda sarja. Kausi säilyy, jos se on myös uudessa sarjassa. */
+  setSarja: (sarja: string) => void;
   loading: boolean;
   /** Tosi jos URL pyysi kautta jota ei ole — käyttöliittymä voi kertoa siitä. */
   pyydettyTuntematon: boolean;
@@ -38,12 +45,14 @@ const KausiContext = createContext<KausiContextArvo | null>(null);
 
 export function KausiProvider({ children }: { children: ReactNode }) {
   const [searchParams, setSearchParams] = useSearchParams();
-  const [kaudet, setKaudet] = useState<KausiInfo[]>([]);
+  const [kaikkiKaudet, setKaudet] = useState<KausiInfo[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     let peruttu = false;
-    getKaudet()
+    // Haetaan KAIKKI sarjat kerralla: sarjavalitsimen lista johdetaan
+    // tästä, eikä uusi sarja vaadi koodimuutosta.
+    getKaudet('kaikki')
       .then((lista) => {
         if (!peruttu) setKaudet(lista);
       })
@@ -60,6 +69,24 @@ export function KausiProvider({ children }: { children: ReactNode }) {
       peruttu = true;
     };
   }, []);
+
+  // ---------- Sarja ----------
+  const sarjat = useMemo(
+    () => jarjestaSarjat(Array.from(new Set(kaikkiKaudet.map((k) => k.sarja)))),
+    [kaikkiKaudet],
+  );
+  const raakaSarja = searchParams.get('sarja');
+  // Tuntematon sarja palautuu oletukseen sen sijaan että sivu kaatuisi.
+  // Jaettu linkki ei siis tuota tyhjää näkymää.
+  const sarja =
+    sarjat.find((x) => sarjaAvain(x) === sarjaAvain(raakaSarja || '')) ??
+    (sarjat.includes(OLETUSSARJA) ? OLETUSSARJA : (sarjat[0] ?? OLETUSSARJA));
+
+  // ---------- Kausi valitun sarjan sisällä ----------
+  const kaudet = useMemo(
+    () => kaikkiKaudet.filter((k) => k.sarja === sarja),
+    [kaikkiKaudet, sarja],
+  );
 
   const oletus = kaudet.length > 0 ? kaudet[0].kausi : null;
   const raaka = searchParams.get('kausi');
@@ -83,9 +110,37 @@ export function KausiProvider({ children }: { children: ReactNode }) {
     [searchParams, setSearchParams],
   );
 
+  const setSarja = useCallback(
+    (uusi: string) => {
+      const seuraavat = new URLSearchParams(searchParams);
+      seuraavat.set('sarja', sarjaAvain(uusi));
+      // Kausi säilyy, jos uudessa sarjassa on sama kausi. Muuten siirrytään
+      // sen uusimpaan kauteen — tyhjä näkymä olisi huonompi kuin vaihto,
+      // joka sanotaan valitsimessa auki.
+      const uudenKaudet = kaikkiKaudet.filter((k) => k.sarja === uusi);
+      const nykyinen = kausi;
+      if (nykyinen !== null && !uudenKaudet.some((k) => k.kausi === nykyinen)) {
+        if (uudenKaudet.length > 0) {
+          seuraavat.set('kausi', String(uudenKaudet[0].kausi));
+        }
+      }
+      setSearchParams(seuraavat, { replace: false });
+    },
+    [searchParams, setSearchParams, kaikkiKaudet, kausi],
+  );
+
   const arvo = useMemo(
-    () => ({ kausi, kaudet, setKausi, loading, pyydettyTuntematon }),
-    [kausi, kaudet, setKausi, loading, pyydettyTuntematon],
+    () => ({
+      kausi,
+      kaudet,
+      setKausi,
+      sarja,
+      sarjat,
+      setSarja,
+      loading,
+      pyydettyTuntematon,
+    }),
+    [kausi, kaudet, setKausi, sarja, sarjat, setSarja, loading, pyydettyTuntematon],
   );
 
   return <KausiContext.Provider value={arvo}>{children}</KausiContext.Provider>;
@@ -139,4 +194,9 @@ export function useValittuKausi(): number {
     throw new Error('useValittuKausi vaatii KausiPortin');
   }
   return kausi;
+}
+
+/** Valittu sarja. Oletus on Veikkausliiga, joten arvo ei ole koskaan tyhjä. */
+export function useValittuSarja(): string {
+  return useKausi().sarja;
 }

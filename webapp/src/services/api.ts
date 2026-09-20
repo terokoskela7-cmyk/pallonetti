@@ -14,6 +14,15 @@ interface ApiResponse<T> {
 }
 
 /** Base API client */
+/**
+ * Sarjaparametri kyselymerkkijonoon. Tyhjä arvo jätetään pois, jolloin
+ * backend käyttää oletussarjaa (Veikkausliiga) — vanhat osoitteet
+ * toimivat siis muuttumattomina.
+ */
+function sarjaParam(sarja?: string): string {
+  return sarja ? '?sarja=' + encodeURIComponent(sarja) : '';
+}
+
 async function fetchApi<T>(endpoint: string, options?: RequestInit): Promise<T> {
   const url = `${API_BASE_URL}${endpoint}`;
   const response = await fetch(url, {
@@ -225,8 +234,11 @@ export interface YouthStatsAll {
 export const getYouthStatsAll = (season: number): Promise<YouthStatsAll> =>
   fetchApi(`/youth-stats/${season}/all`);
 
-export const getYouthAggregation = (season: number): Promise<YouthAggregation> =>
-  fetchApi(`/youth-aggregation/${season}`);
+export const getYouthAggregation = (
+  season: number,
+  sarja?: string,
+): Promise<YouthAggregation> =>
+  fetchApi(`/youth-aggregation/${season}` + sarjaParam(sarja));
 
 
 
@@ -298,6 +310,8 @@ export interface Siirto {
 
 export interface SeasonPlayer {
   slug: string;
+  /** Sarja, jossa pelaaja pelasi kyseisellä kaudella. */
+  sarja?: string;
   etunimi: string;
   sukunimi: string;
   ika: number;
@@ -319,15 +333,21 @@ export interface PlayerRound {
 }
 
 /** Kaikki kauden pelaajat (seasons/{season}/players/*). */
-export const getSeasonPlayers = (season: number): Promise<SeasonPlayer[]> =>
-  fetchApi(`/season-players/${season}`);
+export const getSeasonPlayers = (
+  season: number,
+  sarja?: string,
+): Promise<SeasonPlayer[]> =>
+  fetchApi(`/season-players/${season}` + sarjaParam(sarja));
 
 /** Yksittäinen pelaaja — null jos 404 (fetchApi heittäisi, joten oma fetch). */
 export async function getSeasonPlayer(
   season: number,
   slug: string,
+  sarja?: string,
 ): Promise<SeasonPlayer | null> {
-  const url = `${API_BASE_URL}/season-players/${season}/${encodeURIComponent(slug)}`;
+  const url =
+    `${API_BASE_URL}/season-players/${season}/${encodeURIComponent(slug)}` +
+    sarjaParam(sarja);
   const response = await fetch(url, {
     headers: { 'Content-Type': 'application/json' },
   });
@@ -348,8 +368,12 @@ export async function getSeasonPlayer(
 export const getPlayerRounds = (
   season: number,
   slug: string,
+  sarja?: string,
 ): Promise<PlayerRound[]> =>
-  fetchApi(`/season-players/${season}/${encodeURIComponent(slug)}/rounds`);
+  fetchApi(
+    `/season-players/${season}/${encodeURIComponent(slug)}/rounds` +
+      sarjaParam(sarja),
+  );
 
 // ============================================
 // KAUSITRENDIT — yksi piste per kausi
@@ -362,6 +386,8 @@ export interface Kolmijako {
 }
 
 export interface TrendiKausi {
+  /** Sarja, jota piste koskee. */
+  sarja: string;
   kausi: number;
   /** Päämittari 17–21. null = kaudelta ei ole dataa (ei 0). */
   osuus1721: number | null;
@@ -371,6 +397,10 @@ export interface TrendiKausi {
   kesken: boolean;
   otteluitaPelattu: number | null;
   pelaajia: number | null;
+  /** Sama luku ilman akatemiajoukkueita; null jos niitä ei ollut. */
+  osuus1721IlmanAkatemioita: number | null;
+  osuusAlle21IlmanAkatemioita: number | null;
+  akatemiajoukkueet: string[];
 }
 
 /**
@@ -381,13 +411,14 @@ export interface TrendiKausi {
  * virheteksti tavallisella latauksella on huonompi kuin yksi hiljainen
  * uusinta. Toinen epäonnistuminen näytetään.
  */
-export async function getTrendit(): Promise<TrendiKausi[]> {
+export async function getTrendit(sarja?: string): Promise<TrendiKausi[]> {
+  const polku = '/trendit' + sarjaParam(sarja);
   try {
-    return await fetchApi<TrendiKausi[]>('/trendit');
+    return await fetchApi<TrendiKausi[]>(polku);
   } catch (e) {
     console.warn('[trendit] ensimmäinen yritys epäonnistui, yritetään uudelleen:', e);
     await new Promise((r) => setTimeout(r, 1200));
-    return fetchApi<TrendiKausi[]>('/trendit');
+    return fetchApi<TrendiKausi[]>(polku);
   }
 }
 
@@ -406,7 +437,8 @@ export interface KausiInfo {
  * Saatavilla olevat kaudet, uusin ensin. Lähde on backendin kaudet-kokoelma,
  * ei kovakoodattu lista — uusi kausi ilmestyy tuonnin jälkeen itsestään.
  */
-export const getKaudet = (): Promise<KausiInfo[]> => fetchApi('/kaudet');
+export const getKaudet = (sarja?: string): Promise<KausiInfo[]> =>
+  fetchApi('/kaudet' + sarjaParam(sarja));
 
 // ============================================
 // KANSALAISUUDET — minuuteilla painotettu osuus
@@ -429,8 +461,11 @@ export interface KansalaisuusTiedot {
  * Kansalaisuustiedot kaudelle. Kaikilla kausilla ei ole dataa, jolloin
  * saatavilla on false eikä lukuja esitetä.
  */
-export const getKansalaisuudet = (season: number): Promise<KansalaisuusTiedot> =>
-  fetchApi(`/kansalaisuudet/${season}`);
+export const getKansalaisuudet = (
+  season: number,
+  sarja?: string,
+): Promise<KansalaisuusTiedot> =>
+  fetchApi(`/kansalaisuudet/${season}` + sarjaParam(sarja));
 
 /** Sama slug-logiikka kuin backendin toSlug() (excelImport.ts). */
 export function toSlug(etu: string, suku: string): string {

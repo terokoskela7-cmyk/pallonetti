@@ -197,8 +197,15 @@ ehdolla**:
    havainto kauden kulusta
 2. **suodatus sarjalla** — puuttuva `sarja`-kenttä tarkoittaa
    Veikkausliigaa
-3. **`lahde: "migraatio"` jätetään pois** — nämä syntyivät avainmuutoksen
-   yhteydessä 20.9.2026 eivätkä kerro pelatuista otteluista mitään
+3. **`lahde`-kentällä merkityt jätetään pois** — `"migraatio"` syntyi
+   avainmuutoksen yhteydessä 20.9.2026, `"tuonti (päättynyt kausi)"` on
+   päättyneen kauden lopputila. Kumpikaan ei kerro pelatuista otteluista
+   mitään. Kuluvan kauden tilannekuvissa kenttää ei ole.
+
+`seasons/{kausi}` on **olematon dokumentti**: sillä ei ole kenttiä, vain
+alikokoelmat. Siksi `collection('seasons').get()` palauttaa tyhjän ja
+kausien läpikäynti tehdään `listDocuments()`-kutsulla. Kysely näyttäisi
+onnistuvan ja tekisi äänettömästi ei mitään.
 
 Kaksoiskappaleen esto vertaa sisältöä (seurojen ottelumäärät ja pelaajien
 minuutit seuroittain), ei aikaleimaa. Vanhin tilannekuva `2026-09-19` on

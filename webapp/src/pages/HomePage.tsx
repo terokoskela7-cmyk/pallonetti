@@ -330,11 +330,9 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* Kierrostrendi piilotettu: /api/u21-round-trend nojaa
-          API-Footballiin, jonka ilmaissuunnitelma ei kata kautta 2026
-          ("Free plans do not have access to this season"). Osio naytti
-          siksi loputonta latausta. Tilalle tulee tilannekuviin perustuva
-          kayra (B3); reitti poistetaan tyossa 4. */}
+      {/* Kierroskohtainen kaavio on poistettu: sen lahde oli ulkoinen
+          tilastorajapinta, jota ei enaa kayteta. Tilalle tulee
+          tilannekuviin perustuva kayra (B3). */}
 
       {/* ---------- Osio 6 — INFO-accordion + missio ---------- */}
       <section className="space-y-8">

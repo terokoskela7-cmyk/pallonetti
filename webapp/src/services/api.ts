@@ -36,67 +36,10 @@ async function fetchApi<T>(endpoint: string, options?: RequestInit): Promise<T> 
   return result.data;
 }
 
-// ============================================
-// SEASONS
-// ============================================
-export interface SeasonInfo {
-  year: number;
-  startDate: string;
-  endDate: string;
-  currentMatchday: number;
-  numberOfMatchdays: number;
-  numberOfTeams: number;
-  status: 'upcoming' | 'ongoing' | 'finished';
-}
 
-export const getSeasons = (): Promise<SeasonInfo[]> =>
-  fetchApi('/seasons');
 
-export const getSeason = (year: number): Promise<SeasonInfo> =>
-  fetchApi(`/seasons/${year}`);
 
-// ============================================
-// STANDINGS
-// ============================================
-export interface StandingEntry {
-  position: number;
-  teamId: string;
-  teamName: string;
-  playedGames: number;
-  won: number;
-  draw: number;
-  lost: number;
-  points: number;
-  goalsFor: number;
-  goalsAgainst: number;
-  goalDifference: number;
-  form: string;
-  crestUrl?: string;
-}
 
-export const getStandings = (season: number): Promise<StandingEntry[]> =>
-  fetchApi(`/standings/${season}`);
-
-// ============================================
-// TEAMS
-// ============================================
-export interface Team {
-  id: string;
-  name: string;
-  shortName: string;
-  tla: string;
-  venue: string;
-  founded: number;
-  clubColors: string;
-  crestUrl: string;
-  address: string;
-}
-
-export const getTeams = (season: number): Promise<Team[]> =>
-  fetchApi(`/teams/${season}`);
-
-export const getTeamPlayers = (season: number, teamId: string): Promise<Player[]> =>
-  fetchApi(`/teams/${season}/${teamId}/players`);
 
 // ============================================
 // PLAYERS
@@ -155,25 +98,7 @@ export interface PlayerStats {
   age?: number;
 }
 
-export interface PlayerFilters {
-  teamId?: string;
-  position?: Position;
-  minAge?: number;
-  maxAge?: number;
-  minMinutes?: number;
-  sortBy?: string;
-  limit?: number;
-}
 
-export const getPlayers = (season: number, filters?: PlayerFilters): Promise<PlayerStats[]> => {
-  const params = new URLSearchParams();
-  if (filters?.teamId) params.append('teamId', filters.teamId);
-  if (filters?.position) params.append('position', filters.position);
-  if (filters?.minMinutes) params.append('minMinutes', String(filters.minMinutes));
-  if (filters?.sortBy) params.append('sortBy', filters.sortBy);
-  if (filters?.limit) params.append('limit', String(filters.limit));
-  return fetchApi(`/players/${season}?${params}`);
-};
 
 // ============================================
 // YOUTH STATS (Core feature)
@@ -231,20 +156,12 @@ export interface YouthAggregation {
   youthPercentageU23?: number;
 }
 
-export const getYouthStats = (
-  season: number,
-  ageGroup?: 'u23' | 'u21' | 'u20' | 'u19' | 'u18'
-): Promise<YouthStats[]> => {
-  const params = ageGroup ? `?ageGroup=${ageGroup}` : '';
-  return fetchApi(`/youth-stats/${season}${params}`);
-};
-
 /**
  * Datavajeen kynnysarvo. Joukkueet joilla totalMinutes alle tämän pudotetaan
  * kaikista U23-laskelmista — pieni otos ei ole luotettava.
  * Peruste: Veikkausliigan tasaiseen otteluohjelmaan kuuluu n. 990 min/joukkue
  * yhden täysottelun jälkeen kaikille pelaajille — alle 1000 min koko joukkueella
- * tarkoittaa siis API-Footballin datavajetta, ei oikeaa peliaikatilannetta.
+ * tarkoittaa siis lähdeaineiston datavajetta, ei oikeaa peliaikatilannetta.
  */
 export const LOW_DATA_TOTAL_MINUTES = 1000;
 
@@ -254,7 +171,7 @@ export function filterReliableTeams(teams: YouthStats[]): YouthStats[] {
 
 /**
  * Yhtenäinen U23-pelaajaesitys. Yhdistää kaksi datalähdettä:
- *  - youthAgg.topYouthPlayers (API-Football): luotettava ikä, U23-suodatus jo
+ *  - youthAgg.topYouthPlayers: luotettava ikä, U23-suodatus jo
  *    tehty backendissä; minuutit/maalit voivat olla epätarkkoja.
  *  - officialPlayers (Veikkausliiga.com scraper): tarkat minuutit/maalit/syötöt,
  *    ei ikätietoa eikä U23-suodatusta.
@@ -311,108 +228,7 @@ export const getYouthStatsAll = (season: number): Promise<YouthStatsAll> =>
 export const getYouthAggregation = (season: number): Promise<YouthAggregation> =>
   fetchApi(`/youth-aggregation/${season}`);
 
-/** Kierroskohtainen U21 peliaika-% — backend laskee päättyneistä otteluista.
- *  U21 = syntynyt (season-21) tai myöhemmin (2026 → 2005), sama joukko kuin
- *  osuusNuoret-KPI. */
-export interface U21RoundTrendPoint {
-  round: number;
-  u21Pct: number;
-  nuortenMins: number;
-  totalMins: number;
-}
 
-export const getU21RoundTrend = (
-  season: number,
-): Promise<U21RoundTrendPoint[]> => fetchApi(`/u21-round-trend/${season}`);
-
-// ============================================
-// PLAYER BY ID (API-Football season-detail)
-// ============================================
-/** API-Footballin /players?id=&season=&league= -vastausmuoto (yksi pelaaja).
- *  Backendin /api/player/:playerId/season/:season palauttaa arrayn näitä
- *  (yleensä yksi alkio league-suodatuksen takia). */
-export interface ApiFootballPlayerSeason {
-  player: {
-    id: number;
-    name: string;
-    firstname: string;
-    lastname: string;
-    age: number;
-    birth: { date: string; place: string; country: string };
-    nationality: string;
-    height: string;
-    weight: string;
-    injured: boolean;
-    photo: string;
-  };
-  statistics: Array<{
-    team: { id: number; name: string; logo: string };
-    league: { id: number; name: string; season: number };
-    games: {
-      appearences: number; // API-Football kirjoitusvirhe alkup. JSON:ssa
-      lineups: number;
-      minutes: number;
-      number: number | null;
-      position: string;
-      rating: string | null;
-      captain: boolean;
-    };
-    substitutes: { in: number; out: number; bench: number };
-    shots: { total: number | null; on: number | null };
-    goals: {
-      total: number | null;
-      conceded: number | null;
-      assists: number | null;
-      saves: number | null;
-    };
-    passes: { total: number | null; key: number | null; accuracy: number | null };
-    tackles: {
-      total: number | null;
-      blocks: number | null;
-      interceptions: number | null;
-    };
-    duels: { total: number | null; won: number | null };
-    dribbles: {
-      attempts: number | null;
-      success: number | null;
-      past: number | null;
-    };
-    fouls: { drawn: number | null; committed: number | null };
-    cards: { yellow: number | null; red: number | null };
-    penalty: {
-      won: number | null;
-      committed: number | null;
-      scored: number | null;
-      missed: number | null;
-      saved: number | null;
-    };
-  }>;
-}
-
-export const getPlayerSeason = (
-  playerId: string | number,
-  season: number,
-): Promise<ApiFootballPlayerSeason[]> =>
-  fetchApi(`/player/${playerId}/season/${season}`);
-
-/** Pelaajan kierroskohtainen rivi — backend kokoaa joukkueen otteluista. */
-export interface PlayerFixture {
-  round: string; // API-Football: "Regular Season - 7"
-  date: string; // ISO
-  minutes: number; // 0 jos ei pelannut
-  goals: number;
-  assists: number;
-  rating: number | null;
-  homeTeam: string;
-  awayTeam: string;
-  score: string | null; // "2-1"
-}
-
-export const getPlayerFixtures = (
-  playerId: string,
-  season: number,
-): Promise<PlayerFixture[]> =>
-  fetchApi(`/player/${playerId}/fixtures?season=${season}`);
 
 // ============================================
 // OFFICIAL STATS (Veikkausliiga.com scrape)
@@ -430,7 +246,7 @@ export interface OfficialPlayer {
   redCards: number;
   season: number;
   source: string;
-  /** Ei vielä scrapessa, varauduttu tulevaisuuden rikastukseen (esim. API-Football join). */
+  /** Ei vielä scrapessa, varauduttu tulevaisuuden rikastukseen. */
   age?: number;
 }
 
@@ -458,48 +274,6 @@ export async function getOfficialStats(year: number): Promise<OfficialStatsRespo
   if (!result.success) throw new Error('API returned unsuccessful response');
   return { data: result.data, meta: result.meta };
 }
-
-// ============================================
-// MATCHES
-// ============================================
-export type MatchStatus = 'SCHEDULED' | 'LIVE' | 'IN_PLAY' | 'FINISHED' | 'POSTPONED';
-
-export interface Match {
-  id: string;
-  season: number;
-  matchday: number;
-  date: string;
-  status: MatchStatus;
-  homeTeamId: string;
-  homeTeamName: string;
-  awayTeamId: string;
-  awayTeamName: string;
-  homeScore?: number;
-  awayScore?: number;
-  venue?: string;
-  referee?: string;
-}
-
-export const getMatches = (
-  season: number,
-  status?: 'upcoming' | 'recent' | 'all'
-): Promise<Match[]> => {
-  if (status === 'upcoming') return fetchApi(`/matches/${season}/upcoming`);
-  if (status === 'recent') return fetchApi(`/matches/${season}/recent`);
-  return fetchApi(`/matches/${season}`);
-};
-
-// ============================================
-// ADMIN
-// ============================================
-export const refreshSeasonData = (season: number): Promise<unknown> =>
-  fetchApi(`/admin/refresh/${season}`, { method: 'POST' });
-
-export const getCacheStats = (): Promise<{
-  totalEntries: number;
-  bySource: Record<string, number>;
-  expiredEntries: number;
-}> => fetchApi('/admin/cache-stats');
 
 // ============================================
 // SEASON PLAYERS (Firestore Excel-import data — Vaihe B)

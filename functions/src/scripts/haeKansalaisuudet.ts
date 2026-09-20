@@ -40,7 +40,6 @@ import {
   nollaaTuntemattomat,
   haeTuntemattomat,
   nimetTasmaavat,
-  seuraAvain,
   vahvistaSeura,
   type ListaRivi,
   type Profiili,
@@ -201,10 +200,7 @@ async function main(): Promise<void> {
   for (let i = 0; i < kohteet.length; i++) {
     const p = kohteet[i];
 
-    // 1) Nimi + seura listasivulta. Seura on pakollinen.
-    const omatSeurat = new Set(
-      [p.joukkue, ...p.joukkueet].filter(Boolean).map(seuraAvain),
-    );
+    // 1) Nimi listasivulta. Seuran vahvistuksen tekee vahvistaSeura.
     const nimiOsumat = lista.filter((r) => nimetTasmaavat(p.nimi, r.nimi));
 
     if (nimiOsumat.length === 0) {

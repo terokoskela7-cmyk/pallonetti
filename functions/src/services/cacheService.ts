@@ -20,6 +20,16 @@ const CACHE_DURATIONS: Record<string, number> = {
   lineups: 0.5,
 };
 
+/**
+ * Onko tulos "ei mitaan"? Tyhja taulukko, null tai undefined.
+ * Objektia ei tulkita tyhjaksi: sen kenttien merkitys vaihtelee.
+ */
+function onTyhja(arvo: unknown): boolean {
+  if (arvo === null || arvo === undefined) return true;
+  if (Array.isArray(arvo)) return arvo.length === 0;
+  return false;
+}
+
 class CacheService {
   // Lazy: admin.firestore() kutsutaan vasta ensimmäisellä käytöllä.
   // Konstruktori ajetaan module-load-aikana, mutta initializeApp() vasta
@@ -80,7 +90,15 @@ class CacheService {
     }
   }
 
-  /** Hae tai hae ja tallenna */
+  /**
+   * Hae tai hae ja tallenna.
+   *
+   * Tyhjaa tulosta EI tallenneta. Tyhja lista tarkoittaa kaytannossa
+   * aina, etta lahde ei juuri nyt vastannut — ja jos se tallennettaisiin,
+   * yksi epaonnistunut haku tarjoiltaisiin onnistuneena tyhjana koko
+   * TTL:n ajan. Nain kavi u21_round_trend-dokumentille: siella oli tyhja
+   * lista kuudeksi tunniksi. Seuraava pyynto yrittaa uudelleen.
+   */
   async getOrFetch<T>(
     key: string,
     fetchFn: () => Promise<T>,
@@ -93,6 +111,13 @@ class CacheService {
     }
 
     const data = await fetchFn();
+    if (onTyhja(data)) {
+      console.warn(
+        '[cache] tyhjaa tulosta ei tallenneta avaimelle ' + key +
+          ' — seuraava pyynto yrittaa uudelleen',
+      );
+      return { data, cached: false };
+    }
     await this.set(key, data, source, type);
     return { data, cached: false };
   }

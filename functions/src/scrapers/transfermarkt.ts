@@ -14,7 +14,6 @@
 import axios, { AxiosError } from 'axios';
 import * as cheerio from 'cheerio';
 import * as admin from 'firebase-admin';
-import { dataAggregator } from '../services/dataAggregator';
 
 const TM_BASE = 'https://www.transfermarkt.com';
 const CACHE_TTL_DAYS = 7;
@@ -470,7 +469,7 @@ async function lueKaudenNuoretPelaajat(
 // VAIHE 2 — BATCH: kauden nuoret pelaajat kausituonnin datasta
 //
 // Lähde oli aiemmin dataAggregator.getYouthAggregation().topYouthPlayers
-// eli API-Football, joka oli cap:attu 20 pelaajaan. Nyt lista tulee
+// eli ulkoinen tilastorajapinta, joka oli cap:attu 20 pelaajaan. Nyt lista tulee
 // suoritukset-kokoelmasta: kauden KAIKKI pelaajat, ei top-20. Ikäsuodatusta
 // ei tehdä täällä — lähde on jo nuorten aineisto, ja sen haarukka luetaan
 // datasta eikä oleteta koodissa.
@@ -501,7 +500,7 @@ export async function scrapeAllYouthPlayers(
   for (const p of players) {
     try {
       // Hakusana: pelkkä sukunimi (viimeinen sana). Luotettavampi kuin
-      // koko nimi koska API-Football voi palauttaa "O. Ruoppi" mutta TM
+      // koko nimi koska lahde voi palauttaa "O. Ruoppi" mutta TM
       // listaa "Otto Ruoppi" — etunimien kirjoituseroavaisuudet eivät
       // haittaa kun haetaan vain sukunimellä.
       const surname =

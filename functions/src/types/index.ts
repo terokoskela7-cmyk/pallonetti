@@ -194,7 +194,7 @@ export interface YouthStats {
   youthPlayersU23: number;
   youthPlayersU21: number;
   youthPlayersU20: number;
-  // null = ei luotettavaa keski-ikätietoa (esim. virheellistä API-Football-dataa)
+  // null = ei luotettavaa keski-ikätietoa (esim. virheellistä lähdedataa)
   averageAge: number | null;
   averageAgeStarters: number;
   updatedAt: string;
@@ -220,204 +220,11 @@ export interface ApiResponse<T> {
   timestamp: string;
 }
 
-/** API-Football vastaus */
-export interface ApiFootballResponse<T> {
-  get: string;
-  parameters: Record<string, unknown>;
-  errors: unknown[];
-  results: number;
-  paging: { current: number; total: number };
-  response: T;
-}
 
-/** API-Football joukkue */
-export interface ApiFootballTeam {
-  team: {
-    id: number;
-    name: string;
-    code: string;
-    country: string;
-    founded: number;
-    national: boolean;
-    logo: string;
-  };
-  venue: {
-    id: number;
-    name: string;
-    address: string;
-    city: string;
-    capacity: number;
-    surface: string;
-    image: string;
-  };
-}
 
-/** API-Football pelaaja */
-export interface ApiFootballPlayer {
-  player: {
-    id: number;
-    name: string;
-    firstname: string;
-    lastname: string;
-    age: number;
-    birth: { date: string; place: string; country: string };
-    nationality: string;
-    height: string;
-    weight: string;
-    injured: boolean;
-    photo: string;
-  };
-  statistics: Array<{
-    team: { id: number; name: string; logo: string };
-    league: { id: number; name: string; season: number };
-    games: {
-      appearences: number;
-      lineups: number;
-      minutes: number;
-      number: number | null;
-      position: string;
-      rating: string;
-      captain: boolean;
-    };
-    substitutes: { in: number; out: number; bench: number };
-    shots: { total: number | null; on: number | null };
-    goals: { total: number | null; conceded: number | null; assists: number | null; saves: number | null };
-    passes: { total: number | null; key: number | null; accuracy: number | null };
-    tackles: { total: number | null; blocks: number | null; interceptions: number | null };
-    duels: { total: number | null; won: number | null };
-    dribbles: { attempts: number | null; success: number | null; past: number | null };
-    fouls: { drawn: number | null; committed: number | null };
-    cards: { yellow: number | null; red: number | null };
-    penalty: { won: number | null; committed: number | null; scored: number | null; missed: number | null; saved: number | null };
-  }>;
-}
 
-/** API-Football sarjataulukko */
-export interface ApiFootballStanding {
-  league: {
-    id: number;
-    name: string;
-    country: string;
-    season: number;
-    standings: Array<Array<{
-      rank: number;
-      team: { id: number; name: string; logo: string };
-      points: number;
-      goalsDiff: number;
-      group: string;
-      form: string;
-      status: string;
-      description: string;
-      all: {
-        played: number;
-        win: number;
-        draw: number;
-        lose: number;
-        goals: { for: number; against: number };
-      };
-      home: {
-        played: number;
-        win: number;
-        draw: number;
-        lose: number;
-        goals: { for: number; against: number };
-      };
-      away: {
-        played: number;
-        win: number;
-        draw: number;
-        lose: number;
-        goals: { for: number; against: number };
-      };
-      update: string;
-    }>>;
-  };
-}
 
-/** API-Football ottelu */
-export interface ApiFootballMatch {
-  fixture: {
-    id: number;
-    referee: string | null;
-    timezone: string;
-    date: string;
-    timestamp: number;
-    periods: { first: number | null; second: number | null };
-    venue: { id: number | null; name: string; city: string };
-    status: { long: string; short: string; elapsed: number | null };
-  };
-  league: { id: number; name: string; season: number; round: string };
-  teams: {
-    home: { id: number; name: string; logo: string; winner: boolean | null };
-    away: { id: number; name: string; logo: string; winner: boolean | null };
-  };
-  goals: { home: number | null; away: number | null };
-  score: {
-    halftime: { home: number | null; away: number | null };
-    fulltime: { home: number | null; away: number | null };
-    extratime: { home: number | null; away: number | null };
-    penalty: { home: number | null; away: number | null };
-  };
-  lineups?: Array<{
-    team: { id: number; name: string; logo: string };
-    coach: { id: number; name: string; photo: string };
-    formation: string;
-    startXI: Array<{ player: { id: number; name: string; number: number; pos: string; grid: string | null } }>;
-    substitutes: Array<{ player: { id: number; name: string; number: number; pos: string; grid: string | null } }>;
-  }>;
-  statistics?: Array<{
-    team: { id: number; name: string; logo: string };
-    statistics: Array<{ type: string; value: number | string | null }>;
-  }>;
-}
 
-/** API-Football /fixtures/players -vastaus: ryhmitelty joukkueittain.
- *  Käytetään fixture-tason data-pipelinessa (kierroskohtaiset minuutit). */
-export interface ApiFootballFixturePlayers {
-  team: { id: number; name: string; logo: string };
-  players: Array<{
-    player: { id: number; name: string; photo?: string };
-    statistics: Array<{
-      games: {
-        minutes: number | null;
-        number: number | null;
-        position: string | null;
-        rating: string | null;
-        captain: boolean;
-        substitute: boolean;
-      };
-      goals: {
-        total: number | null;
-        conceded: number | null;
-        assists: number | null;
-        saves: number | null;
-      };
-      offsides: number | null;
-      shots: { total: number | null; on: number | null };
-      passes: { total: number | null; key: number | null; accuracy: string | null };
-      tackles: {
-        total: number | null;
-        blocks: number | null;
-        interceptions: number | null;
-      };
-      duels: { total: number | null; won: number | null };
-      dribbles: {
-        attempts: number | null;
-        success: number | null;
-        past: number | null;
-      };
-      fouls: { drawn: number | null; committed: number | null };
-      cards: { yellow: number | null; red: number | null };
-      penalty: {
-        won: number | null;
-        commited: number | null;
-        scored: number | null;
-        missed: number | null;
-        saved: number | null;
-      };
-    }>;
-  }>;
-}
 
 /** FBref-pelaajatilastot */
 export interface FbrefPlayerStats {
@@ -444,18 +251,6 @@ export interface FbrefPlayerStats {
   // ... more fields available
 }
 
-/** Veikkausliigan kausi-info */
-export interface VeikkausliigaSeason {
-  year: number;
-  startDate: string;
-  endDate: string;
-  currentMatchday: number;
-  numberOfMatchdays: number;
-  numberOfTeams: number;
-  apiFootballLeagueId: number;
-  fbrefLeagueUrl: string;
-  status: 'upcoming' | 'ongoing' | 'finished';
-}
 
 /** Suodatinparametrit */
 export interface PlayerFilters {

@@ -7,9 +7,8 @@ Tassa on vaiheittaiset ohjeet Firebase-backendin asennukseen ja kayttoonottoon.
 ## Tarvitset
 
 1. **Firebase-projekti** (ilmainen taso riittaa alkuun)
-2. **RapidAPI-tili** (API-Football, ilmainen 100 req/paiva)
-3. **GitHub-tili** (CI/CD automaatiolle)
-4. **Node.js 20+** asennettuna
+2. **GitHub-tili** (CI/CD automaatiolle)
+3. **Node.js 20+** asennettuna
 
 ---
 
@@ -63,20 +62,13 @@ firebase init hosting
 # Valitse: Y (SPA)
 ```
 
-## Vaihe 3: API-avaimet
+## Vaihe 3: Avaimet
 
-### 3a. RapidAPI (API-Football)
-
-1. Mene [rapidapi.com](https://rapidapi.com) ja luo tili
-2. Etsi "API-Football"
-3. Tilaa **ilmainen** taso (100 requestia/paiva)
-4. Kopioi X-RapidAPI-Key
-
-### 3b. Aseta Firebase Functions config
+Sivusto ei kayta ulkoisia maksullisia rajapintoja. Ainoa tarvittava avain
+on `ADMIN_KEY`, jolla suojataan tuontireitit.
 
 ```bash
-cd functions
-firebase functions:config:set rapidapi.key="SINUN_RAPIDAPI_KEY"
+# GitHub-secret ADMIN_KEY; CI kirjoittaa sen functions/.env-tiedostoon
 ```
 
 ## Vaihe 4: Asenna ja deployaa
@@ -103,7 +95,7 @@ Lisaa GitHub-secrets:
 ```
 FIREBASE_SERVICE_ACCOUNT = (service account JSON key)
 FIREBASE_PROJECT_ID      = sinun-projekti-id
-RAPIDAPI_KEY             = sinun-rapidapi-key
+ADMIN_KEY                = tuontireittien avain
 ```
 
 Haetaan service account:
@@ -115,25 +107,23 @@ firebase init hosting:github
 
 | Päätepiste | Kuvaus |
 |------------|--------|
-| `GET /api/seasons` | Kaikki kaudet |
-| `GET /api/seasons/:year` | Yhden kauden tiedot |
-| `GET /api/standings/:season` | Sarjataulukko |
-| `GET /api/teams/:season` | Joukkueet |
-| `GET /api/teams/:season/:id/players` | Joukkueen pelaajat |
-| `GET /api/players/:season` | Kaikki pelaajat + tilastot |
-| `GET /api/players/:season/market-values` | Markkina-arvot |
-| `GET /api/youth-stats/:season` | Nuorten peliaika |
+| `GET /api/kaudet` | Saatavilla olevat kaudet |
+| `GET /api/trendit` | Kausitrendit, yksi piste per kausi |
+| `GET /api/youth-stats/:season` | Nuorten peliaika joukkueittain |
+| `GET /api/youth-stats/:season/all` | Sama, kaikki sarjat |
 | `GET /api/youth-aggregation/:season` | Koko liigan yhteenveto |
-| `GET /api/matches/:season` | Ottelut |
-| `GET /api/matches/:season/upcoming` | Tulevat ottelut |
-| `GET /api/matches/:season/recent` | Viimeisimmät tulokset |
-| `GET /api/team-market-values` | Joukkueiden markkina-arvot |
+| `GET /api/kansalaisuudet/:season` | Kansalaisuuksien kolmijako |
+| `GET /api/season-players/:season` | Kauden pelaajat |
+| `GET /api/season-players/:season/:slug` | Yksi pelaaja |
+| `GET /api/official-stats/:year` | Veikkausliiga.com-tilastot |
+| `POST /api/admin/kausituonti/esikatselu` | Tuonnin esikatselu (x-admin-key) |
+| `POST /api/admin/kausituonti/vahvista` | Tuonnin vahvistus (x-admin-key) |
 
 ## Datalahteet
 
 | Lahde | Data | Paivitys |
 |-------|------|----------|
-| API-Football (RapidAPI) | Ottelut, kokoonpanot, tilastot | 2 tunnin valein |
+| Veikkausliigan tilastovienti | Minuutit, ottelut, maalit | Kausituonnissa |
 | FBref | xG, xA, yksityiskohtaiset tilastot | Manuaalinen |
 | Transfermarkt | Markkina-arvot | Paivittainen |
 | Firestore Cache | Valimuisti | Autom. vanheneminen |
@@ -143,25 +133,18 @@ firebase init hosting:github
 | Komponentti | Hinta |
 |-------------|-------|
 | Firebase Spark (ilmainen taso) | 0 EUR |
-| API-Football Pro (tarvittaessa) | ~17 EUR |
-| API-Football ilmainen | 0 EUR |
-| **Yhteensa** | **0-17 EUR/kk** |
+| **Yhteensa** | **0 EUR/kk** |
 
 ## Vianetsinta
 
-### "RAPIDAPI_KEY not set"
-```bash
-firebase functions:config:set rapidapi.key="API-AVAimesi"
-firebase deploy --only functions
-```
-
 ### "Permission denied" Firestore
-Tarkista `firestore.rules` - pitaa olla `allow read: if true`
+Nain kuuluu olla: `firestore.rules` kieltaa kaiken suoran paasyn
+selaimesta. Frontend hakee datan `/api`-reittien kautta, ja backend
+kayttaa Admin SDK:ta, joka ohittaa saannot.
 
 ### Tyhja data
-- API-Football ilmainen taso: vain 10 liigaa
-- Kausi 2026 ei ole viela alkanut (alkaa 4.4.2026)
-- Tarkista RapidAPI-dashboard: onko requesteja jaljella
+- Kautta ei ole viela tuotu: tarkista `GET /api/kaudet`
+- Vastauksen `dataSaatavilla: false` kertoo, ettei dataa ole
 
 ### Cache ei paivity
 ```bash

@@ -2187,23 +2187,7 @@ export const scheduledVeikkausliigaScrape = functions
 // Scheduler -oikeudet on konfiguroitu Firebase Consolessa.
 
 /** HTTP: Manual trigger for data refresh */
-export const refreshData = functions.region(REGION).https.onRequest(async (req, res) => {
-  const season = parseInt(req.query.season as string) || 2026;
-  try {
-    console.log(`Manual refresh triggered for season ${season}`);
-    const result = await dataAggregator.refreshSeason(season);
-    res.json({
-      success: true,
-      data: result,
-      message: `Refreshed data for season ${season}`,
-      timestamp: new Date().toISOString(),
-    });
-  } catch (error) {
-    console.error('Manual refresh failed:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Refresh failed',
-      timestamp: new Date().toISOString(),
-    });
-  }
-});
+// refreshData poistettu tietoturvasyysta: se oli julkinen,
+// tunnistautumaton HTTPS-funktio, joka tyhjensi valimuistityypit ja haki
+// datat uudelleen API-Footballista. Kuka tahansa pystyi kutsumaan sita.
+// Kirjoittava reitti ilman tunnistautumista ei kuulu julkiseen APIin.

@@ -155,6 +155,37 @@ ennen poistoa (commit-viesti tai loki), jotta poisto on jäljitettävissä.
 Sama koskee ad hoc -skriptejä: jos skripti kirjoittaa tuotantoon, sillä on
 oltava sama kahden lipun vartija ja sama esikatselu kuin kausituonnilla.
 
+### Sarja on osa avainta — ja miksi kausidokumentti ei ole
+
+Sarja (Veikkausliiga / Ykkösliiga) on osa jokaista avainta, koska
+nimittäjä on sarjakohtainen:
+
+```
+suoritukset/{sarja}_{kausi}_{vaihe}_{joukkue}_{pelaajaAvain}
+nimittajat/{sarja}_{kausi}_{vaihe}_{joukkue}
+kaudet/{sarja}_{kausi}
+seasons/{kausi}/players/{sarja}_{slug}
+seasons/{kausi}/tilannekuvat/{sarja}_{pvm}
+```
+
+**Kausidokumentti `seasons/{kausi}` on tarkoituksella sarjaton.** Sen alla
+ovat myös `kansalaisuudet` ja `tilannekuvat`, jotka on kerätty ennen
+sarjajakoa. Sarjallinen kausidokumentti (`seasons/{sarja}_{kausi}`) olisi
+orpouttanut ne ja vaatinut oman siirtonsa. Sarja on sen sijaan
+pelaajadokumentin avaimessa, mikä riittää: sama pelaaja voi olla samalla
+kaudella molemmissa sarjoissa ilman että dokumentit osuvat toisiinsa.
+
+**Sarja suodatetaan aina muistissa, ei `where`-ehdolla.** Vanhoissa
+dokumenteissa kenttää ei ole, ja `where` jättäisi ne pois — jolloin
+Veikkausliigan luvut muuttuisivat äänettömästi. Puuttuva kenttä tarkoittaa
+Veikkausliigaa. Sama periaate kuin `vanhentunut`-kentällä.
+
+**Vanhentuneiden merkintä on sarjakohtainen.** Ilman sitä toisen sarjan
+tuonti merkitsisi saman kauden toisen sarjan rivit vanhentuneiksi. Merkintä
+koskee suorituksia, nimittäjiä, projektioita JA kausidokumentteja: vanha
+nimittäjä kasvattaa kapasiteettia ja pienentää osuutta, vanha
+kausidokumentti näkyy kautena kahdesti.
+
 ### Tuotannon päätepisteen kutsuminen on tuotantotoimenpide
 
 Tuotannon päätepistettä ei kutsuta sen selvittämiseksi, mitä se tekee.

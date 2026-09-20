@@ -34,6 +34,12 @@ import {
   paatteleIkahaarukka,
 } from './services/kausiData';
 import { haeSiirto } from './services/siirrot';
+import {
+  laskeTrendit,
+  laskeKolmijako,
+  luokitteleKansalaisuudet,
+} from './services/trendit';
+import { ALLE_21_MAX, NUORET_MAX } from './services/ikarajat';
 import { parseExcelBuffer, writeRoundData } from './services/excelImport';
 import { parsiKausiExcel, VIESTI_VAARA_SARJA } from './services/kausiImport';
 import {
@@ -866,11 +872,11 @@ app.get('/api/kansalaisuudet/:season', async (req, res) => {
       return;
     }
 
-    const suomalaiset = new Set(
-      kansSnap.docs
-        .filter((d) => d.data().suomalainen === 'kylla')
-        .map((d) => d.id),
-    );
+    // Sama luokittelu kuin trendinakymassa: rekisterin koodi ja seuran
+    // vahvistus. Yksi saanto, jottei sivusto nayta kahta eri lukua samasta
+    // asiasta. (Tarkistettu kaikilla kausilla: tama ja vanha
+    // suomalainen === 'kylla' -saanto antavat saman prosentin.)
+    const luokat = luokitteleKansalaisuudet(kansSnap.docs);
 
     const { suoritukset, nimittajat } = await lueKausi(db, season);
     const kapasiteetti = nimittajat.reduce(
@@ -882,7 +888,7 @@ app.get('/api/kansalaisuudet/:season', async (req, res) => {
         .filter(
           (s) =>
             s.ika <= ikaRaja &&
-            (!vainSuomalaiset || suomalaiset.has(s.slug)),
+            (!vainSuomalaiset || luokat.fin.has(s.slug)),
         )
         .reduce((a, s) => a + s.minuutit, 0);
 
@@ -896,15 +902,22 @@ app.get('/api/kansalaisuudet/:season', async (req, res) => {
         saatavilla: true,
         kausi: season,
         pelaajia: kansSnap.size,
-        suomalaisia: suomalaiset.size,
+        suomalaisia: luokat.fin.size,
         /** 17–21-vuotiaiden osuus kapasiteetista, kaikki pelaajat. */
-        osuus1721: osuus(minuutit(21, false)),
+        osuus1721: osuus(minuutit(NUORET_MAX, false)),
         /** Sama, vain Suomen kansalaisille menneet minuutit. */
-        osuus1721Suomalaiset: osuus(minuutit(21, true)),
+        osuus1721Suomalaiset: osuus(minuutit(NUORET_MAX, true)),
         /** Alle 21 (ikä ≤ 20) — CIES-vertailun luku, kaikki pelaajat. */
-        osuusAlle21: osuus(minuutit(20, false)),
-        /** Sama, vain Suomen kansalaisille. ALARAJA. */
-        osuusAlle21Suomalaiset: osuus(minuutit(20, true)),
+        osuusAlle21: osuus(minuutit(ALLE_21_MAX, false)),
+        /** Sama, vain Suomen kansalaisille. */
+        osuusAlle21Suomalaiset: osuus(minuutit(ALLE_21_MAX, true)),
+        /** Alle 21 -osuuden kolmijako: FIN / muu maakoodi / ei tietoa. */
+        alle21Jako: laskeKolmijako(
+          suoritukset,
+          kapasiteetti,
+          luokat,
+          ALLE_21_MAX,
+        ),
       },
       source: 'veikkausliiga-rekisteri',
       timestamp: new Date().toISOString(),
@@ -912,6 +925,33 @@ app.get('/api/kansalaisuudet/:season', async (req, res) => {
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Tuntematon virhe';
     console.error('[kansalaisuudet] failed:', message);
+    res.status(500).json({ success: false, error: message });
+  }
+});
+
+/**
+ * GET /api/trendit — yksi piste per kausi, vanhin ensin.
+ *
+ * Luvut lasketaan samalla koodilla kuin kauden omassa nakymassa, jotta
+ * trendipiste ja kausinakyman luku ovat aina sama luku. Laskenta tehdaan
+ * palvelimella: selain ei laske osuuksia.
+ *
+ * Puuttuva arvo on null eika 0 — nolla vaittaisi, ettei nuorille mennyt
+ * yhtaan minuuttia.
+ */
+app.get('/api/trendit', async (_req, res) => {
+  try {
+    const trendit = await laskeTrendit(admin.firestore());
+    res.set('Cache-Control', 'public, max-age=3600');
+    res.json({
+      success: true,
+      data: trendit,
+      source: 'firestore',
+      timestamp: new Date().toISOString(),
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Tuntematon virhe';
+    console.error('[trendit] failed:', message);
     res.status(500).json({ success: false, error: message });
   }
 });

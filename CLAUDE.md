@@ -10,7 +10,7 @@
 
 **Ydinkysymys:** *"Kuka alle 23-vuotias suomalainen pelaaja saa peliaikaa Veikkausliigassa?"*
 
-**Brändi:** Itsenäinen. TalentMasterID mainitaan vain footerin pikkutekstissä. Ei "Pohjoismaiden johtava alusta", ei "AI scouting".
+**Brändi:** Itsenäinen ja nimetön. Sivuston missään osassa ei mainita tekijää, TalentMasteria eikä Palloliittoa: ei footerissa, ei Tietoa-sivulla, ei metatiedoissa eikä yhteystiedoissa. Ei "Pohjoismaiden johtava alusta", ei "AI scouting".
 
 ---
 

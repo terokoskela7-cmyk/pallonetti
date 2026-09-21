@@ -311,17 +311,28 @@ export default function AboutPage() {
         </p>
         <p>
           <strong className="text-white/80">Akatemiajoukkueet.</strong>{' '}
-          Ykkösliigassa pelaa kaksi seuran omaa kasvattajajoukkuetta,{' '}
-          {AKATEMIAJOUKKUEET.map((x, i) => (
-            <span key={x}>
-              {i > 0 ? ' ja ' : ''}
+          Ykkösliigassa pelaa kaksi seuran omaa kasvattajajoukkuetta:
+        </p>
+        <ul className="list-disc list-inside space-y-1">
+          {AKATEMIAJOUKKUEET.map((x) => (
+            <li key={x}>
               <strong className="text-white/80">{x}</strong>
-            </span>
+            </li>
           ))}
-          . Niiden peliajasta valtaosa menee nuorille, mikä nostaa koko sarjan
-          lukua. Siksi Ykkösliigan luku näytetään myös ilman näitä joukkueita.
+        </ul>
+        <p>
+          Niiden koko tehtävä on peluuttaa nuoria, joten lähes kaikki niiden
+          peliaika menee 17–21-vuotiaille. Kaksi joukkuetta riittää nostamaan
+          koko sarjan lukua: kaudella 2026 Ykkösliigan osuus on{' '}
+          <span className="tabular">{pros(37.1)}</span> kaikkien joukkueiden
+          kanssa ja <span className="tabular">{pros(23.8)}</span> ilman
+          akatemiajoukkueita. Kumpikin luku on tosi, mutta ne vastaavat eri
+          kysymykseen — siksi molemmat näytetään.
+        </p>
+        <p>
           Lista on nimetty eikä pääteltävä: joukkuetta ei tulkita akatemiaksi
-          sen nimen perusteella.
+          sen nimen perusteella, koska nimestä päättely muuttuisi äänettömästi
+          jos joukkue vaihtaa nimeä tai uusi seura nimeää itsensä samoin.
         </p>
         <p>
           Kansalaisuuden kolmijako on toistaiseksi haettu vain Veikkausliigan
@@ -338,9 +349,13 @@ export default function AboutPage() {
             description="Minuutit, ottelut, aloitukset ja maalit. Kauden tilastovienti on sivuston päälähde, ja kaikki peliaikaluvut lasketaan siitä."
           />
           <SourceItem
+            name="Ykkösliiga — kauden tilastovienti"
+            description="Sama muoto ja samat kentät kuin Veikkausliigan viennissä: minuutit, ottelut, aloitukset ja maalit kaudesta 2024 alkaen. Luvut lasketaan sarjan omasta minuuttikapasiteetista."
+          />
+          <SourceItem
             name="Veikkausliiga.com — pelaajarekisteri"
             url="https://www.veikkausliiga.com/"
-            description="Kansalaisuus ja pelipaikka pelaajan omalta profiilisivulta. Rekisteri kertoo yhden koodin pelaajaa kohden."
+            description="Kansalaisuus ja pelipaikka pelaajan omalta profiilisivulta. Rekisteri kertoo yhden koodin pelaajaa kohden. Haettu toistaiseksi vain Veikkausliigan pelaajille."
           />
           <SourceItem
             name="Seurojen ja median tiedotteet"
@@ -379,8 +394,8 @@ export default function AboutPage() {
       <Section title="Rajoitukset">
         <ul className="list-disc list-inside space-y-1">
           <li>
-            Veikkausliiga (kaudesta 2020) ja Ykkösliiga (kaudesta 2024); muut
-            sarjat eivät ole mukana
+            Veikkausliiga ja Ykkösliiga. Ykkösliigan data alkaa kaudesta 2024,
+            eikä siitä ole kansalaisuustietoa.
           </li>
           <li>Pelaajat ilman ikätietoa eivät näy ikäryhmätilastoissa</li>
           <li>

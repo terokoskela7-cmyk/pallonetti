@@ -136,6 +136,21 @@ konfliktiin muutoksesta, jota sen ei pitänyt koskea.
 
 ---
 
+## 3.45. PR:T JA MERGE — PAKOLLINEN SÄÄNTÖ
+
+**Code ei mergeä PR:ää.** Merge on käyttäjän tehtävä, koska se on viimeinen
+tarkistuspiste ennen tuotantoa: mainiin menevä commit deployataan
+automaattisesti. Sisällön hyväksyntä ei ole lupa mergeen, eikä lupa yhteen
+PR:ään koske seuraavaa. Jos PR on valmis, se kerrotaan ja jäädään
+odottamaan.
+
+**Ei pinottuja PR:iä.** Jokainen PR tehdään suoraan `main`ia vasten. Jos
+työ riippuu edellisestä, odotetaan että edellinen on mainissa ja
+haaroitetaan uusi siitä. Pinotut PR:t mergeytyvät toisiinsa eivätkä
+mainiin, jolloin hyväksytty työ jää huomaamatta julkaisematta.
+
+---
+
 ## 3.5. TUOTANTOON KIRJOITTAMINEN — PAKOLLINEN SÄÄNTÖ
 
 **Tuotannon Firestoreen kirjoitetaan vain kahdella ehdolla yhtä aikaa:**

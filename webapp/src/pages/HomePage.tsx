@@ -4,7 +4,6 @@ import {
   ArrowRight,
   TrendingUp,
   Target,
-  Rocket,
   Info,
   BarChart3,
   Users,
@@ -20,6 +19,7 @@ import {
   getYouthAggregation,
   getOfficialStats,
   getTrendit,
+  getPolku,
   filterReliableTeams,
   buildU23Players,
   type YouthStats,
@@ -31,8 +31,9 @@ import {
   NUORET_LABEL,
   NUORET_MAX,
   NUORET_LABEL_PITKA,
+  CIES_TANSKA_PCT,
 } from '@/constants/ika';
-import { pros } from '@/utils/luvut';
+import { pros, luku } from '@/utils/luvut';
 import { Hero } from '@/components/Hero';
 import { ResearchCard } from '@/components/ResearchCard';
 
@@ -172,6 +173,18 @@ export default function HomePage() {
     ]);
     return { stats, agg, official };
   }, [kausi, sarja]);
+
+  // Polkumittarin luku etusivun korttiin. Vain jos siirtymä on olemassa
+  // valitulle kaudelle — muuten korttia ei näytetä lainkaan.
+  const { data: polkuKortti } = useApi(async () => {
+    try {
+      const p = await getPolku(kausi);
+      return p.saatavilla ? p : null;
+    } catch (e) {
+      console.error('[etusivu] polkumittarin haku epäonnistui:', e);
+      return null;
+    }
+  }, [kausi]);
 
   // Kausitrendit: kaikki kaudet kerralla. Samasta vastauksesta tulevat
   // sekä kaavio että vertailurivi, jolloin ne eivät voi näyttää eri
@@ -373,24 +386,28 @@ export default function HomePage() {
           </button>
           {infoOpen && (
             <div className="px-5 pb-5 grid grid-cols-1 md:grid-cols-3 gap-3 border-t border-navy-600 pt-4">
-              <ResearchCard
-                icon={TrendingUp}
-                stat="r = 0.77"
-                title="Peliajan ja huipulle pääsyn korrelaatio nuorilla pelaajilla"
-                source="Stirr et al., University of Antwerp"
-              />
+              {/* Kortteja oli kolme. Kaksi poistettiin, koska niiden
+                  lukua ei voinut tarkistaa: "r = 0.77" ilman vuotta ja
+                  linkkiä, ja "40×" jonka lähteeksi oli merkitty kolme
+                  pelaajan nimeä. Luku ilman lähdettä on väite. */}
               <ResearchCard
                 icon={Target}
-                stat="11,7 %"
-                title="Tanskan Superliga — Euroopan kärki U21-peliajassa"
-                source="CIES Football Observatory 2026"
+                stat={pros(CIES_TANSKA_PCT)}
+                title="Tanskan Superliga — kärkeä alle 21-vuotiaiden peliajassa"
+                source="CIES Football Observatory 2025"
               />
-              <ResearchCard
-                icon={Rocket}
-                stat="40×"
-                title="Red Bull -mallin sijoitetun pääoman tuotto nuoriin pelaajiin"
-                source="Keita · Haaland · Šeško"
-              />
+              {polkuKortti && (
+                <ResearchCard
+                  icon={TrendingUp}
+                  stat={luku(polkuKortti.debytoi)}
+                  title={
+                    'nuorta debytoi Veikkausliigassa Ykkösliigan kautta kaudeksi ' +
+                    polkuKortti.kausiN1
+                  }
+                  source="Polku Veikkausliigaan →"
+                  to={'/peliaika?sarja=ykkosliiga&kausi=' + polkuKortti.kausiN1}
+                />
+              )}
             </div>
           )}
         </div>

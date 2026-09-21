@@ -20,6 +20,7 @@ import {
   getOfficialStats,
   getTrendit,
   getPolku,
+  getKaudenKonteksti,
   filterReliableTeams,
   buildU23Players,
   type YouthStats,
@@ -36,6 +37,7 @@ import {
 import { pros, luku } from '@/utils/luvut';
 import { Hero } from '@/components/Hero';
 import { ResearchCard } from '@/components/ResearchCard';
+import { EtusivunLause } from '@/components/Valokeila';
 
 // ============================================================
 // Sivuston rakenne — opastaa käyttäjää
@@ -174,6 +176,18 @@ export default function HomePage() {
     return { stats, agg, official };
   }, [kausi, sarja]);
 
+  // Etusivun yksi lause. Valinta tehdään rajapinnassa: suurin poikkeama
+  // ikäryhmän mediaanista. Epäonnistuminen ei kaada sivua eikä jätä
+  // placeholder-lausetta — osio jää silloin kokonaan pois.
+  const { data: konteksti } = useApi(async () => {
+    try {
+      return await getKaudenKonteksti(kausi, sarja);
+    } catch (e) {
+      console.error('[etusivu] kontekstihaku epäonnistui:', e);
+      return null;
+    }
+  }, [kausi, sarja]);
+
   // Polkumittarin luku etusivun korttiin. Vain jos siirtymä on olemassa
   // valitulle kaudelle — muuten korttia ei näytetä lainkaan.
   const { data: polkuKortti } = useApi(async () => {
@@ -272,6 +286,12 @@ export default function HomePage() {
         height="lg"
       />
 
+      {/* ---------- Osio 1b — Yksi generoitu lause ---------- */}
+      <EtusivunLause
+        nosto={konteksti?.valokeilassa[0] ?? null}
+        otteluita={konteksti?.otteluita ?? null}
+      />
+
       {/* ---------- Osio 2 — Sivuston rakenne ---------- */}
       <section className="space-y-4">
         <div className="text-xs uppercase tracking-wider text-white/40">
@@ -288,7 +308,7 @@ export default function HomePage() {
             to="/nuoret"
             icon={Users}
             title="Nuoret"
-            body="17–21-vuotiaiden spotlight: pelaajakortit, peliaika ja kansainvälinen vertailu."
+            body="17–21-vuotiaiden valokeila, tilastokärki ja koko pelaajalista haulla."
           />
           <GuideCard
             to="/pelaajat"

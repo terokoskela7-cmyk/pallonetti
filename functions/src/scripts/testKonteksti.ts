@@ -9,6 +9,10 @@
 // ============================================
 import {
   laskeKonteksti,
+  laskeKaudenKontekstit,
+  valitseNosto,
+  valitseNostot,
+  otteluitaPelattu,
   type KontekstiSyote,
 } from '../services/konteksti';
 import type { NimittajaDoc, SuoritusDoc } from '../services/kausiData';
@@ -579,6 +583,95 @@ console.log('PUUTTUVA DATA');
     laskeKonteksti(syote('ei-ketaan', korkkoRuoppi, nimittajat3, paikat)),
     null,
   );
+}
+
+// ============================================
+console.log('');
+console.log('ETUSIVUN NOSTO');
+// ============================================
+{
+  // Kuusi 20-vuotiasta. Viisi on lahella toisiaan, yksi poikkeaa
+  // selvasti maaleissa — nosto on han.
+  const joukko: SuoritusDoc[] = [
+    suoritus({ slug: 'a', minuutit: 1200, ottelut: 20, aloitukset: 14, maalit: 1 }),
+    suoritus({ slug: 'b', minuutit: 1250, ottelut: 20, aloitukset: 14, maalit: 2 }),
+    suoritus({ slug: 'c', minuutit: 1300, ottelut: 20, aloitukset: 15, maalit: 1 }),
+    suoritus({ slug: 'd', minuutit: 1350, ottelut: 20, aloitukset: 15, maalit: 2 }),
+    suoritus({ slug: 'e', minuutit: 1400, ottelut: 20, aloitukset: 16, maalit: 3 }),
+    suoritus({
+      slug: 'maalintekija',
+      etunimi: 'Maali',
+      sukunimi: 'Tekijä',
+      minuutit: 1380,
+      ottelut: 20,
+      aloitukset: 15,
+      maalit: 14,
+    }),
+  ];
+  const nim = [nimittaja('KuPS', 22)];
+  const kaikki = laskeKaudenKontekstit({
+    kausi: 2026,
+    sarja: 'Veikkausliiga',
+    suoritukset: joukko,
+    nimittajat: nim,
+    pelipaikat: new Map(),
+  });
+  vertaa('kaikki pelaajat saivat kontekstin', kaikki.length, 6);
+
+  const nosto = valitseNosto(kaikki);
+  vertaa('nosto on suurin poikkeama', nosto?.slug, 'maalintekija');
+  vertaa('noston mittari', nosto?.rivi.mittari, 'maalit');
+  // maalit 1,2,1,2,3,14 -> mediaani 2, poikkeamat 1,0,1,0,1,12 -> MAD 1
+  vertaa('noston mediaani', nosto?.rivi.mediaani, 2);
+  vertaa('noston hajonta', nosto?.rivi.hajonta, 1);
+  vertaa('noston poikkeama', nosto?.poikkeama, 12);
+
+  // Sama data, mutta ikaryhmassa vain nelja pelaajaa: liian pieni joukko.
+  const pieni = laskeKaudenKontekstit({
+    kausi: 2026,
+    sarja: 'Veikkausliiga',
+    suoritukset: joukko.slice(2),
+    nimittajat: nim,
+    pelipaikat: new Map(),
+  });
+  vertaa('alle viisi vertailtavaa: ei nostoa', valitseNosto(pieni), null);
+
+  // Hajonta 0: kaikilla sama arvo -> poikkeamaa ei lasketa.
+  const samat = ['a', 'b', 'c', 'd', 'e', 'f'].map((slug) =>
+    suoritus({ slug, minuutit: 1300, ottelut: 20, aloitukset: 15, maalit: 2 }),
+  );
+  const samatK = laskeKaudenKontekstit({
+    kausi: 2026,
+    sarja: 'Veikkausliiga',
+    suoritukset: samat,
+    nimittajat: nim,
+    pelipaikat: new Map(),
+  });
+  vertaa('hajonta 0 -> ei nostoa', valitseNosto(samatK), null);
+  vertaa('tyhja lista -> ei nostoa', valitseNosto([]), null);
+
+  // Valokeila: kolme eri pelaajaa, ei samaa pelaajaa kahdesti.
+  const kolme = valitseNostot(kaikki, 3);
+  vertaa('valokeilassa kolme', kolme.length, 3);
+  vertaa('valokeilan ensimmainen', kolme[0]?.slug, 'maalintekija');
+  vertaa(
+    'valokeilassa eri pelaajat',
+    new Set(kolme.map((x) => x.slug)).size,
+    3,
+  );
+  vertaa(
+    'valokeila on laskevassa jarjestyksessa',
+    kolme.every((x, i) => i === 0 || x.poikkeama <= kolme[i - 1].poikkeama),
+    true,
+  );
+
+  vertaa('otteluita pelattu', otteluitaPelattu(nim), { min: 22, max: 22 });
+  vertaa(
+    'otteluita pelattu, eri maarat',
+    otteluitaPelattu([nimittaja('KuPS', 24), nimittaja('Ilves', 22)]),
+    { min: 22, max: 24 },
+  );
+  vertaa('ei nimittajia -> null', otteluitaPelattu([]), null);
 }
 
 console.log('');

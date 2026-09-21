@@ -59,12 +59,23 @@ function NuoliMerkki({ rivi }: { rivi: Kontekstirivi }) {
 }
 
 interface Props {
-  konteksti: Konteksti | null;
-  /** Montako rivia naytetaan enintaan. */
+  /** Riittaa, etta objektilla on rivit — listanakymissa ei ole ohitettuja. */
+  konteksti: Pick<Konteksti, 'rivit'> | null;
+  /**
+   * Montako rivia naytetaan enintaan. Moottori palauttaa rivit
+   * jarjestyksessa peliaika ensin, joten tiiviissa nakymassa katto
+   * jattaa nakyviin juuri peliaikarivit.
+   */
   maxRiveja?: number;
+  /** Tiivis muoto listoihin: pelkat rivit ilman kehysta ja selitetta. */
+  tiivis?: boolean;
 }
 
-export function Kontekstirivit({ konteksti, maxRiveja = OLETUS_MAX_RIVIA }: Props) {
+export function Kontekstirivit({
+  konteksti,
+  maxRiveja = OLETUS_MAX_RIVIA,
+  tiivis = false,
+}: Props) {
   const rivit = (konteksti?.rivit ?? []).slice(0, maxRiveja);
   // Ei lauseita = ei osiota. Tyhja tila on parempi kuin merkityksetön
   // lause, eika puuttuvaa lausetta korvata placeholder-tekstilla.
@@ -72,19 +83,25 @@ export function Kontekstirivit({ konteksti, maxRiveja = OLETUS_MAX_RIVIA }: Prop
 
   const nuoliaNakyvissa = rivit.some((r) => r.nuoli !== null);
 
+  const lista = (
+    <ul className="space-y-1.5">
+      {rivit.map((rivi) => (
+        <li key={rivi.id} className="flex items-start gap-2 text-sm text-white/85">
+          <NuoliMerkki rivi={rivi} />
+          <span className="tabular leading-6">{rivi.teksti}</span>
+        </li>
+      ))}
+    </ul>
+  );
+
+  if (tiivis) return lista;
+
   return (
     <section className="bg-navy-700/40 border border-navy-600 rounded-xl p-5 space-y-2">
       <h2 className="text-xs uppercase tracking-wider text-white/40">
         Konteksti
       </h2>
-      <ul className="space-y-1.5">
-        {rivit.map((rivi) => (
-          <li key={rivi.id} className="flex items-start gap-2 text-sm text-white/85">
-            <NuoliMerkki rivi={rivi} />
-            <span className="tabular leading-6">{rivi.teksti}</span>
-          </li>
-        ))}
-      </ul>
+      {lista}
       {nuoliaNakyvissa && (
         <p className="text-[11px] text-white/40 leading-relaxed">
           Nuoli vertaa ikäryhmän mediaaniin: ↑ yli, → tasolla, ↓ alle.

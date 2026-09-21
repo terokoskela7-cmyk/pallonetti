@@ -392,6 +392,8 @@ export interface Kontekstirivi {
   arvo: number;
   yksikko: string;
   mediaani: number | null;
+  /** Ikäryhmän mediaanipoikkeama (MAD). null tai 0 = poikkeamaa ei voi laskea. */
+  hajonta: number | null;
   vertailujoukko: string | null;
 }
 
@@ -425,6 +427,34 @@ export interface Konteksti {
   rivit: Kontekstirivi[];
   ohitetut: string[];
 }
+
+/** Valokeilan pelaaja: rivi, joka poikkeaa eniten ikäryhmän mediaanista. */
+export interface Nosto {
+  slug: string;
+  etunimi: string;
+  sukunimi: string;
+  ika: number;
+  joukkue: string;
+  rivi: Kontekstirivi;
+  poikkeama: number;
+}
+
+/** Kauden kaikki kontekstit yhdellä kyselyllä. */
+export interface KaudenKonteksti {
+  kausi: number;
+  sarja: string;
+  /** Listanäkymissä ei ole `ohitetut`-kenttää — se on katselmointitietoa. */
+  kontekstit: Array<Omit<Konteksti, 'ohitetut'>>;
+  valokeilassa: Nosto[];
+  /** Montako ottelua joukkueet ovat pelanneet. Kierrosnumeroa ei ole. */
+  otteluita: { min: number; max: number } | null;
+}
+
+export const getKaudenKonteksti = (
+  season: number,
+  sarja?: string,
+): Promise<KaudenKonteksti> =>
+  fetchApi(`/konteksti/${season}` + sarjaParam(sarja));
 
 /**
  * Pelaajan kontekstilauseet. null = pelaajalla ei ole kauden rivejä.

@@ -2,8 +2,9 @@ import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Search, Info } from 'lucide-react';
 import { useApi } from '@/hooks/useApi';
+import { naytaNimi } from '@/utils/nimet';
 import { getOfficialStats, type OfficialPlayer } from '@/services/api';
-import { useValittuKausi } from '@/hooks/useKausi';
+import { useValittuKausi, useValittuSarja } from '@/hooks/useKausi';
 import { Hero } from '@/components/Hero';
 
 /** Yksinkertainen slugify joka säilyttää ascii:n. Käytetään tulevan
@@ -19,6 +20,7 @@ function slugify(name: string): string {
 
 export default function PelaajatPage() {
   const kausi = useValittuKausi();
+  const sarja = useValittuSarja();
   const { data, loading, error } = useApi(
     () => getOfficialStats(kausi),
     [kausi],
@@ -72,7 +74,12 @@ export default function PelaajatPage() {
             <span className="text-aurora font-medium">viralliset tilastot</span>
           </>
         }
-        subtitle={`${data.data.length} pelaajaa · suodattuna ${filtered.length}`}
+        subtitle={
+          `${data.data.length} pelaajaa · suodattuna ${filtered.length}` +
+          (sarja !== 'Veikkausliiga'
+            ? ' · tämä sivu kattaa vain Veikkausliigan viralliset tilastot'
+            : '')
+        }
         height="sm"
       />
 
@@ -138,7 +145,7 @@ export default function PelaajatPage() {
                       {p.rank}
                     </td>
                     <td className="py-2 pr-3 font-medium text-white/95">
-                      {p.name}
+                      {naytaNimi(p.name)}
                     </td>
                     <td className="py-2 pr-3 text-white/60">{p.team}</td>
                     <td className="py-2 pr-3 text-right text-ice font-mono tabular">

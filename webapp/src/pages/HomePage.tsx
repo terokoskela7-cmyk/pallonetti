@@ -14,6 +14,7 @@ import {
   type LucideIcon,
 } from 'lucide-react';
 import { useApi } from '@/hooks/useApi';
+import { naytaNimi } from '@/utils/nimet';
 import {
   getYouthStatsAll,
   getYouthAggregation,
@@ -280,7 +281,7 @@ export default function HomePage() {
             to="/pelaajat"
             icon={Search}
             title="Kaikki pelaajat"
-            body="Hakemisto kaikista Veikkausliigan pelaajista. Hae nimellä tai suodata joukkueella."
+            body="Hakemisto Veikkausliigan pelaajista virallisista tilastoista. Hae nimellä tai suodata joukkueella."
           />
           <GuideCard
             to="/about"
@@ -312,7 +313,7 @@ export default function HomePage() {
             label={'Eniten minuutteja (' + NUORET_LABEL + ')'}
             value={topPlayer ? String(topPlayer.minutes) : '—'}
             accent="ice"
-            hint={topPlayer ? `${topPlayer.playerName} · ${topPlayer.teamName}` : undefined}
+            hint={topPlayer ? `${naytaNimi(topPlayer.playerName)} · ${topPlayer.teamName}` : undefined}
           />
         </div>
 
@@ -407,10 +408,13 @@ export default function HomePage() {
       </section>
 
       <footer className="border-t border-navy-700 pt-5 text-xs text-white/40 flex flex-wrap items-center gap-x-4 gap-y-1">
-        <span>Veikkausliiga {kausi}</span>
+        <span>
+          {sarja} {kausi}
+        </span>
         <span className="w-px h-3 bg-white/20" />
         <span>
-          Lähde: <span className="text-white/60">Veikkausliiga.com</span>
+          Lähde:{' '}
+          <span className="text-white/60">{sarja}n viralliset tilastot</span>
         </span>
         <span className="w-px h-3 bg-white/20" />
         <span>

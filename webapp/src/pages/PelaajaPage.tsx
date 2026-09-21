@@ -15,6 +15,7 @@ import type {
   NameType,
 } from 'recharts/types/component/DefaultTooltipContent';
 import { useApi } from '@/hooks/useApi';
+import { naytaKokoNimi } from '@/utils/nimet';
 import {
   getSeasonPlayer,
   getPlayerRounds,
@@ -25,7 +26,9 @@ import {
 import { useValittuKausi, useValittuSarja } from '@/hooks/useKausi';
 
 function fullName(p: SeasonPlayer): string {
-  return `${p.etunimi} ${p.sukunimi}`.trim();
+  // Lähteen kirjoitusasu vaihtelee ("OSKU MAUKONEN", "alex RAMULA"),
+  // joten näyttöasu tulee yhdestä paikasta. Dataa ei muuteta.
+  return naytaKokoNimi(p.etunimi, p.sukunimi);
 }
 
 function getInitials(name: string): string {

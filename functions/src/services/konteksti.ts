@@ -19,6 +19,10 @@
 //
 // Joukkueen ottelumaara luetaan nimittajat-kokoelmasta, ei vakiosta.
 //
+// LAUSE KERTOO, EI TULKITSE. Sapluunoissa ei ole arvioita pelaajan
+// asemasta ("aloittaa lahes aina", "hakee viela paikkaansa"): jokaisen
+// lauseen on oltava todistettavissa vaaraksi yhdella kyselylla.
+//
 // PUUTTUVA ARVO EI OLE NOLLA. Jos lause ei ole todistettavissa datasta,
 // sita ei tuoteta. Tyhja tila on parempi kuin merkityksetön lause, ja
 // jokainen poisjatetty lause kirjataan syineen (ohitetut), jotta
@@ -31,18 +35,15 @@ import { genetiivi, sarjaInessiivi } from './taivutus';
 // Nama ovat sapluunan ehtoja, eivat dataa: ne maarittavat milloin lause
 // on kertomisen arvoinen. Yhdessa paikassa, jottei sama raja ole
 // kahdessa eri kohdassa eri lukuna.
-const OSUUS_VAKIOPAIKKA = 60; // %
-const OSUUS_VAKIINTUMASSA = 30; // %
-const OSUUS_HAKEE_PAIKKAANSA = 15; // %
-const OTTELUT_HAKEE_PAIKKAANSA = 5;
-const TIHEYS_TAYDET_PELIT = 80; // min/ottelu
+/** Taman osuuden ylittava peliaika mainitaan sellaisenaan. */
+const OSUUS_MAINITAAN = 30; // %
+/** Pienempi osuus mainitaan vain, jos otteluita on kertynyt tama verran. */
+const OTTELUT_VAHINTAAN = 5;
+const TIHEYS_MAINITAAN = 80; // min/ottelu
 /** Alle taman ottelumaaran pelanneista ei tuoteta sijoituslauseita. */
 const SIJOITUS_MIN_OTTELUT = 3;
 /** Sijoituslause tuotetaan vain karkikolmikosta. */
 const SIJOITUS_MAX_SIJA = 3;
-
-/** Pelipaikka, jota ei verrata kenttapelaajien maaleihin. */
-const MAALIVAHTI = 'Maalivahti';
 
 export type Nuoli = 'yli' | 'tasolla' | 'alle';
 
@@ -79,6 +80,7 @@ export interface Konteksti {
     /** Minuutit paaseurassa — osuus lasketaan naista. */
     minuutitPaaseurassa: number;
     ottelutPaaseurassa: number;
+    aloituksetPaaseurassa: number;
     joukkueenOttelut: number | null;
     osuusMinuuteista: number | null;
     osuusOtteluista: number | null;
@@ -103,10 +105,11 @@ interface Kooste {
   ottelut: number;
   maalit: number;
   aloitukset: number;
-  seurat: Map<string, { minuutit: number; ottelut: number }>;
+  seurat: Map<string, { minuutit: number; ottelut: number; aloitukset: number }>;
   paaseura: string;
   minuutitPaaseurassa: number;
   ottelutPaaseurassa: number;
+  aloituksetPaaseurassa: number;
 }
 
 /** Pelaajan kausikooste seuroittain. Sama laskenta kaikille pelaajille. */
@@ -128,6 +131,7 @@ function kokoaPelaajat(suoritukset: SuoritusDoc[]): Map<string, Kooste> {
         paaseura: s.joukkue,
         minuutitPaaseurassa: 0,
         ottelutPaaseurassa: 0,
+        aloituksetPaaseurassa: 0,
       };
       kartta.set(s.slug, p);
     }
@@ -136,9 +140,11 @@ function kokoaPelaajat(suoritukset: SuoritusDoc[]): Map<string, Kooste> {
     p.maalit += s.maalit;
     p.aloitukset += s.aloitukset;
     if (!p.ika && s.ika) p.ika = s.ika;
-    const seura = p.seurat.get(s.joukkue) || { minuutit: 0, ottelut: 0 };
+    const seura =
+      p.seurat.get(s.joukkue) || { minuutit: 0, ottelut: 0, aloitukset: 0 };
     seura.minuutit += s.minuutit;
     seura.ottelut += s.ottelut;
+    seura.aloitukset += s.aloitukset;
     p.seurat.set(s.joukkue, seura);
   }
 
@@ -158,12 +164,24 @@ function kokoaPelaajat(suoritukset: SuoritusDoc[]): Map<string, Kooste> {
     p.paaseura = paras;
     p.minuutitPaaseurassa = p.seurat.get(paras)?.minuutit ?? 0;
     p.ottelutPaaseurassa = p.seurat.get(paras)?.ottelut ?? 0;
+    p.aloituksetPaaseurassa = p.seurat.get(paras)?.aloitukset ?? 0;
   }
 
   return kartta;
 }
 
-/** Joukkue -> kauden ottelut kaikissa vaiheissa. */
+/**
+ * Joukkue -> kauden ottelut KAIKISSA vaiheissa.
+ *
+ * Osoittaja ja nimittaja lasketaan samasta ottelujoukosta. Pelaajan
+ * minuutit sisaltavat myos jatkosarjan minuutit, joten nimittajan on
+ * sisallettava jatkosarjan ottelut. Jos nimittajaksi otettaisiin pelkka
+ * runkosarja (22 ottelua joka kaudella), jatkosarjassa pelanneen osuus
+ * kasvaisi keinotekoisesti — kaudella 2026 KuPS oli pelannut 24 ja
+ * AC Oulu 25 ottelua, jolloin ero olisi jo kolme ottelua eri suuntiin
+ * eri seuroilla. Kesken kauden luku kertoo siis "tahan mennessa
+ * pelatuista otteluista", ei ennustetta koko kaudesta.
+ */
 function joukkueidenOttelut(nimittajat: NimittajaDoc[]): Map<string, number> {
   const kartta = new Map<string, number>();
   for (const n of nimittajat) {
@@ -246,7 +264,10 @@ export interface KontekstiSyote {
   slug: string;
   suoritukset: SuoritusDoc[];
   nimittajat: NimittajaDoc[];
-  /** slug -> pelipaikka rekisterista. Puuttuva = tuntematon, ei kenttapelaaja. */
+  /**
+   * slug -> pelipaikka rekisterista. Tieto kulkee vastaukseen, mutta se
+   * ei ohjaa yhtakaan lausetta. Puuttuva arvo on null, ei arvaus.
+   */
   pelipaikat: Map<string, string | null>;
 }
 
@@ -310,6 +331,7 @@ export function laskeKonteksti(syote: KontekstiSyote): Konteksti | null {
   );
   const medMinuutit = mediaani(ikaryhma.map((p) => p.minuutit));
   const medMaalit = mediaani(ikaryhma.map((p) => p.maalit));
+  const medAloitukset = mediaani(ikaryhma.map((p) => p.aloituksetPaaseurassa));
 
   // --- Sijoitukset -----------------------------------------------------
   const omaPelipaikka = pelipaikat.get(slug) ?? null;
@@ -337,29 +359,18 @@ export function laskeKonteksti(syote: KontekstiSyote): Konteksti | null {
     ohitetut.push('Sijoituslause (minuutit): pelaajaa ei loytynyt vertailujoukosta.');
   }
 
-  // Maalivertailu epaonnistuu sulkeutuen: tuntematon pelipaikka EI
-  // tarkoita kenttapelaajaa, eika maalivahtia verrata kenttapelaajien
-  // maaleihin. Vertailujoukosta suljetaan pois tunnetut maalivahdit;
-  // tuntemattomat jaavat joukkoon, jottei sija nayta todellista parempaa.
+  // Maalisijoitus ei riipu pelipaikasta. Vertailujoukko on koko ikaryhma,
+  // maalivahdit mukaan luettuina: he ovat nollassa eivatka voi siirtaa
+  // ketaan karkikolmikosta. Ehto on maalit >= 1 — nollalla ei sijoituta,
+  // joten maalivahti ei voi itse saada maalisijoituslausetta ilman maalia.
+  //
+  // Pelipaikka luetaan edelleen vastaukseen tietona, mutta se ei ohjaa
+  // yhtakaan lausetta: pelipaikkoja on kerätty vain Veikkausliigalle, ja
+  // ehtona se olisi vaientanut Ykkosliigan maalintekijat kokonaan.
   let sijaMaalit: { sija: number; jaettu: boolean } | null = null;
-  if (!sijoituksetSallittu) {
-    // syy kirjattu jo yllä
-  } else if (omaPelipaikka === null) {
-    ohitetut.push(
-      'Maalisijoituslause: pelipaikka ei ole tiedossa. Tuntematon ' +
-        'pelipaikka ei tarkoita kenttapelaajaa.',
-    );
-  } else if (omaPelipaikka === MAALIVAHTI) {
-    ohitetut.push(
-      'Maalisijoituslause: pelaaja on maalivahti, eika maalivahtia verrata ' +
-        'kenttapelaajien maaleihin.',
-    );
-  } else {
-    const kenttapelaajat = ikaryhma.filter(
-      (p) => (pelipaikat.get(p.slug) ?? null) !== MAALIVAHTI,
-    );
+  if (sijoituksetSallittu) {
     sijaMaalit = tiheaSijoitus(
-      kenttapelaajat.map((p) => ({ slug: p.slug, arvo: p.maalit })),
+      ikaryhma.map((p) => ({ slug: p.slug, arvo: p.maalit })),
       slug,
     );
     if (sijaMaalit === null) {
@@ -382,12 +393,17 @@ export function laskeKonteksti(syote: KontekstiSyote): Konteksti | null {
   }
   const seuraSanana = seuranGenetiivi ?? 'joukkueen';
 
-  if (osuus !== null && kokonaisluku(osuus) >= OSUUS_VAKIOPAIKKA) {
+  // Lause kertoo mitattavan asian eika tulkitse sita. "Aloittaa lahes
+  // aina" ja "hakee viela paikkaansa" olivat arvioita pelaajan asemasta,
+  // eivat havaintoja aineistosta: niita ei voi todistaa vaaraksi yhdella
+  // kyselylla. Osuus, ottelut ja minuutit per ottelu voi.
+  const osuusLause = (o: number): string =>
+    kokonaisluku(o) + ' % ' + seuraSanana + ' otteluiden minuuteista';
+
+  if (osuus !== null && kokonaisluku(osuus) >= OSUUS_MAINITAAN) {
     rivit.push({
       id: 'osuus',
-      teksti:
-        kokonaisluku(osuus) + ' % ' + seuraSanana +
-        ' kauden minuuteista, aloittaa lähes aina',
+      teksti: osuusLause(osuus),
       nuoli: nuoli(osuus, medOsuus, kokonaisluku),
       mittari: 'osuus joukkueen minuuteista',
       arvo: kokonaisluku(osuus),
@@ -395,41 +411,29 @@ export function laskeKonteksti(syote: KontekstiSyote): Konteksti | null {
       mediaani: medOsuus === null ? null : kokonaisluku(medOsuus),
       vertailujoukko,
     });
-  } else if (osuus !== null && kokonaisluku(osuus) >= OSUUS_VAKIINTUMASSA) {
+  } else if (osuus !== null && oma.ottelut >= OTTELUT_VAHINTAAN) {
+    // Pieni osuus kerrotaan vasta kun otteluita on kertynyt: yhden
+    // ottelun 2 % ei kerro pelaajasta, viidentoista ottelun 12 % kertoo.
     rivit.push({
       id: 'osuus',
-      teksti:
-        kokonaisluku(osuus) + ' % ' + seuraSanana +
-        ' minuuteista, vakiintumassa kokoonpanoon',
+      teksti: oma.ottelut + ' ottelua, ' + osuusLause(osuus),
       nuoli: nuoli(osuus, medOsuus, kokonaisluku),
       mittari: 'osuus joukkueen minuuteista',
       arvo: kokonaisluku(osuus),
       yksikko: '%',
-      mediaani: medOsuus === null ? null : kokonaisluku(medOsuus),
-      vertailujoukko,
-    });
-  } else if (
-    osuus !== null &&
-    kokonaisluku(osuus) < OSUUS_HAKEE_PAIKKAANSA &&
-    oma.ottelut >= OTTELUT_HAKEE_PAIKKAANSA
-  ) {
-    rivit.push({
-      id: 'osuus',
-      teksti: oma.ottelut + ' peliä, hakee vielä paikkaansa',
-      nuoli: nuoli(osuus, medOsuus, kokonaisluku),
-      mittari: 'ottelut',
-      arvo: oma.ottelut,
-      yksikko: 'ottelua',
       mediaani: medOsuus === null ? null : kokonaisluku(medOsuus),
       vertailujoukko,
     });
   } else if (osuus !== null) {
     ohitetut.push(
-      'Osuuslause: osuus ' + kokonaisluku(osuus) + ' % ei osu yhteenkaan ' +
-        'sapluunaan (' + oma.ottelut + ' ottelua).',
+      'Osuuslause: osuus ' + kokonaisluku(osuus) + ' % alle ' +
+        OSUUS_MAINITAAN + ' %:n rajan ja otteluita vain ' + oma.ottelut + '.',
     );
   }
 
+  // Rivien jarjestys: ensin peliaika (paljonko, miten usein aloittaen,
+  // kuinka pitkia pelikertoja), sitten sijoitukset ikaryhmassa.
+  // Kayttoliittyma voi nayttaa naista vain osan, joten tarkein on ensin.
   const sijoitusrivi = (
     id: string,
     sija: { sija: number; jaettu: boolean },
@@ -476,23 +480,35 @@ export function laskeKonteksti(syote: KontekstiSyote): Konteksti | null {
     };
   };
 
-  if (sijaMaalit) {
-    const rivi = sijoitusrivi(
-      'sijoitus-maalit',
-      sijaMaalit,
-      'maalit',
-      oma.maalit,
-      'maalia',
-      medMaalit,
-    );
-    if (rivi) rivit.push(rivi);
+  // Aloitukset ovat kauden viennissa omana sarakkeenaan jokaisella
+  // rivilla (tarkistettu kaikilta kausilta molemmista sarjoista), joten
+  // luku tulee lahteesta. Sita EI paatella minuuteista: 90 minuuttia voi
+  // olla myos taysi vaihtomies-ottelu jatkoajalla, eika 60 minuuttia
+  // kerro kumpaan suuntaan vaihto tehtiin.
+  //
+  // Osoittaja on aloitukset paaseurassa, koska nimittaja on saman seuran
+  // ottelut.
+  if (joukkueenOttelut !== null && oma.aloituksetPaaseurassa > 0) {
+    rivit.push({
+      id: 'aloitukset',
+      teksti:
+        'aloittanut ' + oma.aloituksetPaaseurassa + '/' + joukkueenOttelut +
+        ' ottelua',
+      nuoli: nuoli(oma.aloituksetPaaseurassa, medAloitukset, kokonaisluku),
+      mittari: 'aloitukset',
+      arvo: oma.aloituksetPaaseurassa,
+      yksikko: 'ottelua',
+      mediaani: medAloitukset === null ? null : kokonaisluku(medAloitukset),
+      vertailujoukko,
+    });
+  } else if (joukkueenOttelut !== null) {
+    ohitetut.push('Aloituslause: pelaaja ei ole aloittanut yhtaan ottelua.');
   }
 
-  if (minPerOttelu !== null && kokonaisluku(minPerOttelu) >= TIHEYS_TAYDET_PELIT) {
+  if (minPerOttelu !== null && kokonaisluku(minPerOttelu) >= TIHEYS_MAINITAAN) {
     rivit.push({
       id: 'tiheys',
-      teksti:
-        kokonaisluku(minPerOttelu) + ' min/ottelu, pelaa lähes täydet pelit',
+      teksti: kokonaisluku(minPerOttelu) + ' min/ottelu',
       nuoli: nuoli(minPerOttelu, medTiheys, kokonaisluku),
       mittari: 'minuutit per ottelu',
       arvo: kokonaisluku(minPerOttelu),
@@ -503,10 +519,22 @@ export function laskeKonteksti(syote: KontekstiSyote): Konteksti | null {
   } else if (minPerOttelu !== null) {
     ohitetut.push(
       'Tiheyslause: ' + kokonaisluku(minPerOttelu) + ' min/ottelu jaa alle ' +
-        TIHEYS_TAYDET_PELIT + ' minuutin rajan.',
+        TIHEYS_MAINITAAN + ' minuutin rajan.',
     );
   } else {
     ohitetut.push('Tiheyslause: pelaajalla ei ole otteluita, joten tiheytta ei ole.');
+  }
+
+  if (sijaMaalit) {
+    const rivi = sijoitusrivi(
+      'sijoitus-maalit',
+      sijaMaalit,
+      'maalit',
+      oma.maalit,
+      'maalia',
+      medMaalit,
+    );
+    if (rivi) rivit.push(rivi);
   }
 
   if (sijaMinuutit) {
@@ -538,6 +566,7 @@ export function laskeKonteksti(syote: KontekstiSyote): Konteksti | null {
       aloitukset: oma.aloitukset,
       minuutitPaaseurassa: oma.minuutitPaaseurassa,
       ottelutPaaseurassa: oma.ottelutPaaseurassa,
+      aloituksetPaaseurassa: oma.aloituksetPaaseurassa,
       joukkueenOttelut,
       osuusMinuuteista: osuus === null ? null : kokonaisluku(osuus),
       osuusOtteluista: otteluOsuus === null ? null : kokonaisluku(otteluOsuus),

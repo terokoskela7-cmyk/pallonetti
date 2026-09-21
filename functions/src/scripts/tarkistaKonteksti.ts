@@ -11,7 +11,8 @@
 //      "joukkueen" siella missa se voisi sanoa seuran nimen)
 //   2. yksikaan osuus ei ylita 100 %:a
 //   3. jokainen sijoituslause nimeaa vertailujoukon
-//   4. hyvaksymistapaus: kauden 2026 20-vuotiaiden maalikarki
+//   4. yksikaan lause ei tulkitse pelaajan asemaa
+//   5. hyvaksymistapaus: kauden 2026 20-vuotiaiden maalikarki
 //
 // Lisaksi tulostaa otoksen tuotettuja lauseita molemmista sarjoista,
 // jotta ne voi lukea ennen julkaisua.
@@ -23,6 +24,14 @@ import { lueKausi } from '../services/kausiData';
 import { laskeKonteksti, type Konteksti } from '../services/konteksti';
 import { genetiivi } from '../services/taivutus';
 import { TUETUT_SARJAT, OLETUSSARJA } from '../services/kausiImport';
+
+/** Lopukkeet, jotka arvioivat pelaajan asemaa mittaamisen sijaan. */
+const TULKITSEVAT = [
+  'aloittaa lähes aina',
+  'vakiintumassa kokoonpanoon',
+  'hakee vielä paikkaansa',
+  'pelaa lähes täydet pelit',
+];
 
 async function pelipaikatKaudelle(
   db: admin.firestore.Firestore,
@@ -128,8 +137,20 @@ async function main(): Promise<void> {
           moiti(k.slug + ': sijoituslause alle kolmella ottelulla');
         }
       }
-      if (k.faktat.sijaMaalit !== null && k.pelipaikka === null) {
-        moiti(k.slug + ': maalisijoitus ilman tiedettya pelipaikkaa');
+      // Maalilause syntyy vain maalintekijalle. Nollalla ei sijoituta,
+      // joten maalivahti ei saa lausetta olematta maalissa — vaikka han
+      // on vertailujoukossa mukana.
+      const maalirivi = k.rivit.find((r) => r.id === 'sijoitus-maalit');
+      if (maalirivi && k.faktat.maalit < 1) {
+        moiti(k.slug + ': maalisijoituslause ilman maalia');
+      }
+      // Lause kertoo, ei tulkitse.
+      for (const rivi of k.rivit) {
+        for (const kielletty of TULKITSEVAT) {
+          if (rivi.teksti.indexOf(kielletty) >= 0) {
+            moiti(k.slug + ': tulkitseva lopuke "' + kielletty + '"');
+          }
+        }
       }
     }
 
@@ -160,7 +181,7 @@ async function main(): Promise<void> {
     // karki tulostetaan luettavaksi.
     if (sarja === OLETUSSARJA) {
       const kaksikymppiset = kaikki
-        .filter((k) => k.ika === 20 && k.faktat.sijaMaalit !== null)
+        .filter((k) => k.ika === 20 && k.faktat.maalit > 0 && k.faktat.sijaMaalit !== null)
         .sort((a, b) => (a.faktat.sijaMaalit ?? 99) - (b.faktat.sijaMaalit ?? 99));
       console.log('');
       console.log('20-VUOTIAIDEN MAALIKÄRKI (' + sarja + ' ' + kausi + ')');
@@ -173,7 +194,7 @@ async function main(): Promise<void> {
         );
       }
       if (kaksikymppiset.length === 0) {
-        console.log('  (ei yhtaan 20-vuotiasta, jolla on tiedetty pelipaikka)');
+        console.log('  (ei yhtaan 20-vuotiasta maalintekijaa)');
       }
     }
   }

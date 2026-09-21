@@ -14,8 +14,14 @@
 // ============================================
 import type { Konteksti, Kontekstirivi, Nuoli } from '@/services/api';
 
-/** Pelaajasivulla naytetaan kolme rivia: tarina ensin, luvut sitten. */
-const OLETUS_MAX_RIVIA = 3;
+/**
+ * Pelaajasivulla naytetaan KAIKKI moottorin tuottamat rivit. Kolmen
+ * rivin katto pudottaisi juuri sen lauseen, joka erottaa pelaajan
+ * muista: Ruopilla se olisi maalisijoitus, Likalla Ykkosliigan
+ * maalikarki. Tiiviimmat nakymat (listat, kortit) antavat oman
+ * maxRiveja-arvonsa.
+ */
+const OLETUS_MAX_RIVIA = Number.POSITIVE_INFINITY;
 
 const NUOLI_MERKKI: Record<Nuoli, string> = {
   yli: '↑',

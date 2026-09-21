@@ -239,12 +239,17 @@ const paikat: Array<[string, string | null]> = [
   vertaa(
     'Ruoppi: osuuslause',
     tekstit(r)[0],
-    '65 % KuPS:n kauden minuuteista, aloittaa lähes aina',
+    '65 % KuPS:n otteluiden minuuteista',
   );
   vertaa(
     'Ruoppi: tiheyslause',
     tekstit(r).find((t) => t.indexOf('min/ottelu') >= 0),
-    '86 min/ottelu, pelaa lähes täydet pelit',
+    '86 min/ottelu',
+  );
+  vertaa(
+    'Ruoppi: aloituslause',
+    tekstit(r).find((t) => t.indexOf('aloittanut') >= 0),
+    'aloittanut 15/22 ottelua',
   );
   // Vertailujoukko kirjataan jokaiseen riviin, myos ykkössijaan.
   vertaa(
@@ -261,29 +266,54 @@ const paikat: Array<[string, string | null]> = [
 
 // ============================================
 console.log('');
-console.log('PELIPAIKKA');
+console.log('MAALISIJOITUS EI RIIPU PELIPAIKASTA');
 // ============================================
 {
-  // Tuntematon pelipaikka: ei maalisijoituslausetta.
-  const ilman = laskeKonteksti(
-    syote('julius-korkko', korkkoRuoppi, nimittajat3, [['otto-ruoppi', 'Hyökkääjä']]),
-  );
-  vertaa('tuntematon pelipaikka: ei maalisijaa', ilman?.faktat.sijaMaalit, null);
+  // Pelipaikka ei ole ehto: lause syntyy vaikka rekisterissa ei olisi
+  // riviakaan. Ehto on maalit >= 1.
+  const ilman = laskeKonteksti(syote('julius-korkko', korkkoRuoppi, nimittajat3, []));
+  vertaa('ilman pelipaikkoja: maalisija', ilman?.faktat.sijaMaalit, 1);
   vertaa(
-    'tuntematon pelipaikka: ei maalilausetta',
-    tekstit(ilman).filter((t) => t.indexOf('maalit') >= 0),
+    'ilman pelipaikkoja: maalilause syntyy',
+    tekstit(ilman).find((t) => t.indexOf('maalit') >= 0),
+    '20-vuotiaiden kärki Veikkausliigassa: maalit (5)',
+  );
+
+  // Maalivahti on vertailujoukossa nollassa eika siirra ketaan
+  // karkikolmikosta. Ilman omaa maalia han ei itse saa maalilausetta.
+  const mvData = korkkoRuoppi.concat([
+    suoritus({
+      slug: 'maalivahti',
+      etunimi: 'Mauri',
+      sukunimi: 'Vahti',
+      joukkue: 'HJK',
+      ika: 20,
+      minuutit: 1980,
+      ottelut: 22,
+      maalit: 0,
+    }),
+  ]);
+  const mvPaikat: Array<[string, string | null]> = paikat.concat([
+    ['maalivahti', 'Maalivahti'],
+  ]);
+  const mv = laskeKonteksti(syote('maalivahti', mvData, nimittajat3, mvPaikat));
+  vertaa('maalivahti: sija on fakta', mv?.faktat.sijaMaalit, 4);
+  vertaa(
+    'maalivahti: ei maalilausetta ilman maalia',
+    tekstit(mv).filter((t) => t.indexOf('maalit') >= 0),
     [],
   );
-
-  // Maalivahtia ei verrata kenttapelaajien maaleihin.
-  const mv = laskeKonteksti(
-    syote('julius-korkko', korkkoRuoppi, nimittajat3, [
-      ['julius-korkko', 'Maalivahti'],
-    ]),
+  const korkkoMv = laskeKonteksti(
+    syote('julius-korkko', mvData, nimittajat3, mvPaikat),
   );
-  vertaa('maalivahti: ei maalisijaa', mv?.faktat.sijaMaalit, null);
+  vertaa(
+    'maalivahti ei siirra karkea',
+    korkkoMv?.faktat.sijaMaalit,
+    1,
+  );
 
-  // Ykkosliigassa pelipaikkoja ei ole -> ei maalisijoituslauseita.
+  // Ykkosliigassa pelipaikkoja ei ole kerätty. Maalilauseen on silti
+  // synnyttava — juuri tama oli syy poistaa pelipaikkaehto.
   const ykkonen = laskeKonteksti(
     syote(
       'julius-korkko',
@@ -293,11 +323,11 @@ console.log('PELIPAIKKA');
       'Ykkösliiga',
     ),
   );
-  vertaa('Ykkösliiga: ei maalisijaa', ykkonen?.faktat.sijaMaalit, null);
+  vertaa('Ykkösliiga: maalisija', ykkonen?.faktat.sijaMaalit, 1);
   vertaa(
     'Ykkösliiga: sarja lauseessa',
-    tekstit(ykkonen).find((t) => t.indexOf('vuotiaiden') >= 0),
-    '20-vuotiaiden kärki Ykkösliigassa: minuutit (1500)',
+    tekstit(ykkonen).find((t) => t.indexOf('maalit') >= 0),
+    '20-vuotiaiden kärki Ykkösliigassa: maalit (5)',
   );
 }
 
@@ -328,53 +358,80 @@ console.log('');
 console.log('SAPLUUNAT JA RAJAT');
 // ============================================
 {
-  const vakiintumassa = laskeKonteksti(
+  const isoOsuus = laskeKonteksti(
     syote(
       'p',
       [
-        suoritus({ slug: 'p', minuutit: 900, ottelut: 14, maalit: 0 }),
-        suoritus({ slug: 'muu', minuutit: 1000, ottelut: 18 }),
+        suoritus({ slug: 'p', minuutit: 900, ottelut: 14, aloitukset: 9, maalit: 0 }),
+        suoritus({ slug: 'muu', minuutit: 1000, ottelut: 18, aloitukset: 11 }),
       ],
       [nimittaja('KuPS', 22)],
       [['p', 'Puolustaja']],
     ),
   );
   // 900 / 1980 = 45 %
+  vertaa('osuus >= 30 %', tekstit(isoOsuus)[0], '45 % KuPS:n otteluiden minuuteista');
   vertaa(
-    'osuus 30–59 %',
-    tekstit(vakiintumassa)[0],
-    '45 % KuPS:n minuuteista, vakiintumassa kokoonpanoon',
+    'aloituslause',
+    tekstit(isoOsuus).find((t) => t.indexOf('aloittanut') >= 0),
+    'aloittanut 9/22 ottelua',
   );
 
-  const hakee = laskeKonteksti(
+  const pieniOsuus = laskeKonteksti(
     syote(
       'p',
-      [suoritus({ slug: 'p', minuutit: 200, ottelut: 8, maalit: 0 })],
+      [suoritus({ slug: 'p', minuutit: 200, ottelut: 8, aloitukset: 1, maalit: 0 })],
       [nimittaja('KuPS', 22)],
       [['p', 'Puolustaja']],
     ),
   );
   // 200 / 1980 = 10 %, ottelut 8 >= 5
-  vertaa('osuus < 15 % ja ottelut >= 5', tekstit(hakee)[0], '8 peliä, hakee vielä paikkaansa');
+  vertaa(
+    'osuus < 30 % ja ottelut >= 5',
+    tekstit(pieniOsuus)[0],
+    '8 ottelua, 10 % KuPS:n otteluiden minuuteista',
+  );
 
-  // 15–29 %: yksikaan sapluuna ei osu -> ei lausetta, syy kirjataan.
-  const valiin = laskeKonteksti(
+  // Pieni osuus ja alle viisi ottelua: ei osuuslausetta, syy kirjataan.
+  const vahanOtteluita = laskeKonteksti(
     syote(
       'p',
-      [suoritus({ slug: 'p', minuutit: 400, ottelut: 9, maalit: 0 })],
+      [suoritus({ slug: 'p', minuutit: 120, ottelut: 4, aloitukset: 0, maalit: 0 })],
       [nimittaja('KuPS', 22)],
       [['p', 'Puolustaja']],
     ),
   );
   vertaa(
-    'osuus 20 %: ei osuuslausetta',
-    (valiin?.rivit ?? []).filter((r) => r.id === 'osuus').length,
+    'osuus 6 % ja 4 ottelua: ei osuuslausetta',
+    (vahanOtteluita?.rivit ?? []).filter((r) => r.id === 'osuus').length,
     0,
   );
   vertaa(
     'syy kirjattu',
-    (valiin?.ohitetut ?? []).some((s) => s.indexOf('ei osu yhteenkaan') >= 0),
+    (vahanOtteluita?.ohitetut ?? []).some((x) => x.indexOf('alle 30 %:n rajan') >= 0),
     true,
+  );
+  // Nolla aloitusta: ei aloituslausetta, koska "aloittanut 0/22" ei
+  // kerro pelaajasta mitaan mita osuuslause ei jo kerro.
+  vertaa(
+    'nolla aloitusta: ei aloituslausetta',
+    tekstit(vahanOtteluita).filter((t) => t.indexOf('aloittanut') >= 0),
+    [],
+  );
+
+  // Ei tulkitsevia lopukkeita missaan lauseessa.
+  const kielletyt = [
+    'aloittaa lähes aina',
+    'vakiintumassa kokoonpanoon',
+    'hakee vielä paikkaansa',
+    'pelaa lähes täydet pelit',
+  ];
+  const kaikkiLauseet = [isoOsuus, pieniOsuus, vahanOtteluita]
+    .flatMap((k) => tekstit(k));
+  vertaa(
+    'ei tulkitsevia lopukkeita',
+    kaikkiLauseet.filter((t) => kielletyt.some((k) => t.indexOf(k) >= 0)),
+    [],
   );
 
   // Alle 3 ottelua: ei sijoituslauseita.
@@ -495,7 +552,7 @@ console.log('PUUTTUVA DATA');
   vertaa(
     'tuntematon seura lauseessa',
     tekstit(outo)[0],
-    '76 % joukkueen kauden minuuteista, aloittaa lähes aina',
+    '76 % joukkueen otteluiden minuuteista',
   );
 
   // Nimittaja puuttuu: osuutta ei lasketa nollaksi vaan jatetaan pois.

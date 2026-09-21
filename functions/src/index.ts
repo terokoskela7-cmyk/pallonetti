@@ -830,9 +830,9 @@ app.get('/api/konteksti/:season/:slug', async (req, res) => {
 
     // Pelipaikka on Veikkausliigan rekisterin tieto, ja kokoelman avain on
     // pelkka slug ilman sarjaa. Toiselle sarjalle sita EI lueta: samanniminen
-    // pelaaja saisi vaaran pelipaikan, ja maalivertailu nojaa juuri siihen.
-    // Tuntematon pelipaikka ei tarkoita kenttapelaajaa, joten Ykkosliigassa
-    // maalisijoituslausetta ei synny lainkaan.
+    // pelaaja saisi vaaran pelipaikan. Tieto on vastauksessa lukijaa varten;
+    // yksikaan lause ei nojaa siihen, joten puuttuva pelipaikka ei vaienna
+    // Ykkosliigan maalintekijoita.
     const pelipaikat = new Map<string, string | null>();
     if (sarja === OLETUSSARJA) {
       const kansSnap = await db

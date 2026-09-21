@@ -18,7 +18,6 @@ import * as admin from 'firebase-admin';
 import * as XLSX from 'xlsx';
 import { parsiKausiExcel } from '../services/kausiImport';
 import { kirjoitaKausituonti } from '../services/kausiImportKirjoitus';
-import { lueKausi } from '../services/kausiData';
 import { laskeKolmijako, luokitteleKansalaisuudet } from '../services/trendit';
 
 if (!process.env.FIRESTORE_EMULATOR_HOST) {

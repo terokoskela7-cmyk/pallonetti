@@ -33,6 +33,13 @@ jobs:
         working-directory: ./functions
         run: npm ci
 
+      # Lint ennen buildia: kaantaja ei huomaa kayttamatonta importtia,
+      # joten se paatyi mainiin asti. Askel ajetaan myos pull_request-
+      # ajossa, joten virhe pysahtyy PR:aan eika deployhin.
+      - name: Lint Functions
+        working-directory: ./functions
+        run: npm run lint
+
       - name: Build Functions
         working-directory: ./functions
         run: npm run build

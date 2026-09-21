@@ -21,7 +21,12 @@
 // ============================================
 import * as admin from 'firebase-admin';
 import { lueKausi } from '../services/kausiData';
-import { laskeKonteksti, type Konteksti } from '../services/konteksti';
+import {
+  laskeKonteksti,
+  valitseNostot,
+  otteluitaPelattu,
+  type Konteksti,
+} from '../services/konteksti';
 import { genetiivi } from '../services/taivutus';
 import { TUETUT_SARJAT, OLETUSSARJA } from '../services/kausiImport';
 
@@ -152,6 +157,29 @@ async function main(): Promise<void> {
           }
         }
       }
+    }
+
+    // Valokeila ja etusivun lause: sama valinta jonka rajapinta palauttaa.
+    const nostot = valitseNostot(kaikki, 3);
+    const otteluita = otteluitaPelattu(nimittajat);
+    console.log('');
+    console.log(
+      'VALOKEILASSA (' +
+        (otteluita === null
+          ? 'ei nimittajia'
+          : 'tilanne ' + otteluita.min + '–' + otteluita.max + ' ottelun jalkeen') +
+        ')',
+    );
+    if (nostot.length === 0) console.log('  (ei vertailukelpoista poikkeamaa)');
+    for (const n of nostot) {
+      console.log(
+        '  ' + (n.etunimi + ' ' + n.sukunimi).trim() + ' (' + n.ika + ' v, ' +
+          n.joukkue + ') — ' + n.rivi.teksti,
+      );
+      console.log(
+        '     poikkeama ' + n.poikkeama + ' × hajonta · mediaani ' +
+          n.rivi.mediaani + ' ' + n.rivi.yksikko,
+      );
     }
 
     // Lauseiden otos: eniten minuutteja pelanneet kymmenen.

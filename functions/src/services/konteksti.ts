@@ -57,6 +57,12 @@ export interface Kontekstirivi {
   arvo: number;
   yksikko: string;
   mediaani: number | null;
+  /**
+   * Ikaryhman mediaanipoikkeama (MAD) samalle mittarille. Tekee eri
+   * mittareiden poikkeamista vertailukelpoisia. null tai 0 = poikkeamaa
+   * ei voi laskea.
+   */
+  hajonta: number | null;
   /** Vertailujoukko sanoin — sama joukko kuin mediaanissa ja sijoituksessa. */
   vertailujoukko: string | null;
 }
@@ -227,6 +233,25 @@ function mediaani(arvot: number[]): number | null {
 }
 
 /**
+ * Mediaanipoikkeama (MAD): mediaani etaisyyksista mediaaniin.
+ *
+ * Tarvitaan, jotta eri mittareiden poikkeamia voi verrata keskenaan:
+ * "kolme maalia yli mediaanin" ja "400 minuuttia yli mediaanin" eivat
+ * ole vertailukelpoisia lukuina, mutta ovat sen jalkeen kun molemmat
+ * suhteutetaan oman mittarinsa hajontaan. Keskihajonnan sijaan MAD,
+ * koska yksi poikkeava pelaaja ei saa maarata koko mittakaavaa.
+ *
+ * Nolla on mahdollinen (esim. kun yli puolet ikaryhmasta on tehnyt
+ * saman maaran maaleja). Silloin poikkeamaa ei lasketa lainkaan, ei
+ * jaeta nollalla.
+ */
+function hajonta(arvot: number[]): number | null {
+  const med = mediaani(arvot);
+  if (med === null) return null;
+  return mediaani(arvot.map((x) => Math.abs(x - med)));
+}
+
+/**
  * Tihea sijoitus: tasatilanteessa sama sija molemmille, eika seuraavaa
  * sijaa hyppaytetä yli. Palauttaa myos tiedon siita, onko sija jaettu.
  */
@@ -314,24 +339,26 @@ export function laskeKonteksti(syote: KontekstiSyote): Konteksti | null {
         ', ' + ikaryhma.length + ' peliaikaa saanutta'
       : null;
 
-  const medOsuus = mediaani(
-    ikaryhma
-      .map((p) =>
-        osuusMinuuteista(
-          p.minuutitPaaseurassa,
-          ottelutSeuroittain.get(p.paaseura),
-        ),
-      )
-      .filter((x): x is number => x !== null),
-  );
-  const medTiheys = mediaani(
-    ikaryhma
-      .map((p) => tiheys(p.minuutit, p.ottelut))
-      .filter((x): x is number => x !== null),
-  );
-  const medMinuutit = mediaani(ikaryhma.map((p) => p.minuutit));
-  const medMaalit = mediaani(ikaryhma.map((p) => p.maalit));
-  const medAloitukset = mediaani(ikaryhma.map((p) => p.aloituksetPaaseurassa));
+  const osuudet = ikaryhma
+    .map((p) =>
+      osuusMinuuteista(
+        p.minuutitPaaseurassa,
+        ottelutSeuroittain.get(p.paaseura),
+      ),
+    )
+    .filter((x): x is number => x !== null);
+  const tiheydet = ikaryhma
+    .map((p) => tiheys(p.minuutit, p.ottelut))
+    .filter((x): x is number => x !== null);
+  const minuutit = ikaryhma.map((p) => p.minuutit);
+  const maalit = ikaryhma.map((p) => p.maalit);
+  const aloitukset = ikaryhma.map((p) => p.aloituksetPaaseurassa);
+
+  const medOsuus = mediaani(osuudet);
+  const medTiheys = mediaani(tiheydet);
+  const medMinuutit = mediaani(minuutit);
+  const medMaalit = mediaani(maalit);
+  const medAloitukset = mediaani(aloitukset);
 
   // --- Sijoitukset -----------------------------------------------------
   const omaPelipaikka = pelipaikat.get(slug) ?? null;
@@ -409,6 +436,7 @@ export function laskeKonteksti(syote: KontekstiSyote): Konteksti | null {
       arvo: kokonaisluku(osuus),
       yksikko: '%',
       mediaani: medOsuus === null ? null : kokonaisluku(medOsuus),
+      hajonta: hajonta(osuudet),
       vertailujoukko,
     });
   } else if (osuus !== null && oma.ottelut >= OTTELUT_VAHINTAAN) {
@@ -422,6 +450,7 @@ export function laskeKonteksti(syote: KontekstiSyote): Konteksti | null {
       arvo: kokonaisluku(osuus),
       yksikko: '%',
       mediaani: medOsuus === null ? null : kokonaisluku(medOsuus),
+      hajonta: hajonta(osuudet),
       vertailujoukko,
     });
   } else if (osuus !== null) {
@@ -441,6 +470,7 @@ export function laskeKonteksti(syote: KontekstiSyote): Konteksti | null {
     arvo: number,
     yksikko: string,
     med: number | null,
+    haj: number | null,
   ): Kontekstirivi | null => {
     if (sija.sija > SIJOITUS_MAX_SIJA) {
       ohitetut.push(
@@ -476,6 +506,7 @@ export function laskeKonteksti(syote: KontekstiSyote): Konteksti | null {
       arvo,
       yksikko,
       mediaani: med === null ? null : kokonaisluku(med),
+      hajonta: haj,
       vertailujoukko,
     };
   };
@@ -499,6 +530,7 @@ export function laskeKonteksti(syote: KontekstiSyote): Konteksti | null {
       arvo: oma.aloituksetPaaseurassa,
       yksikko: 'ottelua',
       mediaani: medAloitukset === null ? null : kokonaisluku(medAloitukset),
+      hajonta: hajonta(aloitukset),
       vertailujoukko,
     });
   } else if (joukkueenOttelut !== null) {
@@ -514,6 +546,7 @@ export function laskeKonteksti(syote: KontekstiSyote): Konteksti | null {
       arvo: kokonaisluku(minPerOttelu),
       yksikko: 'min/ottelu',
       mediaani: medTiheys === null ? null : kokonaisluku(medTiheys),
+      hajonta: hajonta(tiheydet),
       vertailujoukko,
     });
   } else if (minPerOttelu !== null) {
@@ -533,6 +566,7 @@ export function laskeKonteksti(syote: KontekstiSyote): Konteksti | null {
       oma.maalit,
       'maalia',
       medMaalit,
+      hajonta(maalit),
     );
     if (rivi) rivit.push(rivi);
   }
@@ -545,6 +579,7 @@ export function laskeKonteksti(syote: KontekstiSyote): Konteksti | null {
       oma.minuutit,
       'minuuttia',
       medMinuutit,
+      hajonta(minuutit),
     );
     if (rivi) rivit.push(rivi);
   }
@@ -579,5 +614,126 @@ export function laskeKonteksti(syote: KontekstiSyote): Konteksti | null {
     },
     rivit,
     ohitetut,
+  };
+}
+
+// ============================================
+// KAUDEN KAIKKI KONTEKSTIT JA ETUSIVUN NOSTO
+// ============================================
+
+/**
+ * Pienin vertailujoukko, josta nosto voidaan valita. Kahden tai kolmen
+ * pelaajan ikaryhmassa mediaani ja hajonta eivat kerro juuri mitaan, ja
+ * yksittainen pelaaja nayttaisi poikkeavan rajusti pelkastaan siksi,
+ * etta vertailujoukko on pieni.
+ */
+const NOSTO_MIN_VERTAILUJOUKKO = 5;
+
+export interface Nosto {
+  slug: string;
+  etunimi: string;
+  sukunimi: string;
+  ika: number;
+  joukkue: string;
+  /** Rivi, joka poikkeaa eniten ikaryhmansa mediaanista. */
+  rivi: Kontekstirivi;
+  /** Poikkeama mediaanista oman mittarin hajonnalla (MAD) jaettuna. */
+  poikkeama: number;
+}
+
+/** Kauden kaikki kontekstit, pelaaja kerrallaan samasta aineistosta. */
+export function laskeKaudenKontekstit(
+  syote: Omit<KontekstiSyote, 'slug'>,
+): Konteksti[] {
+  const slugit = Array.from(new Set(syote.suoritukset.map((s) => s.slug)));
+  const tulos: Konteksti[] = [];
+  for (const slug of slugit) {
+    const k = laskeKonteksti({ ...syote, slug });
+    if (k) tulos.push(k);
+  }
+  return tulos;
+}
+
+/**
+ * Etusivun nosto: suurin poikkeama ikaryhman mediaanista.
+ *
+ * Valinta tehdaan datasta eika kasin, ja se vaihtuu kun data paivittyy.
+ * Poikkeama suhteutetaan oman mittarin hajontaan, jotta maalit,
+ * minuutit ja prosentit ovat vertailukelpoisia keskenaan.
+ *
+ * HUOM: brief maarittelee ikkunaksi "viimeiset viisi kierrosta".
+ * Kierroskohtaista dataa ei viela ole (B3), joten ikkuna on toistaiseksi
+ * koko kausi. Kun kierrosdata on olemassa, sama funktio saa
+ * suodatetun aineiston eika logiikka muutu.
+ *
+ * Tasatilanteessa valinta on vakaa: suurempi poikkeama, sitten suurempi
+ * arvo, sitten slug aakkosissa — muuten sama data voisi tuottaa eri
+ * lauseen eri pyynnolla.
+ */
+export function valitseNostot(
+  kontekstit: Konteksti[],
+  maara = 3,
+): Nosto[] {
+  const ehdokkaat: Nosto[] = [];
+
+  for (const k of kontekstit) {
+    if (k.faktat.vertailujoukonKoko < NOSTO_MIN_VERTAILUJOUKKO) continue;
+    // Yksi ehdokas per pelaaja: han poikkeaa sielta, missa poikkeaa
+    // eniten. Muuten sama pelaaja tayttaisi koko valokeilan.
+    let omaParas: Nosto | null = null;
+    for (const rivi of k.rivit) {
+      if (rivi.mediaani === null) continue;
+      if (rivi.hajonta === null || rivi.hajonta <= 0) continue;
+      const poikkeama = (rivi.arvo - rivi.mediaani) / rivi.hajonta;
+      if (poikkeama <= 0) continue;
+      const ehdokas: Nosto = {
+        slug: k.slug,
+        etunimi: k.etunimi,
+        sukunimi: k.sukunimi,
+        ika: k.ika,
+        joukkue: k.joukkue,
+        rivi,
+        poikkeama: Math.round(poikkeama * 100) / 100,
+      };
+      if (omaParas === null || parempi(ehdokas, omaParas)) omaParas = ehdokas;
+    }
+    if (omaParas) ehdokkaat.push(omaParas);
+  }
+
+  return ehdokkaat
+    .sort((a, b) => (parempi(a, b) ? -1 : parempi(b, a) ? 1 : 0))
+    .slice(0, maara);
+}
+
+/** Yksi nosto: valokeilan ensimmainen. */
+export function valitseNosto(kontekstit: Konteksti[]): Nosto | null {
+  return valitseNostot(kontekstit, 1)[0] ?? null;
+}
+
+/**
+ * Vakaa paremmuusjarjestys: suurempi poikkeama, sitten suurempi arvo,
+ * sitten slug aakkosissa. Ilman viimeista ehtoa sama data voisi tuottaa
+ * eri lauseen eri pyynnolla.
+ */
+function parempi(a: Nosto, b: Nosto): boolean {
+  if (a.poikkeama !== b.poikkeama) return a.poikkeama > b.poikkeama;
+  if (a.rivi.arvo !== b.rivi.arvo) return a.rivi.arvo > b.rivi.arvo;
+  return a.slug < b.slug;
+}
+
+/**
+ * Montako ottelua joukkueet ovat pelanneet. Kierrosnumeroa ei ole
+ * kausiviennissa, joten tilanne kerrotaan otteluina — se on sama tieto
+ * ilman keksittya kierroslukua. Vaihe voi olla kesken, joten min ja max
+ * voivat erota.
+ */
+export function otteluitaPelattu(
+  nimittajat: NimittajaDoc[],
+): { min: number; max: number } | null {
+  const ottelut = Array.from(joukkueidenOttelut(nimittajat).values());
+  if (ottelut.length === 0) return null;
+  return {
+    min: Math.min.apply(null, ottelut),
+    max: Math.max.apply(null, ottelut),
   };
 }

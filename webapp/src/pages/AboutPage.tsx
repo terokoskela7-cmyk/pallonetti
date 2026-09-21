@@ -2,7 +2,7 @@ import { Link } from 'react-router-dom';
 import { ExternalLink, Database } from 'lucide-react';
 import { useValittuKausi } from '@/hooks/useKausi';
 import { useApi } from '@/hooks/useApi';
-import { getKansalaisuudet } from '@/services/api';
+import { getKansalaisuudet, getTrendit } from '@/services/api';
 import { luku, pros } from '@/utils/luvut';
 import { ALLE_21_MAX, CIES_TANSKA_PCT, NUORET_MIN, NUORET_MAX } from '@/constants/ika';
 import { AKATEMIAJOUKKUEET } from '@/constants/akatemiat';
@@ -48,9 +48,9 @@ const CIES_2025_HANNAT = [
   { sarja: 'Englannin Valioliiga', pct: 2.4 },
   { sarja: 'Italian Serie A', pct: 1.9 },
 ];
-/** Kaudet, joiden luvut nimetaan tekstissa. */
-const VERTAILUKAUSI = 2025;
-const ALKUKAUSI = 2020;
+// Kausia ei kovakoodata: vertailukausi on uusin PAATTYNYT kausi ja
+// alkukausi vanhin kausi, jolta dataa on. Kesken oleva kausi ei kelpaa
+// vertailukohdaksi, koska sen luku muuttuu vielä.
 
 function Section({
   title,
@@ -109,24 +109,52 @@ function SourceItem({
 export default function AboutPage() {
   const kausi = useValittuKausi();
 
-  // Suomen luvut tulevat ajosta, eivat tekstista. Jos haku ei onnistu,
-  // kappale kertoo sen eika nayta vanhaa lukua uutena.
-  const { data: suomi } = useApi(
-    () =>
-      Promise.all([
-        getKansalaisuudet(VERTAILUKAUSI),
-        getKansalaisuudet(ALKUKAUSI),
-      ]).then(([nyt, ennen]) => ({
-        // CIES mittaa maajoukkuekelpoisia, joten vertailtava luku on
-        // Suomen kansalaisten osuus. Kaikkien alle 21-vuotiaiden osuus
-        // naytetaan erikseen omalla nimellaan, ei CIES-vertailussa.
-        nytFin: nyt.saatavilla ? nyt.osuusAlle21Suomalaiset : null,
-        nytKaikki: nyt.saatavilla ? nyt.osuusAlle21 : null,
-        ennenFin: ennen.saatavilla ? ennen.osuusAlle21Suomalaiset : null,
-        ennenKaikki: ennen.saatavilla ? ennen.osuusAlle21 : null,
-      })),
-    [],
-  );
+  // Kaikki sivun luvut tulevat ajosta, eivat tekstista. Jos haku ei
+  // onnistu, kappale kertoo sen eika nayta vanhaa lukua uutena.
+  const { data: luvut } = useApi(async () => {
+    const trendit = await getTrendit('kaikki');
+
+    const vl = trendit
+      .filter((t) => t.sarja === 'Veikkausliiga')
+      .sort((a, b) => a.kausi - b.kausi);
+    if (vl.length === 0) return null;
+    const alkukausi = vl[0].kausi;
+    const paattyneet = vl.filter((t) => !t.kesken);
+    const vertailukausi = (paattyneet[paattyneet.length - 1] ?? vl[vl.length - 1])
+      .kausi;
+
+    // Ykkosliigan akatemialuvut: uusin kausi, jolta dataa on.
+    const yl = trendit
+      .filter((t) => t.sarja === 'Ykkösliiga')
+      .sort((a, b) => a.kausi - b.kausi);
+    const ylUusin = yl.length > 0 ? yl[yl.length - 1] : null;
+
+    const [nyt, ennen] = await Promise.all([
+      getKansalaisuudet(vertailukausi),
+      getKansalaisuudet(alkukausi),
+    ]);
+    return {
+      vertailukausi,
+      alkukausi,
+      // CIES mittaa maajoukkuekelpoisia, joten vertailtava luku on
+      // Suomen kansalaisten osuus. Kaikkien alle 21-vuotiaiden osuus
+      // naytetaan erikseen omalla nimellaan, ei CIES-vertailussa.
+      nytFin: nyt.saatavilla ? nyt.osuusAlle21Suomalaiset ?? null : null,
+      nytKaikki: nyt.saatavilla ? nyt.osuusAlle21 ?? null : null,
+      ennenFin: ennen.saatavilla ? ennen.osuusAlle21Suomalaiset ?? null : null,
+      ennenKaikki: ennen.saatavilla ? ennen.osuusAlle21 ?? null : null,
+      ykkosliiga: ylUusin
+        ? {
+            kausi: ylUusin.kausi,
+            kesken: ylUusin.kesken,
+            osuus: ylUusin.osuus1721,
+            ilmanAkatemioita: ylUusin.osuus1721IlmanAkatemioita,
+          }
+        : null,
+    };
+  }, []);
+
+  const suomi = luvut;
 
   return (
     <div className="px-6 py-10 md:py-16 max-w-3xl mx-auto space-y-10">
@@ -186,13 +214,13 @@ export default function AboutPage() {
             <>
               CIES:n mittari koskee maajoukkuekelpoisia pelaajia, joten
               Veikkausliigasta vertailukelpoinen luku on Suomen kansalaisille
-              mennyt peliaika: kaudella {VERTAILUKAUSI} se oli{' '}
+              mennyt peliaika: kaudella {suomi.vertailukausi} se oli{' '}
               <span className="tabular">{pros(suomi.nytFin)}</span>{' '}
               Veikkausliigan rekisterin mukaan.
               {suomi.ennenFin !== null && (
                 <>
                   {' '}
-                  Vuonna {ALKUKAUSI} vastaava luku oli{' '}
+                  Vuonna {suomi.alkukausi} vastaava luku oli{' '}
                   <span className="tabular">{pros(suomi.ennenFin)}</span>.
                 </>
               )}
@@ -220,12 +248,12 @@ export default function AboutPage() {
               Kaikkien alle 21-vuotiaiden osuus.
             </strong>{' '}
             Kansalaisuudesta riippumatta alle 21-vuotiaat saivat kaudella{' '}
-            {VERTAILUKAUSI} <span className="tabular">{pros(suomi.nytKaikki)}</span>{' '}
+            {suomi.vertailukausi} <span className="tabular">{pros(suomi.nytKaikki)}</span>{' '}
             peliajasta
             {suomi.ennenKaikki !== null && (
               <>
                 {' '}
-                ja vuonna {ALKUKAUSI}{' '}
+                ja vuonna {suomi.alkukausi}{' '}
                 <span className="tabular">{pros(suomi.ennenKaikki)}</span>
               </>
             )}
@@ -323,11 +351,25 @@ export default function AboutPage() {
         <p>
           Niiden koko tehtävä on peluuttaa nuoria, joten lähes kaikki niiden
           peliaika menee 17–21-vuotiaille. Kaksi joukkuetta riittää nostamaan
-          koko sarjan lukua: kaudella 2026 Ykkösliigan osuus on{' '}
-          <span className="tabular">{pros(37.1)}</span> kaikkien joukkueiden
-          kanssa ja <span className="tabular">{pros(23.8)}</span> ilman
-          akatemiajoukkueita. Kumpikin luku on tosi, mutta ne vastaavat eri
-          kysymykseen — siksi molemmat näytetään.
+          koko sarjan lukua
+          {luvut?.ykkosliiga &&
+          luvut.ykkosliiga.osuus !== null &&
+          luvut.ykkosliiga.ilmanAkatemioita !== null ? (
+            <>
+              : kaudella {luvut.ykkosliiga.kausi}
+              {luvut.ykkosliiga.kesken ? ' (kesken)' : ''} Ykkösliigan osuus on{' '}
+              <span className="tabular">{pros(luvut.ykkosliiga.osuus)}</span>{' '}
+              kaikkien joukkueiden kanssa ja{' '}
+              <span className="tabular">
+                {pros(luvut.ykkosliiga.ilmanAkatemioita)}
+              </span>{' '}
+              ilman akatemiajoukkueita
+            </>
+          ) : (
+            ''
+          )}
+          . Kumpikin luku on tosi, mutta ne vastaavat eri kysymykseen — siksi
+          molemmat näytetään.
         </p>
         <p>
           Lista on nimetty eikä pääteltävä: joukkuetta ei tulkita akatemiaksi

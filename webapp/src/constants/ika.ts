@@ -6,8 +6,9 @@
 // täällä eikä kahdessatoista paikassa.
 //
 // Alle 21 -lukua (ikä ≤ 20) käytetään VAIN kansainvälisessä vertailussa,
-// ja se nimetään aina auki. Se ei ole sama asia kuin päämittari: kaudella
-// 2026 päämittari on 20,3 % ja alle 21 -luku 13,0 %.
+// ja se nimetään aina auki. Se ei ole sama asia kuin päämittari vaan aina
+// pienempi: eri ikäjoukko, sama nimittäjä. Kauden luvut haetaan
+// rajapinnasta, eikä niitä kirjoiteta kommenttiin vanhenemaan.
 // ============================================
 
 /** Seurannan kohde: 17–21-vuotiaat. */

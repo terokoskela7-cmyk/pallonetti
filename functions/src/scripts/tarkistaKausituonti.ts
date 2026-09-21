@@ -6,6 +6,13 @@
 // korvaavien endpointtien (/api/youth-stats, /api/players, /api/teams)
 // on määrä ajaa, ja vertaa tuloksia briefin lukuihin.
 //
+// SUODATUS ON OSA TARKISTUSTA. Kokoelmissa on kahden sarjan dokumentit
+// ja avainmuutoksen jäljiltä vanhentuneiksi merkityt kaksoiskappaleet.
+// Jos niitä ei suodateta samalla tavalla kuin tuotantokoodi suodattaa,
+// nimittäjä kaksinkertaistuu ja osuus puolittuu — juuri niin tälle
+// skriptille kävi migraation jälkeen. Puuttuva sarja-kenttä tarkoittaa
+// oletussarjaa, joten suodatus tehdään muistissa.
+//
 // Käyttö:
 //   export FIRESTORE_EMULATOR_HOST=localhost:8080
 //   node lib/scripts/tarkistaKausituonti.js [--etuliite testi_]
@@ -31,7 +38,10 @@ function vertaa(nimi: string, saatu: unknown, odotettu: unknown): void {
   }
 }
 
+const OLETUSSARJA = 'Veikkausliiga';
+
 interface SuoritusData {
+  sarja?: string;
   kausi: string;
   vaihe: string;
   joukkue: string;
@@ -42,38 +52,54 @@ interface SuoritusData {
 }
 
 interface NimittajaData {
+  sarja?: string;
   kausi: string;
   vaihe: string;
   kapasiteetti_min: number;
+  vanhentunut?: boolean;
+}
+
+/** Aktiivinen = ei vanhentunut JA kuuluu tarkistettavaan sarjaan. */
+function aktiivinen(x: { sarja?: string; vanhentunut?: boolean }): boolean {
+  return x.vanhentunut !== true && (x.sarja || OLETUSSARJA) === OLETUSSARJA;
 }
 
 async function main(): Promise<void> {
   admin.initializeApp({ projectId: process.env.GCLOUD_PROJECT || 'pallonetti-fi' });
   const db = admin.firestore();
 
-  const suoritukset = (
-    await db.collection(ETULIITE + 'suoritukset').get()
-  ).docs.map((d) => d.data() as SuoritusData);
-  const nimittajat = (
-    await db.collection(ETULIITE + 'nimittajat').get()
-  ).docs.map((d) => d.data() as NimittajaData);
-  const kaudet = (await db.collection(ETULIITE + 'kaudet').get()).docs;
+  const suoritukset = (await db.collection(ETULIITE + 'suoritukset').get()).docs
+    .map((d) => d.data() as SuoritusData)
+    .filter(aktiivinen);
+  const nimittajat = (await db.collection(ETULIITE + 'nimittajat').get()).docs
+    .map((d) => d.data() as NimittajaData)
+    .filter(aktiivinen);
+  const kaudet = (await db.collection(ETULIITE + 'kaudet').get()).docs.filter(
+    (d) => aktiivinen(d.data() as { sarja?: string; vanhentunut?: boolean }),
+  );
 
-  console.log('DOKUMENTTIMÄÄRÄT');
-  vertaa('suoritukset', suoritukset.length, 1136);
-  vertaa('nimittajat', nimittajat.length, 148);
-  vertaa('kaudet', kaudet.length, 6);
+  // Määrät kattavat kaikki Veikkausliigan kaudet 2020–2026, eivät vain
+  // yhtä tuontitiedostoa. Toisen sarjan dokumentit on suodatettu pois.
+  console.log('DOKUMENTTIMÄÄRÄT (Veikkausliiga, ei vanhentuneita)');
+  vertaa('suoritukset', suoritukset.length, 1357);
+  vertaa('nimittajat', nimittajat.length, 172);
+  vertaa('kaudet', kaudet.length, 7);
 
+  // seasons/{kausi} on olematon dokumentti (vain alikokoelmia), joten
+  // kaudet luetaan kausidokumenttien vuosista, ei seasons-kyselystä.
   let projektioita = 0;
   for (const k of kaudet) {
+    const vuosi = String((k.data() as { vuosi?: number }).vuosi ?? k.id);
     const snap = await db
       .collection(ETULIITE + 'seasons')
-      .doc(k.id)
+      .doc(vuosi)
       .collection('players')
       .get();
-    projektioita += snap.size;
+    projektioita += snap.docs.filter((d) =>
+      aktiivinen(d.data() as { sarja?: string; vanhentunut?: boolean }),
+    ).length;
   }
-  vertaa('seasons/{kausi}/players', projektioita, 697);
+  vertaa('seasons/{kausi}/players', projektioita, 843);
 
   // ---- Nuorten osuus laskettuna Firestoresta ----
   // osuus = Σ minuutit / Σ kapasiteetti_min, kauden kaikkien seurojen ja
@@ -87,13 +113,13 @@ async function main(): Promise<void> {
   };
   for (const kausi of Object.keys(odotetut)) {
     const min = suoritukset
-      .filter((s) => s.kausi === kausi && !s.vanhentunut)
+      .filter((s) => s.kausi === kausi)
       .reduce((a, s) => a + s.minuutit, 0);
     const kap = nimittajat
       .filter((n) => n.kausi === kausi)
       .reduce((a, n) => a + n.kapasiteetti_min, 0);
     const rsMin = suoritukset
-      .filter((s) => s.kausi === kausi && s.vaihe === 'Runkosarja' && !s.vanhentunut)
+      .filter((s) => s.kausi === kausi && s.vaihe === 'Runkosarja')
       .reduce((a, s) => a + s.minuutit, 0);
     const rsKap = nimittajat
       .filter((n) => n.kausi === kausi && n.vaihe === 'Runkosarja')
@@ -107,6 +133,8 @@ async function main(): Promise<void> {
   }
 
   // ---- Runkosarja 22 ottelua joka kaudella ----
+  // Tama on se invariantti, jonka varassa kausien valinen vertailu on:
+  // koko kauden ottelumaara vaihtelee (22 / 27 / 27–32), runkosarja ei.
   console.log('');
   console.log('RAKENNE');
   const rsKapasiteetit = new Set(

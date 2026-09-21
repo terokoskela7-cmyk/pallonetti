@@ -212,10 +212,23 @@ async function main(): Promise<void> {
         ')',
     );
     if (nostot.length === 0) console.log('  (ei vertailukelpoista poikkeamaa)');
+    const akselit = nostot.map((n) => n.rivi.id).filter(
+      (id) => id !== 'osuus' && id !== 'sijoitus-maalit',
+    );
+    if (akselit.length > 0) {
+      moiti('valokeilassa vieras valinta-akseli: ' + akselit.join(', '));
+    }
+    if (new Set(nostot.map((n) => n.joukkue)).size !== nostot.length) {
+      moiti('valokeilassa kaksi pelaajaa samasta seurasta');
+    }
+    if (nostot.filter((n) => n.akatemia).length > 1) {
+      moiti('valokeilassa kaksi pelaajaa akatemiajoukkueesta');
+    }
     for (const n of nostot) {
       console.log(
         '  ' + (n.etunimi + ' ' + n.sukunimi).trim() + ' (' + n.ika + ' v, ' +
-          n.joukkue + ') — ' + n.rivi.teksti,
+          n.joukkue + (n.akatemia ? ', akatemiajoukkue' : '') + ') — ' +
+          n.rivi.teksti,
       );
       console.log(
         '     mittari ' + n.rivi.mittari + ' · arvo ' + n.rivi.arvo + ' ' +

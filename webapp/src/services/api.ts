@@ -436,6 +436,8 @@ export interface Nosto {
   ika: number;
   joukkue: string;
   seurat: string[];
+  /** Pääseura on akatemiajoukkue. Kortilla näkyy merkintä. */
+  akatemia: boolean;
   /** Siirto- tai lainamerkintä (B5), tai null. */
   siirto: Siirto | null;
   rivi: Kontekstirivi;

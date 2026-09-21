@@ -30,6 +30,7 @@
 // ============================================
 import type { NimittajaDoc, SuoritusDoc } from './kausiData';
 import type { Siirto } from './siirrot';
+import { onAkatemia } from './akatemiat';
 import { genetiivi, sarjaInessiivi } from './taivutus';
 
 // --- Kynnysarvot lausesapluunoille -------------------------------------
@@ -635,6 +636,26 @@ export function laskeKonteksti(syote: KontekstiSyote): Konteksti | null {
  */
 const NOSTO_MIN_VERTAILUJOUKKO = 5;
 
+/**
+ * Valinta-akselit. Vain osuus joukkueen minuuteista ja maalisijoitus.
+ *
+ * Minuutit, aloitukset ja tiheys mittaavat samaa peliaikaa kuin osuus,
+ * ja niiden jakaumat ovat vinoja: useimmilla nuorilla on vahan
+ * minuutteja ja nolla aloitusta, joten hajonta on pieni ja vakituinen
+ * pelaaja poikkeaa siita aina rajusti. Jos ne olisivat mukana, sama
+ * peliaika voittaisi valinnan nelja kertaa eri nimella. Ne nakyvat
+ * kortilla kontekstiriveina, mutta eivat vaikuta valintaan.
+ */
+const VALINTA_AKSELIT = ['osuus', 'sijoitus-maalit'];
+
+/**
+ * Enintaan yksi pelaaja akatemiajoukkueesta. Akatemian koko idea on
+ * peluuttaa nuoria, joten sen pelaajat poikkeavat ikaryhmansa
+ * mediaanista jarjestelmallisesti. Ilman rajaa valokeila olisi joka
+ * kierros sama kaksi seuraa.
+ */
+const NOSTO_MAX_AKATEMIASTA = 1;
+
 export interface Nosto {
   slug: string;
   etunimi: string;
@@ -643,6 +664,8 @@ export interface Nosto {
   joukkue: string;
   /** Kauden seurat — siirtomerkinnan tasmaytykseen. */
   seurat: string[];
+  /** Paaseura on akatemiajoukkue. Kortilla nakyy merkinta. */
+  akatemia: boolean;
   /**
    * Siirto- tai lainamerkinta (B5), tai null. Siirtynyt pelaaja voi olla
    * valokeilassa: minuutit ovat taman kauden dataa. Merkinta kertoo
@@ -699,6 +722,7 @@ export function valitseNostot(
     // eniten. Muuten sama pelaaja tayttaisi koko valokeilan.
     let omaParas: Nosto | null = null;
     for (const rivi of k.rivit) {
+      if (VALINTA_AKSELIT.indexOf(rivi.id) < 0) continue;
       if (rivi.mediaani === null) continue;
       if (rivi.hajonta === null || rivi.hajonta <= 0) continue;
       const poikkeama = (rivi.arvo - rivi.mediaani) / rivi.hajonta;
@@ -713,6 +737,7 @@ export function valitseNostot(
         ika: k.ika,
         joukkue: k.joukkue,
         seurat: k.seurat,
+        akatemia: onAkatemia(k.joukkue),
         siirto: null,
         rivi,
         poikkeama: Math.round(poikkeama * 100) / 100,
@@ -722,9 +747,28 @@ export function valitseNostot(
     if (omaParas) ehdokkaat.push(omaParas);
   }
 
-  return ehdokkaat
-    .sort((a, b) => (parempi(a, b) ? -1 : parempi(b, a) ? 1 : 0))
-    .slice(0, maara);
+  // Valinta parhaasta alkaen, kaksi rajaa:
+  //   1. enintaan yksi pelaaja per seura — muuten yhden seuran
+  //      nuorisolinja tayttaisi koko valokeilan
+  //   2. enintaan yksi akatemiajoukkueesta
+  const jarjestetty = ehdokkaat.sort((a, b) =>
+    parempi(a, b) ? -1 : parempi(b, a) ? 1 : 0,
+  );
+  const valitut: Nosto[] = [];
+  const seuratKaytossa = new Set<string>();
+  let akatemioita = 0;
+
+  for (const ehdokas of jarjestetty) {
+    if (valitut.length >= maara) break;
+    const seura = ehdokas.joukkue.replace(/\s+/g, ' ').trim().toLowerCase();
+    if (seuratKaytossa.has(seura)) continue;
+    if (ehdokas.akatemia && akatemioita >= NOSTO_MAX_AKATEMIASTA) continue;
+    valitut.push(ehdokas);
+    seuratKaytossa.add(seura);
+    if (ehdokas.akatemia) akatemioita++;
+  }
+
+  return valitut;
 }
 
 /** Yksi nosto: valokeilan ensimmainen. */

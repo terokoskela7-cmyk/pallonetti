@@ -12,7 +12,6 @@ import {
   laskeKaudenKontekstit,
   valitseNosto,
   valitseNostot,
-  otteluitaPelattu,
   type KontekstiSyote,
 } from '../services/konteksti';
 import type { NimittajaDoc, SuoritusDoc } from '../services/kausiData';
@@ -265,7 +264,22 @@ const paikat: Array<[string, string | null]> = [
   vertaa('vertailujoukon koko', r?.faktat.vertailujoukonKoko, 3);
   const minuuttirivi = (r?.rivit ?? []).find((x) => x.id === 'sijoitus-minuutit');
   vertaa('mediaani peliaikaa saaneista', minuuttirivi?.mediaani, 1292);
-  vertaa('nuoli mediaaniin', minuuttirivi?.nuoli, 'tasolla');
+  // Sijoitusrivilla ei ole nuolta; osuusrivilla on.
+  vertaa('sijoitusrivilla ei nuolta', minuuttirivi?.nuoli, null);
+  // Ruopin osuus 65 % on ikaryhman mediaani (76 / 65 / 15), joten nuoli
+  // osoittaa tasoa. Olennaista on, etta osuusrivilla nuoli on olemassa.
+  vertaa(
+    'osuusrivilla on nuoli',
+    (r?.rivit ?? []).find((x) => x.id === 'osuus')?.nuoli,
+    'tasolla',
+  );
+  vertaa(
+    'yhdellakaan sijoitusrivilla ei ole nuolta',
+    (r?.rivit ?? [])
+      .filter((x) => x.id.indexOf('sijoitus') === 0)
+      .every((x) => x.nuoli === null),
+    true,
+  );
 }
 
 // ============================================
@@ -665,13 +679,96 @@ console.log('ETUSIVUN NOSTO');
     true,
   );
 
-  vertaa('otteluita pelattu', otteluitaPelattu(nim), { min: 22, max: 22 });
+  // Valinta koskee VAIN mediaanin ylapuolelle jaavia poikkeamia.
+  const kaikkiEhdokkaat = valitseNostot(kaikki, 99);
   vertaa(
-    'otteluita pelattu, eri maarat',
-    otteluitaPelattu([nimittaja('KuPS', 24), nimittaja('Ilves', 22)]),
-    { min: 22, max: 24 },
+    'kaikki nostot ovat mediaanin ylapuolella',
+    kaikkiEhdokkaat.every(
+      (n) => n.rivi.mediaani !== null && n.rivi.arvo > n.rivi.mediaani,
+    ),
+    true,
   );
-  vertaa('ei nimittajia -> null', otteluitaPelattu([]), null);
+  vertaa(
+    'kaikki poikkeamat positiivisia',
+    kaikkiEhdokkaat.every((n) => n.poikkeama > 0),
+    true,
+  );
+
+  // Selvasti mediaanin ALAPUOLELLA oleva pelaaja ei paady valokeilaan,
+  // vaikka poikkeama itseisarvona olisi suurin.
+  const alapuolella: SuoritusDoc[] = [
+    suoritus({ slug: 'a', minuutit: 1900, ottelut: 22, aloitukset: 21, maalit: 2 }),
+    suoritus({ slug: 'b', minuutit: 1850, ottelut: 22, aloitukset: 20, maalit: 2 }),
+    suoritus({ slug: 'c', minuutit: 1800, ottelut: 21, aloitukset: 20, maalit: 2 }),
+    suoritus({ slug: 'd', minuutit: 1750, ottelut: 21, aloitukset: 19, maalit: 2 }),
+    suoritus({ slug: 'e', minuutit: 1700, ottelut: 20, aloitukset: 19, maalit: 2 }),
+    suoritus({ slug: 'vahan', minuutit: 90, ottelut: 6, aloitukset: 1, maalit: 0 }),
+  ];
+  const alaK = laskeKaudenKontekstit({
+    kausi: 2026,
+    sarja: 'Veikkausliiga',
+    suoritukset: alapuolella,
+    nimittajat: nim,
+    pelipaikat: new Map(),
+  });
+  vertaa(
+    'mediaanin alapuolinen ei ole valokeilassa',
+    valitseNostot(alaK, 99).some((n) => n.slug === 'vahan'),
+    false,
+  );
+
+  // Siirtomerkinta: valinta ei hae sita, vaan reitti taydentaa.
+  vertaa('valinta jattaa siirron nulliksi', nosto?.siirto, null);
+  vertaa('valinta palauttaa kauden seurat', nosto?.seurat, ['KuPS']);
+}
+
+// ============================================
+console.log('');
+console.log('EI ARVOTTAVIA SANOJA');
+// ============================================
+{
+  // Lauseessa ei saa olla arvioita pelaajasta. "Karki" ja "jaettu 2."
+  // ovat sijoituksia, eivat arvioita, joten ne EIVAT ole kiellettyja.
+  const kielletyt = [
+    'aloittaa lähes aina',
+    'vakiintumassa kokoonpanoon',
+    'hakee vielä paikkaansa',
+    'pelaa lähes täydet pelit',
+    'kovin',
+    'paras',
+    'parhaa',
+    'parempi',
+    'huippu',
+    'loistav',
+    'vakuuttav',
+    'lupaav',
+  ];
+  const kaikkiLauseet = laskeKaudenKontekstit({
+    kausi: 2026,
+    sarja: 'Veikkausliiga',
+    suoritukset: korkkoRuoppi,
+    nimittajat: nimittajat3,
+    pelipaikat: new Map(paikat),
+  }).flatMap((k) => k.rivit.map((r) => r.teksti));
+
+  vertaa(
+    'lauseita syntyi',
+    kaikkiLauseet.length > 0,
+    true,
+  );
+  vertaa(
+    'ei arvottavia sanoja',
+    kaikkiLauseet.filter((t) =>
+      kielletyt.some((s) => t.toLowerCase().indexOf(s) >= 0),
+    ),
+    [],
+  );
+  // Sijoituslause sailyy: se ei ole arvottava.
+  vertaa(
+    'sijoituslause sailyy',
+    kaikkiLauseet.some((t) => t.indexOf('kärki') >= 0),
+    true,
+  );
 }
 
 console.log('');

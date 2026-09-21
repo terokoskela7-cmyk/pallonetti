@@ -289,7 +289,7 @@ export default function HomePage() {
       {/* ---------- Osio 1b — Yksi generoitu lause ---------- */}
       <EtusivunLause
         nosto={konteksti?.valokeilassa[0] ?? null}
-        otteluita={konteksti?.otteluita ?? null}
+        tuotuPvm={konteksti?.tuotuPvm ?? null}
       />
 
       {/* ---------- Osio 2 — Sivuston rakenne ---------- */}

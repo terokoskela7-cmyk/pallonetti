@@ -35,7 +35,6 @@ import {
   laskeKonteksti,
   laskeKaudenKontekstit,
   valitseNostot,
-  otteluitaPelattu,
 } from './services/konteksti';
 import { laskePolku } from './services/polku';
 import {
@@ -52,6 +51,7 @@ import {
   sarjaAvain,
   sarjaAvaimesta,
   projektioId,
+  kausiId,
   OLETUSSARJA,
   TUETUT_SARJAT,
 } from './services/kausiImport';
@@ -807,6 +807,30 @@ app.get('/api/season-players/:season/:slug', async (req, res) => {
 });
 
 /**
+ * Kauden tuontipaiva kaudet-dokumentista, ISO-muodossa.
+ *
+ * Tilanne kerrotaan tuontipaivana eika otteluiden maarana: joukkueilla
+ * on eri maara otteluita pelattuna, joten yksi ottelumaara olisi vaara
+ * ja vali ("24–25 ottelua") ei kerro lukijalle mita han haluaa tietaa.
+ * Paiva kertoo, mista hetkesta luvut ovat.
+ */
+async function kaudenTuontiPvm(
+  db: admin.firestore.Firestore,
+  season: number,
+  sarja: string,
+): Promise<string | null> {
+  const doc = await db
+    .collection('kaudet')
+    .doc(kausiId({ sarja, kausi: String(season) }))
+    .get();
+  const tuotu = doc.exists ? doc.data()?.tuotu_pvm : null;
+  if (tuotu && typeof tuotu.toDate === 'function') {
+    return (tuotu.toDate() as Date).toISOString();
+  }
+  return typeof tuotu === 'string' ? tuotu : null;
+}
+
+/**
  * GET /api/konteksti/:season — kauden kaikkien pelaajien kontekstit ja
  * etusivun nosto.
  *
@@ -853,6 +877,17 @@ app.get('/api/konteksti/:season', async (req, res) => {
       pelipaikat,
     });
 
+    // Siirtomerkinta taydennetaan valinnan jalkeen: valitseNostot on
+    // puhdas funktio eika tunne siirtodataa. Siirtynyt pelaaja voi olla
+    // valokeilassa, koska minuutit ovat taman kauden dataa.
+    const valokeilassa = valitseNostot(kaikki, 3).map((n) => ({
+      ...n,
+      siirto: haeSiirto(season, n.etunimi, n.sukunimi, [
+        ...n.seurat,
+        n.joukkue,
+      ]),
+    }));
+
     res.set('Cache-Control', 'public, max-age=3600');
     res.json({
       success: true,
@@ -863,8 +898,8 @@ app.get('/api/konteksti/:season', async (req, res) => {
           const { ohitetut: _ohitetut, ...rest } = k;
           return rest;
         }),
-        valokeilassa: valitseNostot(kaikki, 3),
-        otteluita: otteluitaPelattu(nimittajat),
+        valokeilassa,
+        tuotuPvm: await kaudenTuontiPvm(db, season, sarja),
       },
       dataSaatavilla: kaikki.length > 0,
       source: 'firestore',

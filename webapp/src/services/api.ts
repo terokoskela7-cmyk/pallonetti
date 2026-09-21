@@ -423,6 +423,46 @@ export async function getTrendit(sarja?: string): Promise<TrendiKausi[]> {
 }
 
 // ============================================
+// POLKU YKKÖSLIIGASTA VEIKKAUSLIIGAAN
+// ============================================
+export interface PolkuPelaaja {
+  slug: string;
+  nimi: string;
+  ika: number;
+  ylSeura: string;
+  ylMinuutit: number;
+  vlSeura: string;
+  vlMinuutit: number;
+  debytoi: boolean;
+  /** 'seura nousi' | 'vaihtoi seuraa' — vain debytoineille. */
+  luokka: string | null;
+  /** 'emoseuraan' | 'muualle' | null. */
+  akatemiasta: string | null;
+}
+
+export interface PolkuTulos {
+  kausiN: number;
+  kausiN1: number;
+  /** false = siirtymää ei ole (ei Ykkösliigan dataa edelliseltä kaudelta). */
+  saatavilla: boolean;
+  nousseet: number;
+  debytoi: number;
+  seuraNousi: number;
+  nousseetSeurat: string[];
+  vaihtoiSeuraa: number;
+  akatemiastaEmoseuraan: number;
+  akatemiastaMuualle: number;
+  vainKokoonpanossa: number;
+  toiseenSuuntaan: number;
+  mediaaniYlMinuutit: number | null;
+  pelaajat: PolkuPelaaja[];
+}
+
+/** Siirtymä kaudesta season-1 kauteen season. Laskenta tehdään palvelimella. */
+export const getPolku = (season: number): Promise<PolkuTulos> =>
+  fetchApi(`/polku/${season}`);
+
+// ============================================
 // KAUDET — valitsimen lähde
 // ============================================
 export interface KausiInfo {

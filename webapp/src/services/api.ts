@@ -156,10 +156,15 @@ export interface YouthAggregation {
   topYouthPlayers: PlayerStats[];
   updatedAt: string;
   /**
-   * Vain runkosarja. Vertailukelpoisempi kausien yli kuin koko kausi,
-   * koska loppuvaiheissa (mestaruus-, haastaja-, karsintasarja) seurat
-   * pelaavat eri määrän otteluita. Runkosarjan pituus ei silti ole vakio:
-   * 22 ottelua kaudella 2020, 27 kausilla 2022–2025.
+   * Vain runkosarja, ja juuri siksi vertailukelpoinen kausien yli:
+   * runkosarja on 22 ottelua joka kaudella 2020–2026. Koko kausi ei ole
+   * vertailukelpoinen, koska loppuvaiheet vaihtelevat kausittain ja
+   * seuroittain — mestaruussarja 5 tai 10 ottelua, haastaja- tai
+   * karsintasarja 5, eurolopputurnaus 1–4 — jolloin koko kauden
+   * ottelumäärä on 22 (2020), 27 (2021) tai 27–32 (2022–2025).
+   *
+   * Tarkistettu nimittäjistä kaikilta kausilta; sama invariantti
+   * varmistetaan ajossa (functions/src/scripts/tarkistaKausituonti.ts).
    */
   osuusNuoretRunkosarja?: number;
   /** Mitä ikiä lähde tosiasiassa sisältää. u23Saatavilla=false → ei U23-lukua. */

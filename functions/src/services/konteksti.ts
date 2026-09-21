@@ -29,6 +29,7 @@
 // puuttuminen voidaan katselmoida.
 // ============================================
 import type { NimittajaDoc, SuoritusDoc } from './kausiData';
+import type { Siirto } from './siirrot';
 import { genetiivi, sarjaInessiivi } from './taivutus';
 
 // --- Kynnysarvot lausesapluunoille -------------------------------------
@@ -501,7 +502,12 @@ export function laskeKonteksti(syote: KontekstiSyote): Konteksti | null {
     return {
       id,
       teksti,
-      nuoli: nuoli(arvo, med, kokonaisluku),
+      // Sijoitusrivilla EI ole nuolta. Sija ja mediaanivertailu ovat eri
+      // vaitteita, ja yhdessa ne harhauttavat: karkisijalla nuoli olisi
+      // aina ylos, ja tihea sijoitus 3. voi olla mediaanin ALAPUOLELLA,
+      // jos ikaryhmassa on iso tasapeliryhma mediaanin kohdalla. Sija
+      // kertoo jo asemansa vertailujoukossa.
+      nuoli: null,
       mittari,
       arvo,
       yksikko,
@@ -635,6 +641,17 @@ export interface Nosto {
   sukunimi: string;
   ika: number;
   joukkue: string;
+  /** Kauden seurat — siirtomerkinnan tasmaytykseen. */
+  seurat: string[];
+  /**
+   * Siirto- tai lainamerkinta (B5), tai null. Siirtynyt pelaaja voi olla
+   * valokeilassa: minuutit ovat taman kauden dataa. Merkinta kertoo
+   * lukijalle, ettei han enaa pelaa samassa seurassa.
+   *
+   * valitseNostot ei hae merkintaa itse — reitti taydentaa sen, jotta
+   * valinta pysyy puhtaana funktiona.
+   */
+  siirto: Siirto | null;
   /** Rivi, joka poikkeaa eniten ikaryhmansa mediaanista. */
   rivi: Kontekstirivi;
   /** Poikkeama mediaanista oman mittarin hajonnalla (MAD) jaettuna. */
@@ -685,6 +702,9 @@ export function valitseNostot(
       if (rivi.mediaani === null) continue;
       if (rivi.hajonta === null || rivi.hajonta <= 0) continue;
       const poikkeama = (rivi.arvo - rivi.mediaani) / rivi.hajonta;
+      // Vain mediaanin YLAPUOLELLE jaavat poikkeamat. Alapuolelle jaava
+      // olisi yhta suuri poikkeama mutta kertoisi pelaajasta asian,
+      // jota sivusto ei nosta esiin.
       if (poikkeama <= 0) continue;
       const ehdokas: Nosto = {
         slug: k.slug,
@@ -692,6 +712,8 @@ export function valitseNostot(
         sukunimi: k.sukunimi,
         ika: k.ika,
         joukkue: k.joukkue,
+        seurat: k.seurat,
+        siirto: null,
         rivi,
         poikkeama: Math.round(poikkeama * 100) / 100,
       };
@@ -719,21 +741,4 @@ function parempi(a: Nosto, b: Nosto): boolean {
   if (a.poikkeama !== b.poikkeama) return a.poikkeama > b.poikkeama;
   if (a.rivi.arvo !== b.rivi.arvo) return a.rivi.arvo > b.rivi.arvo;
   return a.slug < b.slug;
-}
-
-/**
- * Montako ottelua joukkueet ovat pelanneet. Kierrosnumeroa ei ole
- * kausiviennissa, joten tilanne kerrotaan otteluina — se on sama tieto
- * ilman keksittya kierroslukua. Vaihe voi olla kesken, joten min ja max
- * voivat erota.
- */
-export function otteluitaPelattu(
-  nimittajat: NimittajaDoc[],
-): { min: number; max: number } | null {
-  const ottelut = Array.from(joukkueidenOttelut(nimittajat).values());
-  if (ottelut.length === 0) return null;
-  return {
-    min: Math.min.apply(null, ottelut),
-    max: Math.max.apply(null, ottelut),
-  };
 }

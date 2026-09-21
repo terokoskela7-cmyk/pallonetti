@@ -24,18 +24,39 @@ import { lueKausi } from '../services/kausiData';
 import {
   laskeKonteksti,
   valitseNostot,
-  otteluitaPelattu,
   type Konteksti,
 } from '../services/konteksti';
 import { genetiivi } from '../services/taivutus';
-import { TUETUT_SARJAT, OLETUSSARJA } from '../services/kausiImport';
+import { TUETUT_SARJAT, OLETUSSARJA, kausiId } from '../services/kausiImport';
+import { haeSiirto } from '../services/siirrot';
 
-/** Lopukkeet, jotka arvioivat pelaajan asemaa mittaamisen sijaan. */
+/** ISO-paiva suomalaisittain ilman Date-jasennysta: "2026-09-21" -> "21.9.2026". */
+function suomalainenPvm(iso: string): string {
+  const osat = iso.slice(0, 10).split('-');
+  if (osat.length !== 3) return iso;
+  return (
+    parseInt(osat[2], 10) + '.' + parseInt(osat[1], 10) + '.' + osat[0]
+  );
+}
+
+/**
+ * Sanat ja lopukkeet, jotka arvioivat pelaajaa mittaamisen sijaan.
+ * "Kärki" ja "jaettu 2." EIVAT ole arvottavia: ne ovat sijoituksia,
+ * jotka voi todistaa vaaraksi yhdella kyselylla.
+ */
 const TULKITSEVAT = [
   'aloittaa lähes aina',
   'vakiintumassa kokoonpanoon',
   'hakee vielä paikkaansa',
   'pelaa lähes täydet pelit',
+  'kovin',
+  'paras',
+  'parhaa',
+  'parempi',
+  'huippu',
+  'loistav',
+  'vakuuttav',
+  'lupaav',
 ];
 
 async function pelipaikatKaudelle(
@@ -149,6 +170,13 @@ async function main(): Promise<void> {
       if (maalirivi && k.faktat.maalit < 1) {
         moiti(k.slug + ': maalisijoituslause ilman maalia');
       }
+      // Sijoitusrivilla ei ole nuolta: sija ja mediaanivertailu ovat eri
+      // vaitteita, ja yhdessa ne harhauttavat.
+      for (const rivi of k.rivit) {
+        if (rivi.id.indexOf('sijoitus') === 0 && rivi.nuoli !== null) {
+          moiti(k.slug + ': sijoitusrivilla ' + rivi.id + ' on nuoli');
+        }
+      }
       // Lause kertoo, ei tulkitse.
       for (const rivi of k.rivit) {
         for (const kielletty of TULKITSEVAT) {
@@ -160,14 +188,27 @@ async function main(): Promise<void> {
     }
 
     // Valokeila ja etusivun lause: sama valinta jonka rajapinta palauttaa.
-    const nostot = valitseNostot(kaikki, 3);
-    const otteluita = otteluitaPelattu(nimittajat);
+    const nostot = valitseNostot(kaikki, 3).map((n) => ({
+      ...n,
+      siirto: haeSiirto(kausi, n.etunimi, n.sukunimi, [...n.seurat, n.joukkue]),
+    }));
+    const kausiDoc = await db
+      .collection('kaudet')
+      .doc(kausiId({ sarja, kausi: String(kausi) }))
+      .get();
+    const tuotu = kausiDoc.exists ? kausiDoc.data()?.tuotu_pvm : null;
+    const tuotuIso =
+      tuotu && typeof tuotu.toDate === 'function'
+        ? (tuotu.toDate() as Date).toISOString()
+        : typeof tuotu === 'string'
+          ? tuotu
+          : null;
     console.log('');
     console.log(
       'VALOKEILASSA (' +
-        (otteluita === null
-          ? 'ei nimittajia'
-          : 'tilanne ' + otteluita.min + '–' + otteluita.max + ' ottelun jalkeen') +
+        (tuotuIso === null
+          ? 'tuontipaivaa ei ole kausidokumentissa'
+          : 'tilanne ' + suomalainenPvm(tuotuIso)) +
         ')',
     );
     if (nostot.length === 0) console.log('  (ei vertailukelpoista poikkeamaa)');
@@ -177,9 +218,28 @@ async function main(): Promise<void> {
           n.joukkue + ') — ' + n.rivi.teksti,
       );
       console.log(
-        '     poikkeama ' + n.poikkeama + ' × hajonta · mediaani ' +
-          n.rivi.mediaani + ' ' + n.rivi.yksikko,
+        '     mittari ' + n.rivi.mittari + ' · arvo ' + n.rivi.arvo + ' ' +
+          n.rivi.yksikko + ' · mediaani ' + n.rivi.mediaani + ' · hajonta ' +
+          n.rivi.hajonta + ' · poikkeama ' + n.poikkeama + ' × hajonta',
       );
+      if (n.siirto) {
+        console.log(
+          '     siirtomerkinta: ' + n.siirto.uusi_seura + ', ' + n.siirto.maa +
+            ' (' + n.siirto.tyyppi + ')',
+        );
+      }
+      // Etusivun lause kokonaisuudessaan, samoin osin kuin kayttoliittymassa.
+      console.log(
+        '     ETUSIVUN LAUSE: ' + (n.etunimi + ' ' + n.sukunimi).trim() +
+          ' (' + n.ika + ' v, ' + n.joukkue + ') — ' + n.rivi.teksti,
+      );
+      if (nostot.indexOf(n) === 0 && n.siirto) {
+        console.log(
+          '                     + merkinta "' +
+            (n.siirto.tyyppi === 'laina' ? 'Lainalla' : 'Siirtynyt kesken kauden') +
+            ': ' + n.siirto.uusi_seura + ', ' + n.siirto.maa + '"',
+        );
+      }
     }
 
     // Lauseiden otos: eniten minuutteja pelanneet kymmenen.

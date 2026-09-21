@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { Info } from 'lucide-react';
 import { useApi } from '@/hooks/useApi';
 import { getSeasonPlayers, type SeasonPlayer } from '@/services/api';
-import { useValittuKausi } from '@/hooks/useKausi';
+import { useValittuKausi, useValittuSarja } from '@/hooks/useKausi';
 import { IKAKAISTAT, kaistalla } from '@/constants/ika';
 import { Hero } from '@/components/Hero';
 
@@ -115,11 +115,12 @@ function LoadingSkeleton() {
 
 export default function NuoretPage() {
   const kausi = useValittuKausi();
+  const sarja = useValittuSarja();
   const [filter, setFilter] = useState<AgeFilter>('all');
 
   const { data, loading, error } = useApi(
-    () => getSeasonPlayers(kausi),
-    [kausi],
+    () => getSeasonPlayers(kausi, sarja),
+    [kausi, sarja],
   );
 
   // Kaikki seurannassa olevat pelaajat = ne joilla on peliaikaa.
@@ -152,11 +153,13 @@ export default function NuoretPage() {
   return (
     <div className="px-6 py-10 md:py-16 space-y-8">
       <Hero
-        eyebrow={`Veikkausliiga · Kausi ${kausi}`}
+        eyebrow={`${sarja} · Kausi ${kausi}`}
         title={
           <>
             Nuoret pelaajat —{' '}
-            <span className="text-aurora font-medium">Veikkausliiga {kausi}</span>
+            <span className="text-aurora font-medium">
+              {sarja} {kausi}
+            </span>
           </>
         }
         subtitle={`${tracked.length} pelaajaa seurannassa`}
@@ -206,7 +209,7 @@ export default function NuoretPage() {
       )}
 
       <div className="text-xs text-white/40 text-center pt-2">
-        Lähde: Veikkausliiga.com (viralliset tilastot)
+        Lähde: sarjan viralliset tilastot (kausivienti)
       </div>
     </div>
   );

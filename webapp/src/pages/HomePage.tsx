@@ -23,7 +23,7 @@ import {
   buildU23Players,
   type YouthStats,
 } from '@/services/api';
-import { useValittuKausi } from '@/hooks/useKausi';
+import { useValittuKausi, useValittuSarja } from '@/hooks/useKausi';
 import { KausiTrendi } from '@/components/KausiTrendi';
 import { VertailuRivi } from '@/components/VertailuRivi';
 import {
@@ -157,24 +157,29 @@ const MISSIONS = [
 
 export default function HomePage() {
   const kausi = useValittuKausi();
+  const sarja = useValittuSarja();
   const [infoOpen, setInfoOpen] = useState(false);
 
   // Päädata: kolme sarjaa + U23-aggregaatti + viralliset minuutit.
   const { data, loading, error } = useApi(async () => {
     const [stats, agg, official] = await Promise.all([
       getYouthStatsAll(kausi),
-      getYouthAggregation(kausi),
-      getOfficialStats(kausi),
+      getYouthAggregation(kausi, sarja),
+      // Viralliset tilastot on kerätty vain Veikkausliigasta. Toisella
+      // sarjalla lista on tyhjä, eikä sitä esitetä puutteena.
+      getOfficialStats(kausi).catch(() => ({ data: [], meta: null })),
     ]);
     return { stats, agg, official };
-  }, [kausi]);
+  }, [kausi, sarja]);
 
   // Kausitrendit: kaikki kaudet kerralla. Samasta vastauksesta tulevat
   // sekä kaavio että vertailurivi, jolloin ne eivät voi näyttää eri
   // lukua samasta kaudesta. Epäonnistuminen ei kaada sivua.
   const { data: trendit } = useApi(async () => {
     try {
-      return await getTrendit();
+      // Kaikki sarjat kerralla: kaavio voi verrata niitä, ja valitun
+      // sarjan luvut poimitaan samasta vastauksesta.
+      return await getTrendit('kaikki');
     } catch (e) {
       console.error('[etusivu] kausitrendien haku epäonnistui:', e);
       return null;
@@ -213,7 +218,12 @@ export default function HomePage() {
     );
   }
 
-  const veikkausliiga = filterReliableTeams(data.stats.veikkausliiga);
+  // Sama vastaus sisältää molemmat sarjat; valitaan se, jota katsotaan.
+  const veikkausliiga = filterReliableTeams(
+    (sarja === 'Ykkösliiga'
+      ? data.stats.ykkosliiga
+      : data.stats.veikkausliiga) ?? [],
+  );
 
   const pct = laskeNuortenOsuus(veikkausliiga);
   const count: number | null =
@@ -225,19 +235,26 @@ export default function HomePage() {
 
   // Vertailurivi lukee saman trendipisteen kuin kaavio: valitun kauden
   // luvut tulevat yhdestä lähteestä, eivät kahdesta eri hausta.
-  const valittuTrendi = (trendit ?? []).find((t) => t.kausi === kausi) ?? null;
+  const valittuTrendi =
+    (trendit ?? []).find((t) => t.kausi === kausi && t.sarja === sarja) ?? null;
 
   return (
     <div className="px-6 py-10 md:py-16 space-y-14">
       {/* ---------- Osio 1 — Hero ---------- */}
       <Hero
-        eyebrow={`Veikkausliiga · Kausi ${kausi}`}
+        eyebrow={`${sarja} · Kausi ${kausi}`}
         title={
           <>
             Peliaika on <span className="text-aurora font-medium">kaikki</span>
           </>
         }
-        subtitle="Seuraa suomalaisten nuorten pelaajien peliaikaa Veikkausliigassa. Lähteenä Veikkausliigan viralliset tilastot."
+        subtitle={
+          'Seuraa suomalaisten nuorten pelaajien peliaikaa ' +
+          (sarja === 'Ykkösliiga' ? 'Ykkösliigassa' : 'Veikkausliigassa') +
+          '. Lähteenä ' +
+          sarja +
+          'n viralliset tilastot.'
+        }
         height="lg"
       />
 
@@ -315,7 +332,7 @@ export default function HomePage() {
           </div>
         ) : (
           <>
-            <KausiTrendi trendit={trendit} />
+            <KausiTrendi trendit={trendit} sarja={sarja} />
             <div className="pt-4 border-t border-navy-600">
               <VertailuRivi
                 osuusAlle21={valittuTrendi?.osuusAlle21 ?? null}

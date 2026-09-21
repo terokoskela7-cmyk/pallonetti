@@ -5,6 +5,7 @@ import { useApi } from '@/hooks/useApi';
 import { getKansalaisuudet } from '@/services/api';
 import { luku, pros } from '@/utils/luvut';
 import { ALLE_21_MAX, CIES_TANSKA_PCT, NUORET_MIN, NUORET_MAX } from '@/constants/ika';
+import { AKATEMIAJOUKKUEET } from '@/constants/akatemiat';
 
 // ============================================
 // CIES Football Observatory -vertailuluvut.
@@ -295,6 +296,51 @@ export default function AboutPage() {
         </p>
       </Section>
 
+      <Section title="Kaksi sarjaa">
+        <p>
+          Sivusto kattaa <strong className="text-white/80">Veikkausliigan</strong>{' '}
+          kaudesta 2020 ja <strong className="text-white/80">Ykkösliigan</strong>{' '}
+          kaudesta 2024. Sarja valitaan yläpalkista, ja se näkyy osoitteessa
+          (<span className="font-mono text-[11px]">?sarja=ykkosliiga</span>),
+          joten linkki on jaettavissa.
+        </p>
+        <p>
+          Sarjojen luvut lasketaan erikseen: nimittäjä on sarjan oma
+          minuuttikapasiteetti. Sarjoja ei lasketa yhteen, koska yhdistetty
+          luku ei vastaisi kumpaakaan sarjaa.
+        </p>
+        <p>
+          <strong className="text-white/80">Akatemiajoukkueet.</strong>{' '}
+          Ykkösliigassa pelaa kaksi seuran omaa kasvattajajoukkuetta:
+        </p>
+        <ul className="list-disc list-inside space-y-1">
+          {AKATEMIAJOUKKUEET.map((x) => (
+            <li key={x}>
+              <strong className="text-white/80">{x}</strong>
+            </li>
+          ))}
+        </ul>
+        <p>
+          Niiden koko tehtävä on peluuttaa nuoria, joten lähes kaikki niiden
+          peliaika menee 17–21-vuotiaille. Kaksi joukkuetta riittää nostamaan
+          koko sarjan lukua: kaudella 2026 Ykkösliigan osuus on{' '}
+          <span className="tabular">{pros(37.1)}</span> kaikkien joukkueiden
+          kanssa ja <span className="tabular">{pros(23.8)}</span> ilman
+          akatemiajoukkueita. Kumpikin luku on tosi, mutta ne vastaavat eri
+          kysymykseen — siksi molemmat näytetään.
+        </p>
+        <p>
+          Lista on nimetty eikä pääteltävä: joukkuetta ei tulkita akatemiaksi
+          sen nimen perusteella, koska nimestä päättely muuttuisi äänettömästi
+          jos joukkue vaihtaa nimeä tai uusi seura nimeää itsensä samoin.
+        </p>
+        <p>
+          Kansalaisuuden kolmijako on toistaiseksi haettu vain Veikkausliigan
+          pelaajille. Ykkösliigan kohdalla sitä ei näytetä tyhjänä — puuttuva
+          tieto ei ole sama asia kuin nolla.
+        </p>
+      </Section>
+
       <Section title="Datalähteet">
         <div className="grid grid-cols-1 gap-3">
           <SourceItem
@@ -303,9 +349,13 @@ export default function AboutPage() {
             description="Minuutit, ottelut, aloitukset ja maalit. Kauden tilastovienti on sivuston päälähde, ja kaikki peliaikaluvut lasketaan siitä."
           />
           <SourceItem
+            name="Ykkösliiga — kauden tilastovienti"
+            description="Sama muoto ja samat kentät kuin Veikkausliigan viennissä: minuutit, ottelut, aloitukset ja maalit kaudesta 2024 alkaen. Luvut lasketaan sarjan omasta minuuttikapasiteetista."
+          />
+          <SourceItem
             name="Veikkausliiga.com — pelaajarekisteri"
             url="https://www.veikkausliiga.com/"
-            description="Kansalaisuus ja pelipaikka pelaajan omalta profiilisivulta. Rekisteri kertoo yhden koodin pelaajaa kohden."
+            description="Kansalaisuus ja pelipaikka pelaajan omalta profiilisivulta. Rekisteri kertoo yhden koodin pelaajaa kohden. Haettu toistaiseksi vain Veikkausliigan pelaajille."
           />
           <SourceItem
             name="Seurojen ja median tiedotteet"
@@ -343,7 +393,10 @@ export default function AboutPage() {
 
       <Section title="Rajoitukset">
         <ul className="list-disc list-inside space-y-1">
-          <li>Vain Veikkausliiga</li>
+          <li>
+            Veikkausliiga ja Ykkösliiga. Ykkösliigan data alkaa kaudesta 2024,
+            eikä siitä ole kansalaisuustietoa.
+          </li>
           <li>Pelaajat ilman ikätietoa eivät näy ikäryhmätilastoissa</li>
           <li>
             Kansalaisuus on yhden rekisterin tieto: kaksoiskansalaisuus ei näy,

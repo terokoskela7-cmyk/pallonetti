@@ -13,6 +13,10 @@
 //      lopputiloja, eivat kauden aikaisia havaintoja. Ne merkitaan
 //      lahteella, jotta kehityskayra voi jattaa ne pois.
 //
+//   3. Sama koskee mita tahansa paattyneen kauden tilannekuvaa: jos se
+//      on kirjoitettu kauden jalkeen, se on lopputila. Saanto on
+//      yhtenainen eika riipu siita, mika tuonti sen sattui luomaan.
+//
 // Sisaltoa ei muuteta: vain nama kaksi kenttaa lisataan.
 //
 // CLAUDE.md 3.5: kirjoitus tuotantoon vaatii KAKSI lippua.
@@ -27,6 +31,9 @@ const SARJATON = { kausi: '2026', id: '2026-09-19', sarja: 'Veikkausliiga' };
 /** Migraation luomat tilannekuvat: sama paiva, Veikkausliigan tunniste. */
 const MIGRAATION_TUNNISTE = 'veikkausliiga_2026-09-20';
 const MIGRAATION_KAUDET = ['2020', '2021', '2022', '2023', '2024', '2025', '2026'];
+
+/** Paattyneen kauden tilannekuva on lopputila, ei havainto kauden kulusta. */
+const PAATTYNYT_LAHDE = 'tuonti (päättynyt kausi)';
 
 function lippu(nimi: string): boolean {
   return process.argv.indexOf('--' + nimi) >= 0;
@@ -91,10 +98,52 @@ async function main(): Promise<void> {
   }
   console.log('  loydetty ' + loydetty + '/' + MIGRAATION_KAUDET.length);
 
+  // ---------- 3. paattyneiden kausien tilannekuvat ----------
+  // Paattyneen kauden tilannekuva on lopputila riippumatta siita, mika
+  // tuonti sen loi. Kuluvan kauden tilannekuviin ei kosketa: ne ovat
+  // juuri niita havaintoja, joista kehityskayra piirretaan.
+  console.log('');
+  console.log('3) lahde: "' + PAATTYNYT_LAHDE + '" paattyneiden kausien tilannekuviin');
+  const kuluvaVuosi = new Date().getFullYear();
+  const paattyneet: Array<{
+    ref: admin.firestore.DocumentReference;
+    polku: string;
+    pelaajia: unknown;
+  }> = [];
+  // listDocuments(), EI get(): seasons/{kausi} ei ole olemassa oleva
+  // dokumentti vaan pelkka alikokoelmien sailio, eika se nay kyselyssa.
+  // get() palauttaisi tyhjan ja skripti tekisi aanettomasti ei mitaan.
+  const kausiRefit = await db.collection('seasons').listDocuments();
+  for (const kausiRef of kausiRefit) {
+    const kausi = parseInt(kausiRef.id, 10);
+    if (isNaN(kausi) || kausi >= kuluvaVuosi) continue;
+    const snap = await tk(kausiRef.id).get();
+    for (const d of snap.docs) {
+      const x = d.data() ?? {};
+      if (x.lahde) continue;
+      paattyneet.push({
+        ref: d.ref,
+        polku: 'seasons/' + kausiRef.id + '/tilannekuvat/' + d.id,
+        pelaajia: x.pelaajia,
+      });
+    }
+  }
+  for (const p of paattyneet) {
+    console.log('  ' + p.polku + '  pelaajia ' + p.pelaajia + '  ->  ' + PAATTYNYT_LAHDE);
+  }
+  console.log('  merkittavia: ' + paattyneet.length);
+
   if (!kirjoitetaan) {
     console.log('');
     console.log('Listaus vain. Kirjoitus vaatii --tuotanto JA --vahvista.');
     return;
+  }
+
+  for (const p of paattyneet) {
+    await p.ref.update({ lahde: PAATTYNYT_LAHDE });
+  }
+  if (paattyneet.length > 0) {
+    console.log('  kirjoitettu ' + paattyneet.length + ' dokumenttiin');
   }
 
   // ---------- Tarkistus ----------
@@ -105,6 +154,10 @@ async function main(): Promise<void> {
   for (const kausi of MIGRAATION_KAUDET) {
     const d = await tk(kausi).doc(MIGRAATION_TUNNISTE).get();
     if (d.exists) console.log('  ' + kausi + ' lahde: ' + String(d.data()?.lahde));
+  }
+  for (const p of paattyneet) {
+    const d = await p.ref.get();
+    console.log('  ' + p.polku + ' lahde: ' + String(d.data()?.lahde));
   }
 }
 

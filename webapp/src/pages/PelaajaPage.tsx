@@ -16,12 +16,15 @@ import type {
 } from 'recharts/types/component/DefaultTooltipContent';
 import { useApi } from '@/hooks/useApi';
 import { naytaKokoNimi } from '@/utils/nimet';
+import { Kontekstirivit } from '@/components/Kontekstirivit';
 import {
   getSeasonPlayer,
   getPlayerRounds,
+  getKonteksti,
   type SeasonPlayer,
   type PlayerRound,
   type Siirto,
+  type Konteksti,
 } from '@/services/api';
 import { useValittuKausi, useValittuSarja } from '@/hooks/useKausi';
 
@@ -249,6 +252,21 @@ export default function PelaajaPage() {
     [slug, kausi, sarja],
   );
 
+  // Kontekstilauseet. Backend muodostaa lauseet kauden datasta; selain
+  // ei laske eika sanoita mitaan. Virhe ei kaada sivua: konteksti on
+  // lisaa lukujen paalle, ei niiden korvaaja.
+  const { data: konteksti } = useApi(
+    async () => {
+      if (!slug) return null as Konteksti | null;
+      try {
+        return await getKonteksti(kausi, slug, sarja);
+      } catch {
+        return null as Konteksti | null;
+      }
+    },
+    [slug, kausi, sarja],
+  );
+
   // Kierrosdata kehityskäyrää varten.
   const { data: rounds } = useApi(
     async () => {
@@ -323,6 +341,9 @@ export default function PelaajaPage() {
           )}
         </div>
       </header>
+
+      {/* Konteksti — tarina ennen numeroita */}
+      <Kontekstirivit konteksti={konteksti ?? null} />
 
       {/* Päätilastot */}
       <section className="bg-navy-700/40 border border-navy-600 rounded-xl">

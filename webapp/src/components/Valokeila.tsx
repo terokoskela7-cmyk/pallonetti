@@ -14,6 +14,7 @@ import { Link } from 'react-router-dom';
 import { ExternalLink } from 'lucide-react';
 import type { Nosto, Siirto } from '@/services/api';
 import { naytaKokoNimi } from '@/utils/nimet';
+import { AKATEMIA_SELITE } from '@/constants/akatemiat';
 
 /** "Yllson Lika (21 v, KäPa)" — nimi näyttöasussa, ei lähteen kirjoitusasussa. */
 function tunniste(n: Nosto): string {
@@ -45,6 +46,23 @@ export function Tilannerivi({ tuotuPvm }: { tuotuPvm: string | null }) {
       Lähde: sarjan viralliset tilastot (kausivienti)
       {pvm === null ? '' : ' · tilanne ' + pvm}
     </p>
+  );
+}
+
+/**
+ * Akatemiamerkinta. Akatemiajoukkueen koko idea on peluuttaa nuoria,
+ * joten sen pelaajan luvut eivat ole vertailukelpoisia muiden seurojen
+ * kanssa ilman tata tietoa. Selite tulee samasta vakiosta kuin muualla
+ * sivustolla, ja joukkuelista on nimetty vakio — ei nimesta paateltu.
+ */
+function AkatemiaMerkki() {
+  return (
+    <span
+      className="inline-block rounded-md border border-navy-500 bg-navy-700/60 px-2 py-0.5 text-[11px] text-white/60"
+      title={AKATEMIA_SELITE}
+    >
+      akatemiajoukkue
+    </span>
   );
 }
 
@@ -102,9 +120,15 @@ export function EtusivunLause({
         <span className="text-white/60"> — </span>
         <span className="tabular">{nosto.rivi.teksti}</span>
       </p>
-      {nosto.siirto && <SiirtoMerkki siirto={nosto.siirto} linkki />}
+      {(nosto.akatemia || nosto.siirto) && (
+        <div className="flex flex-wrap items-center gap-2">
+          {nosto.akatemia && <AkatemiaMerkki />}
+          {nosto.siirto && <SiirtoMerkki siirto={nosto.siirto} linkki />}
+        </div>
+      )}
       <p className="text-[11px] text-white/40 leading-relaxed max-w-2xl">
-        Valinta: suurin poikkeama oman ikäryhmän mediaanista ylöspäin.
+        Valinta: suurin poikkeama oman ikäryhmän mediaanista ylöspäin,
+        mitattuna osuutena joukkueen minuuteista tai maalisijoituksena.
         Vertailujoukko: {nosto.rivi.vertailujoukko ?? 'oma ikäryhmä'}.
       </p>
       <Tilannerivi tuotuPvm={tuotuPvm} />
@@ -137,7 +161,12 @@ export function ValokeilaKortit({ nostot }: { nostot: Nosto[] }) {
               ikäryhmän mediaani {n.rivi.mediaani} {n.rivi.yksikko}
             </p>
           )}
-          {n.siirto && <SiirtoMerkki siirto={n.siirto} />}
+          {(n.akatemia || n.siirto) && (
+            <span className="flex flex-wrap items-center gap-2">
+              {n.akatemia && <AkatemiaMerkki />}
+              {n.siirto && <SiirtoMerkki siirto={n.siirto} />}
+            </span>
+          )}
         </Link>
       ))}
     </div>

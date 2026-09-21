@@ -369,6 +369,86 @@ export async function getSeasonPlayer(
   return result.data;
 }
 
+// ============================================
+// KONTEKSTIMOOTTORI — lauseet tulevat rajapinnasta
+//
+// Lauseita ei muodosteta selaimessa. Backend laskee sekä luvut että
+// lauseet, jotta sama teksti on yksikkötestattavissa ilman selainta ja
+// jotta sivu ei voi näyttää eri lukua kuin mistä lause on johdettu.
+// ============================================
+export type Nuoli = 'yli' | 'tasolla' | 'alle';
+
+export interface Kontekstirivi {
+  id: string;
+  teksti: string;
+  /** Vertailu ikäryhmän mediaaniin. null = mediaania ei voi laskea. */
+  nuoli: Nuoli | null;
+  mittari: string;
+  arvo: number;
+  yksikko: string;
+  mediaani: number | null;
+  vertailujoukko: string | null;
+}
+
+export interface Konteksti {
+  slug: string;
+  kausi: number;
+  sarja: string;
+  etunimi: string;
+  sukunimi: string;
+  ika: number;
+  joukkue: string;
+  seurat: string[];
+  pelipaikka: string | null;
+  faktat: {
+    minuutit: number;
+    ottelut: number;
+    maalit: number;
+    aloitukset: number;
+    minuutitPaaseurassa: number;
+    ottelutPaaseurassa: number;
+    joukkueenOttelut: number | null;
+    osuusMinuuteista: number | null;
+    osuusOtteluista: number | null;
+    tiheys: number | null;
+    sijaMinuutit: number | null;
+    sijaMaalit: number | null;
+    jaettuMinuutit: boolean;
+    jaettuMaalit: boolean;
+    vertailujoukonKoko: number;
+  };
+  rivit: Kontekstirivi[];
+  ohitetut: string[];
+}
+
+/**
+ * Pelaajan kontekstilauseet. null = pelaajalla ei ole kauden rivejä.
+ * Puuttuva konteksti ei ole virhe: sivu näyttää silloin pelkät luvut.
+ */
+export async function getKonteksti(
+  season: number,
+  slug: string,
+  sarja?: string,
+): Promise<Konteksti | null> {
+  const url =
+    `${API_BASE_URL}/konteksti/${season}/${encodeURIComponent(slug)}` +
+    sarjaParam(sarja);
+  const response = await fetch(url, {
+    headers: { 'Content-Type': 'application/json' },
+  });
+  if (response.status === 404) return null;
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({}));
+    throw new Error(error.error || `API error: ${response.status}`);
+  }
+  const result = (await response.json()) as {
+    success: boolean;
+    data: Konteksti;
+  };
+  if (!result.success) throw new Error('API returned unsuccessful response');
+  return result.data;
+}
+
 /** Pelaajan kierrosdata (kehityskäyrä) — kumulatiiviset arvot per kierros. */
 export const getPlayerRounds = (
   season: number,

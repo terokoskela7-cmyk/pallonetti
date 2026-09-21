@@ -31,6 +31,7 @@ import {
   paatteleIkahaarukka,
 } from './services/kausiData';
 import { haeSiirto } from './services/siirrot';
+import { laskeKonteksti } from './services/konteksti';
 import { laskePolku } from './services/polku';
 import {
   laskeTrendit,
@@ -796,6 +797,82 @@ app.get('/api/season-players/:season/:slug', async (req, res) => {
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Tuntematon virhe';
     console.error('[season-players/:slug] failed:', message);
+    res.status(500).json({ success: false, error: message });
+  }
+});
+
+/**
+ * GET /api/konteksti/:season/:slug — pelaajan kontekstilauseet.
+ *
+ * Lauseet muodostetaan palvelimella kauden datasta, ei selaimessa: sama
+ * laskenta palvelee pelaajasivua ja listoja, ja se on yksikkotestattava.
+ * Vastaus sisaltaa myos faktat, joista lauseet on johdettu, seka listan
+ * poisjatetyista lauseista syineen — puuttuva lause on katselmoitava
+ * paatos, ei hiljainen aukko.
+ */
+app.get('/api/konteksti/:season/:slug', async (req, res) => {
+  const season = parseInt(req.params.season, 10);
+  const slug = req.params.slug;
+  if (isNaN(season) || !slug) {
+    res
+      .status(400)
+      .json({ success: false, error: 'season tai slug puuttuu/virheellinen' });
+    return;
+  }
+  const sarja = pyydettySarja(req.query.sarja);
+  if (sarja === null || sarja === KAIKKI_SARJAT) {
+    sarjaVirhe(res, req.query.sarja);
+    return;
+  }
+  try {
+    const db = admin.firestore();
+    const { suoritukset, nimittajat } = await lueKausi(db, season, sarja);
+
+    // Pelipaikka on Veikkausliigan rekisterin tieto, ja kokoelman avain on
+    // pelkka slug ilman sarjaa. Toiselle sarjalle sita EI lueta: samanniminen
+    // pelaaja saisi vaaran pelipaikan, ja maalivertailu nojaa juuri siihen.
+    // Tuntematon pelipaikka ei tarkoita kenttapelaajaa, joten Ykkosliigassa
+    // maalisijoituslausetta ei synny lainkaan.
+    const pelipaikat = new Map<string, string | null>();
+    if (sarja === OLETUSSARJA) {
+      const kansSnap = await db
+        .collection('seasons')
+        .doc(String(season))
+        .collection('kansalaisuudet')
+        .get();
+      for (const doc of kansSnap.docs) {
+        const arvo = doc.data()?.pelipaikka;
+        pelipaikat.set(doc.id, typeof arvo === 'string' && arvo ? arvo : null);
+      }
+    }
+
+    const konteksti = laskeKonteksti({
+      kausi: season,
+      sarja,
+      slug,
+      suoritukset,
+      nimittajat,
+      pelipaikat,
+    });
+
+    if (konteksti === null) {
+      res.status(404).json({
+        success: false,
+        error: 'Pelaajalla ei ole suorituksia kaudella ' + season + ' (' + sarja + ')',
+      });
+      return;
+    }
+
+    res.set('Cache-Control', 'public, max-age=3600');
+    res.json({
+      success: true,
+      data: konteksti,
+      source: 'firestore',
+      timestamp: new Date().toISOString(),
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Tuntematon virhe';
+    console.error('[konteksti] failed:', message);
     res.status(500).json({ success: false, error: message });
   }
 });

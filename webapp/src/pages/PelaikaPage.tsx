@@ -27,12 +27,14 @@ import type {
 } from 'recharts/types/component/DefaultTooltipContent';
 import { useApi } from '@/hooks/useApi';
 import { KausiTrendi } from '@/components/KausiTrendi';
+import { PolkuVeikkausliigaan } from '@/components/PolkuVeikkausliigaan';
 import { onAkatemia, AKATEMIA_SELITE } from '@/constants/akatemiat';
 import {
   getYouthStatsAll,
   getSeasonPlayers,
   getPlayerRounds,
   getTrendit,
+  getPolku,
   filterReliableTeams,
   type YouthStats,
   type SeasonPlayer,
@@ -389,6 +391,18 @@ export default function PelaikaPage() {
     }
   }, []);
 
+  // Polku Veikkausliigaan: vain Ykkösliigan näkymässä. Haku on oma, jotta
+  // sivun muut osat näkyvät vaikka tämä ei latautuisi.
+  const { data: polku } = useApi(async () => {
+    if (sarja !== 'Ykkösliiga') return null;
+    try {
+      return await getPolku(kausi);
+    } catch (e) {
+      console.error('[peliaika] polkumittarin haku epäonnistui:', e);
+      return null;
+    }
+  }, [kausi, sarja]);
+
   // Joukkuekaavio + InsightBar käyttävät edelleen youth-stats-dataa.
   const { data: statsData, loading: statsLoading } = useApi(
     () => getYouthStatsAll(kausi),
@@ -524,6 +538,10 @@ export default function PelaikaPage() {
           <KausiTrendi trendit={trendit} laaja sarja={sarja} />
         )}
       </section>
+
+      {polku !== null && polku.saatavilla && (
+        <PolkuVeikkausliigaan polku={polku} />
+      )}
 
       {/* Joukkuekaavio */}
       {veikkausliiga.length > 0 && (

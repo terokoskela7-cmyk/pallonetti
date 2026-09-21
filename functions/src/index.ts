@@ -31,6 +31,7 @@ import {
   paatteleIkahaarukka,
 } from './services/kausiData';
 import { haeSiirto } from './services/siirrot';
+import { laskePolku } from './services/polku';
 import {
   laskeTrendit,
   laskeKolmijako,
@@ -557,6 +558,37 @@ app.get('/api/trendit', async (req, res) => {
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Tuntematon virhe';
     console.error('[trendit] failed:', message);
+    res.status(500).json({ success: false, error: message });
+  }
+});
+
+/**
+ * GET /api/polku/:season — polku Ykkosliigasta Veikkausliigaan kaudelle
+ * :season, eli siirtyma kaudesta season-1 kauteen season.
+ *
+ * Luvut lasketaan palvelimella: sama saanto ei saa olla kahdessa
+ * paikassa. Jos siirtymaa ei ole (ei Ykkosliigan dataa edelliselta
+ * kaudelta), saatavilla on false eika lukuja esiteta.
+ */
+app.get('/api/polku/:season', async (req, res) => {
+  const season = parseInt(req.params.season, 10);
+  if (isNaN(season)) {
+    res.status(400).json({ success: false, error: 'season on virheellinen' });
+    return;
+  }
+  try {
+    const polku = await laskePolku(admin.firestore(), season);
+    res.set('Cache-Control', 'public, max-age=3600');
+    res.json({
+      success: true,
+      data: polku,
+      dataSaatavilla: polku.saatavilla,
+      source: 'firestore',
+      timestamp: new Date().toISOString(),
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Tuntematon virhe';
+    console.error('[polku] failed:', message);
     res.status(500).json({ success: false, error: message });
   }
 });

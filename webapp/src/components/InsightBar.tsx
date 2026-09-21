@@ -1,12 +1,33 @@
-import { TrendingUp, TrendingDown, Users, Star, type LucideIcon } from 'lucide-react';
-import type { YouthStats } from '@/services/api';
-import { pros, luku } from '@/utils/luvut';
+// ============================================
+// NOSTOKORTIT — /peliaika
+//
+// Kortit kertovat kolme asiaa VALITUSTA SARJASTA. Jokainen luku tulee
+// rajapinnasta: joukkuerivit valitun sarjan youth-stats-vastauksesta ja
+// kausivertailu trendipisteistä. Selaimessa ei lasketa lukuja, eikä
+// mitään vertailukohtaa kovakoodata.
+//
+// Aiemmin tässä oli vakio PREV_SEASON_AVG = 18.0 ja teksti "Veikkausliiga
+// antaa nuorille enemmän peliaikaa kuin koskaan". Ykkösliigan näkymässä
+// se väitti väärää sarjaa, väärää suuntaa (39,5 % → 37,1 % on lasku) ja
+// esitti lähteettömän superlatiivin. Vertailuluku tulee nyt edellisen
+// kauden trendipisteestä, ja teksti kertoo vain mitä luvuissa on.
+//
+// Sanat pidetään kuvaavina: kortti kertoo mikä joukkue ja mikä luku, ei
+// sitä onko luku hyvä.
+// ============================================
+import { TrendingUp, TrendingDown, Minus, Users, Star, type LucideIcon } from 'lucide-react';
+import type { YouthStats, TrendiKausi } from '@/services/api';
+import { pros, luku, desimaali } from '@/utils/luvut';
+import { onAkatemia, AKATEMIA_SELITE } from '@/constants/akatemiat';
 
 interface InsightBarProps {
   teams: YouthStats[];
+  /** Valittu sarja — näkyy korteissa, jottei lukija oleta Veikkausliigaa. */
+  sarja: string;
+  kausi: number;
+  /** Valitun sarjan trendipisteet; kausivertailu tulee näistä. */
+  trendit: TrendiKausi[] | null;
 }
-
-const PREV_SEASON_AVG = 18.0;
 
 interface Insight {
   icon: LucideIcon;
@@ -15,60 +36,96 @@ interface Insight {
   body: string;
 }
 
-function computeInsights(teams: YouthStats[]): Insight[] {
+function rakennaKortit(
+  teams: YouthStats[],
+  sarja: string,
+  kausi: number,
+  trendit: TrendiKausi[] | null,
+): Insight[] {
   if (teams.length === 0) return [];
 
-  // Lähde on suodatettu 17–21-vuotiaisiin, joten luvut ovat U21.
-  const topNuoret = [...teams].sort(
-    (a, b) => b.osuusNuoret - a.osuusNuoret,
-  )[0];
+  const kortit: Insight[] = [];
 
-  const totalMin = teams.reduce((s, t) => s + t.totalMinutes, 0);
-  const nuortenMin = teams.reduce((s, t) => s + t.minuutitNuoret, 0);
-  const leagueAvg = totalMin > 0 ? (nuortenMin / totalMin) * 100 : 0;
-  const diff = leagueAvg - PREV_SEASON_AVG;
-  const trendUp = diff >= 0;
+  // 1) Eniten peliaikaa nuorille — valitun sarjan joukkueista.
+  const topNuoret = [...teams].sort((a, b) => b.osuusNuoret - a.osuusNuoret)[0];
+  kortit.push({
+    icon: Star,
+    label: 'Eniten peliaikaa nuorille',
+    title: topNuoret.teamName + (onAkatemia(topNuoret.teamName) ? ' *' : ''),
+    body:
+      pros(topNuoret.osuusNuoret) +
+      ' joukkueen peliminuuteista meni 17–21-vuotiaille ' +
+      sarja +
+      'ssa kaudella ' +
+      kausi +
+      '.' +
+      (onAkatemia(topNuoret.teamName) ? ' * ' + AKATEMIA_SELITE : ''),
+  });
 
-  const mostU20 = [...teams].sort(
-    (a, b) => b.pelaajatAlle21 - a.pelaajatAlle21,
-  )[0];
+  // 2) Kausivertailu — vain jos edellinen kausi on samasta sarjasta.
+  const omat = (trendit ?? [])
+    .filter((t) => t.sarja === sarja)
+    .sort((a, b) => a.kausi - b.kausi);
+  const nyt = omat.find((t) => t.kausi === kausi) ?? null;
+  const edellinen = omat.filter((t) => t.kausi < kausi).pop() ?? null;
 
-  return [
-    {
-      icon: Star,
-      label: 'Eniten peliaikaa nuorille',
-      title: topNuoret.teamName,
-      body:
-        'Antaa eniten peliaikaa nuorille — ' +
-        pros(topNuoret.osuusNuoret) +
-        ' joukkueen peliminuuteista menee 17–21-vuotiaille.',
-    },
-    {
-      icon: trendUp ? TrendingUp : TrendingDown,
-      label: 'Liigan suunta',
-      title: pros(leagueAvg) + ' keskiarvo',
-      body: trendUp
-        ? 'Veikkausliiga antaa nuorille enemmän peliaikaa kuin koskaan — ' + pros(diff) + ' enemmän kuin viime kaudella.'
-        : 'Nuorten peliaika on laskenut ' + pros(Math.abs(diff)) + ' viime kaudesta.',
-    },
-    {
-      icon: Users,
-      label: 'Luottaa nuorimpiin',
-      title: mostU20.teamName,
-      body:
-        luku(mostU20.pelaajatAlle21) +
-        ' alle 21-vuotiasta pelaajaa on saanut peliaikaa tällä kaudella.',
-    },
-  ];
+  if (nyt !== null && nyt.osuus1721 !== null) {
+    if (edellinen !== null && edellinen.osuus1721 !== null) {
+      const ero = Math.round((nyt.osuus1721 - edellinen.osuus1721) * 10) / 10;
+      const suunta = ero > 0 ? 'enemmän' : ero < 0 ? 'vähemmän' : 'saman verran';
+      kortit.push({
+        icon: ero > 0 ? TrendingUp : ero < 0 ? TrendingDown : Minus,
+        label: 'Muutos edelliseen kauteen',
+        title: pros(nyt.osuus1721) + ' (' + kausi + ')',
+        body:
+          'Kaudella ' +
+          edellinen.kausi +
+          ' osuus oli ' +
+          pros(edellinen.osuus1721) +
+          ', eli ' +
+          desimaali(Math.abs(ero)) +
+          ' prosenttiyksikköä ' +
+          suunta +
+          '.' +
+          (nyt.kesken ? ' Kausi ' + kausi + ' on kesken.' : ''),
+      });
+    } else {
+      // Ensimmäinen kausi sarjassa: vertailukohtaa ei ole, ja se
+      // sanotaan auki sen sijaan että kortti jätettäisiin pois.
+      kortit.push({
+        icon: Minus,
+        label: 'Muutos edelliseen kauteen',
+        title: pros(nyt.osuus1721) + ' (' + kausi + ')',
+        body:
+          'Edellistä kautta ei ole tässä aineistossa, joten muutosta ei ' +
+          'voi laskea.',
+      });
+    }
+  }
+
+  // 3) Eniten alle 21-vuotiaita pelaajia.
+  const mostU21 = [...teams].sort((a, b) => b.pelaajatAlle21 - a.pelaajatAlle21)[0];
+  kortit.push({
+    icon: Users,
+    label: 'Eniten alle 21-vuotiaita',
+    title: mostU21.teamName + (onAkatemia(mostU21.teamName) ? ' *' : ''),
+    body:
+      luku(mostU21.pelaajatAlle21) +
+      ' alle 21-vuotiasta pelaajaa on saanut peliaikaa kaudella ' +
+      kausi +
+      '.',
+  });
+
+  return kortit;
 }
 
-export function InsightBar({ teams }: InsightBarProps) {
-  const insights = computeInsights(teams);
-  if (insights.length === 0) return null;
+export function InsightBar({ teams, sarja, kausi, trendit }: InsightBarProps) {
+  const kortit = rakennaKortit(teams, sarja, kausi, trendit);
+  if (kortit.length === 0) return null;
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
-      {insights.map((ins) => {
+    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+      {kortit.map((ins) => {
         const Icon = ins.icon;
         return (
           <div

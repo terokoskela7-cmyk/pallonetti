@@ -143,7 +143,7 @@ export default function AdminPage() {
       <header className="space-y-2">
         <h1 className="text-2xl font-light">Kausituonti</h1>
         <p className="text-sm text-white/50">
-          Veikkausliigan pelaajavienti (.xlsx). Kausi ja vaiheet luetaan
+          Sarjan pelaajavienti (.xlsx). Sarja, kausi ja vaiheet luetaan
           tiedostosta. Esikatselu ei kirjoita mitään — tallennus vaatii
           erillisen vahvistuksen.
         </p>
@@ -362,7 +362,7 @@ export default function AdminPage() {
               <div className="text-xs text-white/50 flex items-start gap-2 mt-1">
                 <Info className="w-3.5 h-3.5 shrink-0 mt-0.5" />
                 {luku(tila.data.kansalaisuus.ohitettuNollaMinuuttia)} pelaajaa
-                ohitettiin: 0 minuuttia, joten he eivät ole Veikkausliigan
+                ohitettiin: 0 minuuttia, joten he eivät ole sarjan
                 tilastolistalla. He tulevat mukaan kun saavat peliaikaa.
               </div>
             )}

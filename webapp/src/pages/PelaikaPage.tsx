@@ -26,6 +26,7 @@ import type {
   NameType,
 } from 'recharts/types/component/DefaultTooltipContent';
 import { useApi } from '@/hooks/useApi';
+import { naytaKokoNimi } from '@/utils/nimet';
 import { KausiTrendi } from '@/components/KausiTrendi';
 import { PolkuVeikkausliigaan } from '@/components/PolkuVeikkausliigaan';
 import { onAkatemia, AKATEMIA_SELITE } from '@/constants/akatemiat';
@@ -58,7 +59,9 @@ const FILTERS: Array<{ id: FilterId; label: string }> = [
 ];
 
 function fullName(p: SeasonPlayer): string {
-  return `${p.etunimi} ${p.sukunimi}`.trim();
+  // Lähteen kirjoitusasu vaihtelee ("OSKU MAUKONEN", "alex RAMULA"),
+  // joten näyttöasu tulee yhdestä paikasta. Dataa ei muuteta.
+  return naytaKokoNimi(p.etunimi, p.sukunimi);
 }
 
 function shortenTeamName(name: string): string {
@@ -487,7 +490,12 @@ export default function PelaikaPage() {
           label={'Nuorten osuus peliajasta (' + NUORET_LABEL + ')'}
           value={pros(vPct)}
           accent="aurora"
-          info="17–21-vuotiaiden osuus joukkueiden minuuttikapasiteetista (ottelut × 90 × 11). Lähde: Veikkausliigan tilastovienti. Huom: tämä ei ole sama kuin CIES:n kansainvälisessä vertailussa käytetty alle 21-vuotiaiden osuus, joka on pienempi."
+          info={
+            '17–21-vuotiaiden osuus joukkueiden minuuttikapasiteetista ' +
+            '(ottelut × 90 × 11). Lähde: ' + sarja + 'n tilastovienti. ' +
+            'Huom: tämä ei ole sama kuin CIES:n kansainvälisessä ' +
+            'vertailussa käytetty alle 21-vuotiaiden osuus, joka on pienempi.'
+          }
         />
         <KpiCard
           label="Pelaajia peliajalla"
@@ -684,12 +692,19 @@ export default function PelaikaPage() {
       {/* InsightBar */}
       {veikkausliiga.length > 0 && (
         <section>
-          <InsightBar teams={veikkausliiga} />
+          <InsightBar
+            teams={veikkausliiga}
+            sarja={sarja}
+            kausi={kausi}
+            trendit={trendit}
+          />
         </section>
       )}
 
       <footer className="border-t border-navy-700 pt-5 text-xs text-white/40 flex flex-wrap items-center gap-x-4 gap-y-1">
-        <span>Veikkausliiga {kausi}</span>
+        <span>
+          {sarja} {kausi}
+        </span>
         <span className="w-px h-3 bg-white/20" />
         <span>
           {players.length === 0 ? (
@@ -703,8 +718,9 @@ export default function PelaikaPage() {
         </span>
         <span className="w-px h-3 bg-white/20" />
         <span>
-          Lähde: <span className="text-white/60">Veikkausliiga.com</span>{' '}
-          (viralliset tilastot)
+          Lähde:{' '}
+          <span className="text-white/60">{sarja}n viralliset tilastot</span>{' '}
+          (kausivienti)
         </span>
       </footer>
     </div>

@@ -14,6 +14,7 @@
 // ============================================
 import type { PolkuTulos } from '@/services/api';
 import { luku } from '@/utils/luvut';
+import { naytaNimi } from '@/utils/nimet';
 
 /** Sama merkki kuin joukkuekaaviossa. */
 const AKATEMIA_MERKKI = '*';
@@ -127,7 +128,7 @@ export function PolkuVeikkausliigaan({ polku }: { polku: PolkuTulos }) {
               {listattavat.map((p) => (
                 <tr key={p.slug} className="border-t border-navy-700">
                   <td className="py-2 pr-3 text-white/80">
-                    {p.nimi}
+                    {naytaNimi(p.nimi)}
                     {p.debytoi && (
                       <span className="text-[10px] text-ice ml-2 uppercase tracking-wider">
                         debyytti

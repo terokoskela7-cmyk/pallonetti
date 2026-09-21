@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Info } from 'lucide-react';
 import { useApi } from '@/hooks/useApi';
+import { naytaKokoNimi } from '@/utils/nimet';
 import { getSeasonPlayers, type SeasonPlayer } from '@/services/api';
 import { useValittuKausi, useValittuSarja } from '@/hooks/useKausi';
 import { IKAKAISTAT, kaistalla } from '@/constants/ika';
@@ -18,7 +19,9 @@ const FILTERS: Array<{ id: AgeFilter; label: string }> = [
 ];
 
 function fullName(p: SeasonPlayer): string {
-  return `${p.etunimi} ${p.sukunimi}`.trim();
+  // Lähteen kirjoitusasu vaihtelee ("OSKU MAUKONEN", "alex RAMULA"),
+  // joten näyttöasu tulee yhdestä paikasta. Dataa ei muuteta.
+  return naytaKokoNimi(p.etunimi, p.sukunimi);
 }
 
 function getInitials(p: SeasonPlayer): string {

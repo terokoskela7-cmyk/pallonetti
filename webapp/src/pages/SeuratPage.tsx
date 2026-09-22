@@ -21,6 +21,7 @@ import {
 import { useValittuKausi, useValittuSarja } from '@/hooks/useKausi';
 import { NUORET_LABEL_PITKA } from '@/constants/ika';
 import { AKATEMIA_SELITE } from '@/constants/akatemiat';
+import { lahdeRivi } from '@/constants/lahde';
 import { desimaali, luku } from '@/utils/luvut';
 import { Hero } from '@/components/Hero';
 import { SeuraKaaviot } from '@/components/SeuraKaaviot';
@@ -246,8 +247,8 @@ export default function SeuratPage() {
       </section>
 
       <p className="text-xs text-white/40">
-        Lähde: sarjan viralliset tilastot (kausivienti). Osuus = nuorten
-        minuutit jaettuna joukkueen otteluiden kokonaisminuuteilla.
+        {lahdeRivi(sarja)}. Osuus = nuorten minuutit jaettuna joukkueen
+        otteluiden kokonaisminuuteilla.
       </p>
     </div>
   );

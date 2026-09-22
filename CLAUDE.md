@@ -47,6 +47,12 @@ sitä ei commitoida mukaan.
 ja jokainen listan tiedosto perustellaan PR:n aiheella. Jos tiedostoa ei voi
 perustella, se ei kuulu tähän PR:ään.
 
+**Ei force-pushia.** Julkaistua haaraa ei kirjoiteta uusiksi: ei
+`--force`, ei `--force-with-lease`, eikä rebasea jo pushatulle haaralle.
+Konflikti ratkaistaan `git merge`llä. Force-push hävittää katselmoidun
+historian, ja katselmoija katsoo silloin eri koodia kuin mitä mainiin
+päätyy.
+
 **Työpuussa commitoimatta olevaa muutosta ei jätetä roikkumaan.** Se joko
 commitoidaan omaan haaraansa tai siitä raportoidaan käyttäjälle. Roikkuva
 muutos päätyy seuraavaan committiin riippumatta siitä, mihin se kuuluu.
@@ -67,6 +73,18 @@ tarkistuspiste ennen tuotantoa: mainiin menevä commit deployataan
 automaattisesti. Sisällön hyväksyntä ei ole lupa mergeen, eikä lupa yhteen
 PR:ään koske seuraavaa. Jos PR on valmis, se kerrotaan ja jäädään
 odottamaan.
+
+**Merge-lupa koskee tiettyä commitia.** Lupa annetaan SHA:lle, ei
+haaralle. Jokaisessa raportissa kerrotaan PR:n tila ja uusimman commitin
+SHA, ja käyttäjä mergeää vain jos ne täsmäävät siihen, mihin lupa
+annettiin. Jos haaraan tulee uusi commit luvan jälkeen, lupa raukeaa ja
+se pyydetään uudelleen.
+
+**PR:n tila tarkistetaan ennen jokaista pushia:**
+`gh pr view <n> --json state,headRefOid`. Suljettuun tai mergettyyn
+PR:ään pushaaminen ei käynnistä CI:tä eikä päädy mainiin — työ jää
+haaralle huomaamatta. Näin kävi 21.9.2026: PR #38 oli jo mergetty, ja
+kaksi hyväksyttyä committia jäi julkaisematta.
 
 **Ei pinottuja PR:iä.** Jokainen PR tehdään suoraan `main`ia vasten. Jos
 työ riippuu edellisestä, odotetaan että edellinen on mainissa ja
@@ -162,6 +180,31 @@ kävi `refreshData`-funktiolla 20.9.2026, jolloin varmistuskutsu tyhjensi
 
 Jos reitin vaikutus on epäselvä, testi ajetaan emulaattoria vasten, ei
 tuotantoa vasten.
+
+### Tuotantodatan lukeminen vaatii luvan
+
+Myös pelkkä lukeminen ilmoitetaan **etukäteen** ja tehdään vasta
+chatissa annetun luvan jälkeen. Lupa koskee yhtä ajoa kerrallaan, ei
+skriptiä tai istuntoa. Selain- ja regressiotarkistukset tehdään
+ensisijaisesti emulaattoriin kylvetyllä aineistolla, jolloin lupaa ei
+tarvita lainkaan.
+
+---
+
+## 3.6. TÄMÄN TIEDOSTON YLLÄPITO — PAKOLLINEN SÄÄNTÖ
+
+**Poistettuja kuvausosioita ei lisätä takaisin.** Repo-rakenne,
+komponentti- ja sivuluettelot, endpointtitaulukot, cache-taulukot ja
+stack-listat on poistettu tarkoituksella: ne ovat luettavissa koodista,
+ja kopiona ne vanhenevat äänettömästi ja ohjaavat väärään suuntaan.
+
+**Tiedostoon ei kirjoiteta lukuja eikä tilatietoja, jotka vanhenevat.**
+Ei commit-tunnisteita, ei endpointtien tai komponenttien lukumääriä, ei
+versionumeroita, ei "viimeksi tuotu" -päiviä. Jos luku on tarpeen, se
+haetaan ajossa lähteestä.
+
+Tänne kuuluu vain se, mitä koodista ei voi lukea: säännöt, kiellot,
+sudenkuopat, perustelut ja sopimukset.
 
 ---
 

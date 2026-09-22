@@ -135,10 +135,22 @@ function Aikasarja({ data }: { data: SeuranSivu }) {
           Kausikehitys
         </h2>
         <span className="text-[11px] text-white/40 tabular">
-          {data.aikasarja.kaudet[0]}–
+          0–{data.ylaraja} % · {data.aikasarja.kaudet[0]}–
           {data.aikasarja.kaudet[data.aikasarja.kaudet.length - 1]}
         </span>
       </div>
+
+      {/* Jos akseli kattaa molemmat sarjat, se on leveämpi kuin
+          kummankaan sarjan oma akseli /seurat-sivulla. Se on sanottava
+          auki, tai lukija vertaa kahta eri asteikkoa huomaamattaan. */}
+      {data.sarjatMukana.length > 1 && (
+        <p className="text-[11px] text-white/60 leading-relaxed border-l-2 border-ice/40 pl-3">
+          Pystyakseli ulottuu {data.ylaraja} prosenttiin, koska se kattaa
+          molemmat sarjat: {data.sarjatMukana.join(' ja ')}. Se on siis
+          leveämpi kuin yhden sarjan akseli seurojen vertailussa, eivätkä
+          viivan korkeudet ole vertailukelpoisia sivujen välillä silmämääräisesti.
+        </p>
+      )}
 
       <div style={{ width: '100%', height: 200 }}>
         <ResponsiveContainer width="100%" height="100%">
@@ -200,7 +212,11 @@ function Aikasarja({ data }: { data: SeuranSivu }) {
       </div>
 
       <p className="text-[11px] text-white/40 leading-relaxed">
-        Pystyakseli on sama kuin seurojen vertailussa (0–{data.ylaraja} %).
+        {data.sarjatMukana.length > 1
+          ? 'Pystyakseli kattaa molemmat sarjat (0–' + data.ylaraja + ' %).'
+          : 'Pystyakseli on sama kuin seurojen vertailussa (0–' +
+            data.ylaraja +
+            ' %).'}{' '}
         Harmaa viiva on {data.liukuvaIkkuna} kauden liukuva keskiarvo.
         {katkoja && ' Katko tarkoittaa kautta, jona seura ei ollut kummassakaan sarjassa.'}
         {data.aikasarja.useitaSarjoja &&

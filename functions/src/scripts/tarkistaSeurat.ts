@@ -24,10 +24,12 @@ import {
   laskeSeurakausi,
   laskeSeuratrendit,
   laskeVertailuviivat,
+  seuraTunniste,
   LIUKUVA_IKKUNA,
   type Seurakausi,
 } from '../services/seurat';
 import { TUETUT_SARJAT, OLETUSSARJA } from '../services/kausiImport';
+import { kokoaSeuranSivu } from '../services/seuranSivu';
 
 function pros(x: number | null): string {
   return x === null ? 'ei dataa' : x.toFixed(1).replace('.', ',') + ' %';
@@ -152,6 +154,71 @@ async function main(): Promise<void> {
       }
     }
     console.log('    ' + ' '.repeat(26) + kaudet.map((k) => String(k).padStart(5)).join(' '));
+  }
+
+  // --- 5. Seuran oma sivu: sarjaa vaihtaneet seurat --------------------
+  // Naiden kohdalla sivu nayttaa kauden kohdalla, missa sarjassa seura
+  // pelasi, eika laske sarjojen lukuja yhteen. Akseli kattaa molemmat
+  // sarjat, joten se on leveampi kuin kummankaan sarjan oma akseli.
+  const tunnisteetSarjoittain = new Map<string, Set<string>>();
+  for (const sarja of TUETUT_SARJAT) {
+    const snap = await db.collection('nimittajat').get();
+    for (const d of snap.docs) {
+      const n = d.data();
+      if (n.vanhentunut === true) continue;
+      if (((n.sarja as string) || OLETUSSARJA) !== sarja) continue;
+      const t = seuraTunniste(String(n.joukkue));
+      if (!tunnisteetSarjoittain.has(t)) tunnisteetSarjoittain.set(t, new Set());
+      tunnisteetSarjoittain.get(t)!.add(sarja);
+    }
+  }
+  const monessaSarjassa = Array.from(tunnisteetSarjoittain.entries())
+    .filter(([, sarjat]) => sarjat.size > 1)
+    .map(([t]) => t)
+    .sort();
+
+  console.log('');
+  console.log('='.repeat(78));
+  console.log(
+    'SEURAT MOLEMMISSA SARJOISSA (' + monessaSarjassa.length + ') — seuran sivu',
+  );
+  console.log('='.repeat(78));
+
+  const viimeisinKausi = Math.max(
+    ...TUETUT_SARJAT.flatMap((sarja) =>
+      kaudetSnap.docs
+        .map((d) => d.data())
+        .filter((k) => k.vanhentunut !== true)
+        .filter((k) => ((k.sarja as string) || OLETUSSARJA) === sarja)
+        .map((k) => (k.vuosi as number) ?? parseInt(String(k.kausi), 10))
+        .filter((v) => !isNaN(v)),
+    ),
+  );
+
+  for (const tunniste of monessaSarjassa) {
+    const sivu = await kokoaSeuranSivu(db, viimeisinKausi, tunniste);
+    if (sivu === null) {
+      moiti(tunniste + ': kokoaSeuranSivu palautti null vaikka seura on datassa');
+      continue;
+    }
+    console.log('');
+    console.log(
+      '  ' + sivu.nimi + ' (' + tunniste + ')  akseli 0–' + sivu.ylaraja +
+        ' %  sarjat: ' + sivu.sarjatMukana.join(', '),
+    );
+    for (let i = 0; i < sivu.aikasarja.pisteet.length; i++) {
+      const p = sivu.aikasarja.pisteet[i];
+      const liuk = sivu.aikasarja.liukuva[i];
+      console.log(
+        '    ' + p.kausi + '  ' + (p.sarja ?? 'ei sarjassa').padEnd(14) +
+          (p.osuus === null ? '   —  ' : p.osuus.toFixed(1).padStart(6)) +
+          ' %   liukuva ' +
+          (liuk === null ? '  —' : liuk.toFixed(1).padStart(5)),
+      );
+    }
+    if (!sivu.aikasarja.useitaSarjoja) {
+      moiti(sivu.nimi + ': useitaSarjoja on false vaikka seura on kahdessa sarjassa');
+    }
   }
 
   console.log('');

@@ -506,6 +506,8 @@ export interface SeuranSivu {
     liukuva: Array<number | null>;
     useitaSarjoja: boolean;
   };
+  /** Sarjat, joissa seura on pelannut. Akselin selite nojaa tähän. */
+  sarjatMukana: string[];
   ylaraja: number;
   liukuvaIkkuna: number;
 }

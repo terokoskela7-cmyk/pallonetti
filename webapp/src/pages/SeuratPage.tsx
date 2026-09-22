@@ -11,6 +11,7 @@
 // akatemioita — jotta lukija näkee eron itse.
 // ============================================
 import { useMemo } from 'react';
+import { Link } from 'react-router-dom';
 import { Info } from 'lucide-react';
 import { useApi } from '@/hooks/useApi';
 import {
@@ -45,7 +46,14 @@ function Rivi({ s, ylaraja }: { s: Seurakausi; ylaraja: number }) {
   return (
     <tr className="hover:bg-navy-700/40 transition-colors">
       <td className="px-4 py-2">
-        <span className="text-white/90 whitespace-nowrap">{s.nimi}</span>
+        {/* Seuran nimi vie seuran omalle sivulle. Tunniste on sama kuin
+            siellä, joten linkki ei voi osoittaa eri seuraan. */}
+        <Link
+          to={`/seurat/${s.tunniste}`}
+          className="text-white/90 whitespace-nowrap hover:text-ice transition-colors"
+        >
+          {s.nimi}
+        </Link>
         {s.akatemia && (
           <span
             className="ml-2 inline-block rounded border border-navy-500 bg-navy-700/60 px-1.5 text-[10px] text-white/50 align-middle"

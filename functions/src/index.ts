@@ -41,12 +41,11 @@ import {
   laskeSeurakausi,
   laskeSeuratrendit,
   laskeVertailuviivat,
-  laskeSeuranAikasarja,
   laskeYlaraja,
-  laskeSeuranYlaraja,
   LIUKUVA_IKKUNA,
   type Seurakausi,
 } from './services/seurat';
+import { kokoaSeuranSivu } from './services/seuranSivu';
 import {
   laskeTrendit,
   laskeKolmijako,
@@ -974,54 +973,10 @@ app.get('/api/seurat/:season/:teamId', async (req, res) => {
     return;
   }
   try {
-    const db = admin.firestore();
-    const kaudetSnap = await db.collection('kaudet').get();
-    const kausiRivit = kaudetSnap.docs
-      .map((d) => d.data())
-      .filter((k) => k.vanhentunut !== true);
-
-    // Kaikki kaudet molemmista sarjoista: seuran historia voi ulottua
-    // sarjasta toiseen.
-    const kausittainSarjoittain = new Map<string, Map<number, Seurakausi[]>>();
-    const kaikkiKaudet = new Set<number>();
-
-    for (const sarja of TUETUT_SARJAT) {
-      const kaudet = Array.from(
-        new Set(
-          kausiRivit
-            .filter((k) => ((k.sarja as string) || OLETUSSARJA) === sarja)
-            .map((k) => (k.vuosi as number) ?? parseInt(String(k.kausi), 10))
-            .filter((v) => !isNaN(v)),
-        ),
-      ).sort((a, b) => a - b);
-
-      const kausittain = new Map<number, Seurakausi[]>();
-      for (const kausi of kaudet) {
-        const { suoritukset, nimittajat } = await lueKausi(db, kausi, sarja);
-        kausittain.set(
-          kausi,
-          laskeSeurakausi(kausi, sarja, suoritukset, nimittajat),
-        );
-        kaikkiKaudet.add(kausi);
-      }
-      kausittainSarjoittain.set(sarja, kausittain);
-    }
-
-    const kaudet = Array.from(kaikkiKaudet).sort((a, b) => a - b);
-
-    // Tunnetaanko seura lainkaan? Tuntematon tunniste on 404.
-    let nimi: string | null = null;
-    let akatemia = false;
-    for (const kausittain of kausittainSarjoittain.values()) {
-      for (const rivit of kausittain.values()) {
-        const osuma = rivit.find((s) => s.tunniste === teamId);
-        if (osuma) {
-          nimi = osuma.nimi;
-          akatemia = osuma.akatemia;
-        }
-      }
-    }
-    if (nimi === null) {
+    // Kaikki luku ja laskenta on services/seuranSivu.ts:ssa. Tama reitti
+    // jasentaa parametrit, kutsuu ja muotoilee vastauksen.
+    const data = await kokoaSeuranSivu(admin.firestore(), season, teamId);
+    if (data === null) {
       res.status(404).json({
         success: false,
         error: 'Seuraa ei löytynyt tunnisteella ' + teamId,
@@ -1029,102 +984,11 @@ app.get('/api/seurat/:season/:teamId', async (req, res) => {
       return;
     }
 
-    const aikasarja = laskeSeuranAikasarja(teamId, kaudet, kausittainSarjoittain);
-    if (aikasarja.paallekkaisetKaudet.length > 0) {
-      // Ei pitaisi olla mahdollista: sama seura kahdessa sarjassa samalla
-      // kaudella. Ei summata vaan kerrotaan lokiin.
-      console.error(
-        '[seurat/:season/:teamId] ' + teamId + ' loytyy kahdesta sarjasta ' +
-          'kausilta ' + aikasarja.paallekkaisetKaudet.join(', '),
-      );
-    }
-
-    // Valitun kauden sarja tulee aikasarjasta: se kertoo, missa sarjassa
-    // seura kyseisena kautena pelasi.
-    const piste = aikasarja.pisteet.find((p) => p.kausi === season) ?? null;
-    const sarja = piste?.sarja ?? null;
-    const seurakausi =
-      sarja === null
-        ? null
-        : (kausittainSarjoittain.get(sarja)?.get(season) || []).find(
-            (s) => s.tunniste === teamId,
-          ) ?? null;
-
-    // Pelaajat ja kontekstirivit SAMASTA moottorista kuin pelaajasivulla.
-    // Vertailujoukko on koko sarjan ikaryhma, ei seuran oma joukko —
-    // muuten "ikaryhman mediaani" tarkoittaisi eri asiaa eri sivuilla.
-    let pelaajat: Array<Record<string, unknown>> = [];
-    if (sarja !== null && seurakausi !== null) {
-      const { suoritukset, nimittajat } = await lueKausi(db, season, sarja);
-      const pelipaikat = new Map<string, string | null>();
-      if (sarja === OLETUSSARJA) {
-        const kansSnap = await db
-          .collection('seasons')
-          .doc(String(season))
-          .collection('kansalaisuudet')
-          .get();
-        for (const doc of kansSnap.docs) {
-          const arvo = doc.data()?.pelipaikka;
-          pelipaikat.set(doc.id, typeof arvo === 'string' && arvo ? arvo : null);
-        }
-      }
-      pelaajat = laskeKaudenKontekstit({
-        kausi: season,
-        sarja,
-        suoritukset,
-        nimittajat,
-        pelipaikat,
-      })
-        .filter((k) => k.joukkue === seurakausi.nimi)
-        .sort((a, b) => b.faktat.minuutit - a.faktat.minuutit)
-        .map((k) => {
-          const { ohitetut: _ohitetut, ...rest } = k;
-          return {
-            ...rest,
-            siirto: haeSiirto(season, k.etunimi, k.sukunimi, [
-              ...k.seurat,
-              k.joukkue,
-            ]),
-          };
-        });
-    }
-
-    // Ylaraja lasketaan KOKO sarjan aineistosta, ei vain taman seuran
-    // luvuista: akseli on sama kuin /seurat-sivulla.
-    //
-    // Mukaan otetaan vain ne sarjat, joissa seura on pelannut. Jos
-    // laskettaisiin aina molemmista, Veikkausliigan seuran sivu
-    // skaalautuisi Ykkosliigan akatemioiden mukaan (0–90 %) siina missa
-    // /seurat nayttaa saman seuran akselilla 0–30 %, ja sama viiva
-    // nayttaisi kahdella sivulla eri korkuiselta. Sarjaa vaihtanut seura
-    // tarvitsee molemmat, ja saa ne.
-    const omatSarjat = new Set(
-      aikasarja.pisteet
-        .map((p) => p.sarja)
-        .filter((x): x is string => x !== null),
-    );
-
     res.set('Cache-Control', 'public, max-age=3600');
     res.json({
       success: true,
-      data: {
-        tunniste: teamId,
-        nimi,
-        akatemia,
-        kausi: season,
-        sarja,
-        seurakausi,
-        pelaajat,
-        aikasarja: {
-          kaudet: aikasarja.kaudet,
-          pisteet: aikasarja.pisteet,
-          liukuva: aikasarja.liukuva,
-          useitaSarjoja: aikasarja.useitaSarjoja,
-        },
-        ylaraja: laskeSeuranYlaraja(omatSarjat, kausittainSarjoittain),
-        liukuvaIkkuna: LIUKUVA_IKKUNA,
-      },
-      dataSaatavilla: seurakausi !== null,
+      data,
+      dataSaatavilla: data.seurakausi !== null,
       source: 'firestore',
       timestamp: new Date().toISOString(),
     });

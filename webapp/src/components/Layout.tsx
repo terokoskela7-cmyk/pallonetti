@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import type { ReactNode } from 'react';
-import { Link, NavLink } from 'react-router-dom';
+import { SisainenLinkki, SisainenNavLinkki } from '@/components/SisainenLinkki';
 import { Menu, X } from 'lucide-react';
 import { useKausi } from '@/hooks/useKausi';
 
@@ -118,7 +118,7 @@ export function Layout({ children }: LayoutProps) {
       <header className="border-b border-navy-700 relative z-30">
         <div className="max-w-6xl mx-auto px-6 py-3 flex items-center justify-between gap-4">
           {/* Logo + tagline */}
-          <Link
+          <SisainenLinkki
             to="/"
             onClick={closeMobile}
             className="block hover:opacity-90 transition-opacity"
@@ -129,19 +129,19 @@ export function Layout({ children }: LayoutProps) {
             <div className="text-[11px] text-white/40 mt-1 tracking-wide">
               Suomen jalkapallo analytiikalla
             </div>
-          </Link>
+          </SisainenLinkki>
 
           {/* Desktop nav */}
           <nav className="hidden md:flex items-center gap-1 text-sm">
             {links.map((link) => (
-              <NavLink
+              <SisainenNavLinkki
                 key={link.to}
                 to={link.to}
                 end={link.end}
                 className={desktopLinkClass}
               >
                 {link.label}
-              </NavLink>
+              </SisainenNavLinkki>
             ))}
           </nav>
 
@@ -197,7 +197,7 @@ export function Layout({ children }: LayoutProps) {
         </div>
         <nav className="flex flex-col p-3 gap-1">
           {links.map((link) => (
-            <NavLink
+            <SisainenNavLinkki
               key={link.to}
               to={link.to}
               end={link.end}
@@ -205,7 +205,7 @@ export function Layout({ children }: LayoutProps) {
               className={mobileLinkClass}
             >
               {link.label}
-            </NavLink>
+            </SisainenNavLinkki>
           ))}
         </nav>
         <div className="px-5 py-4 mt-2 border-t border-navy-700">

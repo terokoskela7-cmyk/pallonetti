@@ -10,7 +10,7 @@
 // kaytto on lopetettu koko sivustolla. Tyhja kohta on parempi kuin
 // vanhentunut arvo.
 // ============================================
-import { Link } from 'react-router-dom';
+import { SisainenLinkki } from '@/components/SisainenLinkki';
 import { ExternalLink } from 'lucide-react';
 import type { Nosto, Siirto } from '@/services/api';
 import { naytaKokoNimi } from '@/utils/nimet';
@@ -120,12 +120,12 @@ export function EtusivunLause({
         Kauden poikkeama
       </div>
       <p className="text-lg md:text-2xl font-light leading-snug text-white/90">
-        <Link
+        <SisainenLinkki
           to={`/pelaaja/${nosto.slug}`}
           className="text-ice hover:text-white transition-colors"
         >
           {tunniste(nosto)}
-        </Link>
+        </SisainenLinkki>
         <span className="text-white/60"> — </span>
         <span className="tabular">{nosto.rivi.teksti}</span>
       </p>
@@ -151,7 +151,7 @@ export function ValokeilaKortit({ nostot }: { nostot: Nosto[] }) {
   return (
     <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
       {nostot.map((n) => (
-        <Link
+        <SisainenLinkki
           key={n.slug}
           to={`/pelaaja/${n.slug}`}
           className="bg-navy-700/40 border border-navy-600 rounded-xl p-5 space-y-2 hover:border-ice/40 transition-colors"
@@ -176,7 +176,7 @@ export function ValokeilaKortit({ nostot }: { nostot: Nosto[] }) {
               {n.siirto && <SiirtoMerkki siirto={n.siirto} />}
             </span>
           )}
-        </Link>
+        </SisainenLinkki>
       ))}
     </div>
   );

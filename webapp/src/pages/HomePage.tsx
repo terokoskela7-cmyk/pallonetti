@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { SisainenLinkki } from '@/components/SisainenLinkki';
 import {
   ArrowRight,
   TrendingUp,
@@ -52,7 +52,7 @@ interface GuideCardProps {
 
 function GuideCard({ to, icon: Icon, title, body }: GuideCardProps) {
   return (
-    <Link
+    <SisainenLinkki
       to={to}
       className="bg-navy-700 border border-navy-600 rounded-lg p-4 hover:border-ice/40 transition-colors group"
     >
@@ -64,7 +64,7 @@ function GuideCard({ to, icon: Icon, title, body }: GuideCardProps) {
       <div className="mt-2 text-xs text-ice opacity-0 group-hover:opacity-100 transition-opacity">
         Avaa sivu →
       </div>
-    </Link>
+    </SisainenLinkki>
   );
 }
 
@@ -144,13 +144,13 @@ function KpiCard({ label, value, hint, compare, accent = 'white' }: KpiCardProps
 // ============================================================
 function CtaLink({ to, label }: { to: string; label: string }) {
   return (
-    <Link
+    <SisainenLinkki
       to={to}
       className="inline-flex items-center gap-1.5 text-sm text-ice hover:text-white transition-colors font-medium group"
     >
       {label}
       <ArrowRight className="w-3.5 h-3.5 transition-transform group-hover:translate-x-0.5" />
-    </Link>
+    </SisainenLinkki>
   );
 }
 

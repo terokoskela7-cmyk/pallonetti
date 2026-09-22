@@ -1,4 +1,5 @@
-import { Link, useParams } from 'react-router-dom';
+import { useParams } from 'react-router-dom';
+import { SisainenLinkki } from '@/components/SisainenLinkki';
 import { ArrowLeft, ExternalLink, Info, TrendingUp } from 'lucide-react';
 import {
   LineChart,
@@ -77,19 +78,19 @@ function NotFoundState({ slug, kausi }: { slug: string; kausi: number }) {
         Slug: <span className="font-mono text-white/60">{slug}</span>
       </div>
       <div className="flex items-center justify-center gap-3 pt-2">
-        <Link
+        <SisainenLinkki
           to="/nuoret"
           className="text-sm text-ice hover:text-white transition-colors"
         >
           ← Nuoret
-        </Link>
+        </SisainenLinkki>
         <span className="text-white/20">·</span>
-        <Link
+        <SisainenLinkki
           to="/peliaika"
           className="text-sm text-ice hover:text-white transition-colors"
         >
           Peliaika
-        </Link>
+        </SisainenLinkki>
       </div>
     </div>
   );
@@ -302,20 +303,20 @@ export default function PelaajaPage() {
   return (
     <div className="px-6 py-10 md:py-14 max-w-4xl mx-auto space-y-6">
       <div className="flex items-center gap-4 text-sm">
-        <Link
+        <SisainenLinkki
           to="/nuoret"
           className="inline-flex items-center gap-1.5 text-ice hover:text-white transition-colors"
         >
           <ArrowLeft className="w-3.5 h-3.5" />
           Nuoret
-        </Link>
+        </SisainenLinkki>
         <span className="text-white/20">·</span>
-        <Link
+        <SisainenLinkki
           to="/peliaika"
           className="text-ice hover:text-white transition-colors"
         >
           Peliaika
-        </Link>
+        </SisainenLinkki>
       </div>
 
       {/* Header: avatar + nimi + meta */}

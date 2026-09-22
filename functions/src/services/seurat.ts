@@ -379,6 +379,22 @@ export function laskeSuhdeYlaraja(arvot: Array<number | null>): number {
 }
 
 /**
+ * Suhdekaavion akselin lukemat: 0,0 / 0,5 / 1,0 / 1,5 / 2,0 …
+ *
+ * Puolikkaan valein, jotta SARJAN TASO 1,0 on aina akselilla. Se on
+ * koko mittarin vertailukohta: jos akseli nayttaa 0,4 ja 0,8, lukijan
+ * on paateltava silmamaaraisesti, missa taso kulkee. Recharts jakaisi
+ * valin tasavalein ylarajan mukaan, joten lukemat annetaan itse.
+ */
+export function suhdeAkselinLukemat(ylaraja: number): number[] {
+  const lukemat: number[] = [];
+  for (let x = 0; x <= ylaraja + 1e-9; x += 0.5) {
+    lukemat.push(Math.round(x * 10) / 10);
+  }
+  return lukemat;
+}
+
+/**
  * Seuran oman sivun y-akselin ylaraja.
  *
  * Mukaan otetaan vain ne sarjat, joissa seura on pelannut. Jos

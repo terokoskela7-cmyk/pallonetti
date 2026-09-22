@@ -517,6 +517,8 @@ export interface SeuranSivu {
   ylaraja: number;
   /** Suhdeluvun akselin yläraja seuran omista luvuista. */
   ylarajaSuhde: number;
+  /** Akselin lukemat puolikkaan välein; 1,0 on aina mukana. */
+  suhdeLukemat: number[];
   liukuvaIkkuna: number;
 }
 

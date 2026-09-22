@@ -76,6 +76,7 @@ const navLinks: Array<{ to: string; label: string; end?: boolean }> = [
   { to: '/', label: 'etusivu', end: true },
   { to: '/peliaika', label: 'analyysi' },
   { to: '/nuoret', label: 'nuoret' },
+  { to: '/seurat', label: 'seurat' },
   { to: '/pelaajat', label: 'kaikki pelaajat' },
   { to: '/about', label: 'tietoa' },
 ];

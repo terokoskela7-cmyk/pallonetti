@@ -194,7 +194,7 @@ export default function NuoretPage() {
             Valokeilassa
           </h2>
           <span className="text-[11px] text-white/40">
-            suurin poikkeama ikäryhmän mediaanista
+            suurin poikkeama ikäryhmän mediaanista ylöspäin · yksi pelaaja per seura
           </span>
         </div>
         {data.valokeilassa.length === 0 ? (
@@ -365,7 +365,7 @@ export default function NuoretPage() {
         )}
       </section>
 
-      <Tilannerivi otteluita={data.otteluita} />
+      <Tilannerivi tuotuPvm={data.tuotuPvm} />
     </div>
   );
 }

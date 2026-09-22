@@ -435,6 +435,11 @@ export interface Nosto {
   sukunimi: string;
   ika: number;
   joukkue: string;
+  seurat: string[];
+  /** Pääseura on akatemiajoukkue. Kortilla näkyy merkintä. */
+  akatemia: boolean;
+  /** Siirto- tai lainamerkintä (B5), tai null. */
+  siirto: Siirto | null;
   rivi: Kontekstirivi;
   poikkeama: number;
 }
@@ -446,8 +451,11 @@ export interface KaudenKonteksti {
   /** Listanäkymissä ei ole `ohitetut`-kenttää — se on katselmointitietoa. */
   kontekstit: Array<Omit<Konteksti, 'ohitetut'>>;
   valokeilassa: Nosto[];
-  /** Montako ottelua joukkueet ovat pelanneet. Kierrosnumeroa ei ole. */
-  otteluita: { min: number; max: number } | null;
+  /**
+   * Kauden tuontipäivä ISO-muodossa. Tilanne kerrotaan päivänä eikä
+   * otteluiden määränä: joukkueilla on eri määrä otteluita pelattuna.
+   */
+  tuotuPvm: string | null;
 }
 
 export const getKaudenKonteksti = (

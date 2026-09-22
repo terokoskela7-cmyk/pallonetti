@@ -12,7 +12,6 @@ import {
   laskeKaudenKontekstit,
   valitseNosto,
   valitseNostot,
-  otteluitaPelattu,
   type KontekstiSyote,
 } from '../services/konteksti';
 import type { NimittajaDoc, SuoritusDoc } from '../services/kausiData';
@@ -265,7 +264,22 @@ const paikat: Array<[string, string | null]> = [
   vertaa('vertailujoukon koko', r?.faktat.vertailujoukonKoko, 3);
   const minuuttirivi = (r?.rivit ?? []).find((x) => x.id === 'sijoitus-minuutit');
   vertaa('mediaani peliaikaa saaneista', minuuttirivi?.mediaani, 1292);
-  vertaa('nuoli mediaaniin', minuuttirivi?.nuoli, 'tasolla');
+  // Sijoitusrivilla ei ole nuolta; osuusrivilla on.
+  vertaa('sijoitusrivilla ei nuolta', minuuttirivi?.nuoli, null);
+  // Ruopin osuus 65 % on ikaryhman mediaani (76 / 65 / 15), joten nuoli
+  // osoittaa tasoa. Olennaista on, etta osuusrivilla nuoli on olemassa.
+  vertaa(
+    'osuusrivilla on nuoli',
+    (r?.rivit ?? []).find((x) => x.id === 'osuus')?.nuoli,
+    'tasolla',
+  );
+  vertaa(
+    'yhdellakaan sijoitusrivilla ei ole nuolta',
+    (r?.rivit ?? [])
+      .filter((x) => x.id.indexOf('sijoitus') === 0)
+      .every((x) => x.nuoli === null),
+    true,
+  );
 }
 
 // ============================================
@@ -592,23 +606,26 @@ console.log('ETUSIVUN NOSTO');
 {
   // Kuusi 20-vuotiasta. Viisi on lahella toisiaan, yksi poikkeaa
   // selvasti maaleissa — nosto on han.
+  // Jokaisella oma seura: seurasaanto testataan erikseen alempana.
+  const SEURAT = ['KuPS', 'Ilves', 'HJK', 'AC Oulu', 'VPS', 'TPS'];
   const joukko: SuoritusDoc[] = [
-    suoritus({ slug: 'a', minuutit: 1200, ottelut: 20, aloitukset: 14, maalit: 1 }),
-    suoritus({ slug: 'b', minuutit: 1250, ottelut: 20, aloitukset: 14, maalit: 2 }),
-    suoritus({ slug: 'c', minuutit: 1300, ottelut: 20, aloitukset: 15, maalit: 1 }),
-    suoritus({ slug: 'd', minuutit: 1350, ottelut: 20, aloitukset: 15, maalit: 2 }),
-    suoritus({ slug: 'e', minuutit: 1400, ottelut: 20, aloitukset: 16, maalit: 3 }),
+    suoritus({ slug: 'a', joukkue: 'KuPS', minuutit: 1200, ottelut: 20, aloitukset: 14, maalit: 1 }),
+    suoritus({ slug: 'b', joukkue: 'Ilves', minuutit: 1250, ottelut: 20, aloitukset: 14, maalit: 2 }),
+    suoritus({ slug: 'c', joukkue: 'HJK', minuutit: 1300, ottelut: 20, aloitukset: 15, maalit: 1 }),
+    suoritus({ slug: 'd', joukkue: 'AC Oulu', minuutit: 1350, ottelut: 20, aloitukset: 15, maalit: 2 }),
+    suoritus({ slug: 'e', joukkue: 'VPS', minuutit: 1400, ottelut: 20, aloitukset: 16, maalit: 3 }),
     suoritus({
       slug: 'maalintekija',
       etunimi: 'Maali',
       sukunimi: 'Tekijä',
+      joukkue: 'TPS',
       minuutit: 1380,
       ottelut: 20,
       aloitukset: 15,
       maalit: 14,
     }),
   ];
-  const nim = [nimittaja('KuPS', 22)];
+  const nim = SEURAT.map((x) => nimittaja(x, 22));
   const kaikki = laskeKaudenKontekstit({
     kausi: 2026,
     sarja: 'Veikkausliiga',
@@ -637,8 +654,15 @@ console.log('ETUSIVUN NOSTO');
   vertaa('alle viisi vertailtavaa: ei nostoa', valitseNosto(pieni), null);
 
   // Hajonta 0: kaikilla sama arvo -> poikkeamaa ei lasketa.
-  const samat = ['a', 'b', 'c', 'd', 'e', 'f'].map((slug) =>
-    suoritus({ slug, minuutit: 1300, ottelut: 20, aloitukset: 15, maalit: 2 }),
+  const samat = ['a', 'b', 'c', 'd', 'e', 'f'].map((slug, i) =>
+    suoritus({
+      slug,
+      joukkue: SEURAT[i],
+      minuutit: 1300,
+      ottelut: 20,
+      aloitukset: 15,
+      maalit: 2,
+    }),
   );
   const samatK = laskeKaudenKontekstit({
     kausi: 2026,
@@ -665,13 +689,201 @@ console.log('ETUSIVUN NOSTO');
     true,
   );
 
-  vertaa('otteluita pelattu', otteluitaPelattu(nim), { min: 22, max: 22 });
+  // Valinta koskee VAIN mediaanin ylapuolelle jaavia poikkeamia.
+  const kaikkiEhdokkaat = valitseNostot(kaikki, 99);
   vertaa(
-    'otteluita pelattu, eri maarat',
-    otteluitaPelattu([nimittaja('KuPS', 24), nimittaja('Ilves', 22)]),
-    { min: 22, max: 24 },
+    'kaikki nostot ovat mediaanin ylapuolella',
+    kaikkiEhdokkaat.every(
+      (n) => n.rivi.mediaani !== null && n.rivi.arvo > n.rivi.mediaani,
+    ),
+    true,
   );
-  vertaa('ei nimittajia -> null', otteluitaPelattu([]), null);
+  vertaa(
+    'kaikki poikkeamat positiivisia',
+    kaikkiEhdokkaat.every((n) => n.poikkeama > 0),
+    true,
+  );
+
+  // Selvasti mediaanin ALAPUOLELLA oleva pelaaja ei paady valokeilaan,
+  // vaikka poikkeama itseisarvona olisi suurin.
+  const alapuolella: SuoritusDoc[] = [
+    suoritus({ slug: 'a', joukkue: 'KuPS', minuutit: 1900, ottelut: 22, aloitukset: 21, maalit: 2 }),
+    suoritus({ slug: 'b', joukkue: 'Ilves', minuutit: 1850, ottelut: 22, aloitukset: 20, maalit: 2 }),
+    suoritus({ slug: 'c', joukkue: 'HJK', minuutit: 1800, ottelut: 21, aloitukset: 20, maalit: 2 }),
+    suoritus({ slug: 'd', joukkue: 'AC Oulu', minuutit: 1750, ottelut: 21, aloitukset: 19, maalit: 2 }),
+    suoritus({ slug: 'e', joukkue: 'VPS', minuutit: 1700, ottelut: 20, aloitukset: 19, maalit: 2 }),
+    suoritus({ slug: 'vahan', joukkue: 'TPS', minuutit: 90, ottelut: 6, aloitukset: 1, maalit: 0 }),
+  ];
+  const alaK = laskeKaudenKontekstit({
+    kausi: 2026,
+    sarja: 'Veikkausliiga',
+    suoritukset: alapuolella,
+    nimittajat: nim,
+    pelipaikat: new Map(),
+  });
+  vertaa(
+    'mediaanin alapuolinen ei ole valokeilassa',
+    valitseNostot(alaK, 99).some((n) => n.slug === 'vahan'),
+    false,
+  );
+
+  // Siirtomerkinta: valinta ei hae sita, vaan reitti taydentaa.
+  vertaa('valinta jattaa siirron nulliksi', nosto?.siirto, null);
+  vertaa('valinta palauttaa kauden seurat', nosto?.seurat, ['TPS']);
+  vertaa('valinta merkitsee akatemian', nosto?.akatemia, false);
+}
+
+// ============================================
+console.log('');
+console.log('VALOKEILAN RAJAT');
+// ============================================
+{
+  const nim = ['KuPS', 'Ilves', 'HJK Klubi 04', 'SJK Akatemia', 'HJK'].map((x) =>
+    nimittaja(x, 22),
+  );
+
+  // 1. VALINTA-AKSELIT: vain osuus ja maalit.
+  // Kuusi samanikaista, joilla kaikilla sama osuus ja sama maalimaara,
+  // mutta yhdella selvasti eniten minuutteja ja aloituksia. Minuutit,
+  // aloitukset ja tiheys eivat saa tuottaa nostoa.
+  const samaOsuus: SuoritusDoc[] = ['a', 'b', 'c', 'd', 'e', 'f'].map((slug, i) =>
+    suoritus({
+      slug,
+      joukkue: ['KuPS', 'Ilves', 'HJK', 'AC Oulu', 'VPS', 'TPS'][i],
+      minuutit: 1188,
+      ottelut: i === 0 ? 22 : 14,
+      aloitukset: i === 0 ? 22 : 8,
+      maalit: 2,
+    }),
+  );
+  const akselitK = laskeKaudenKontekstit({
+    kausi: 2026,
+    sarja: 'Veikkausliiga',
+    suoritukset: samaOsuus,
+    nimittajat: ['KuPS', 'Ilves', 'HJK', 'AC Oulu', 'VPS', 'TPS'].map((x) =>
+      nimittaja(x, 22),
+    ),
+    pelipaikat: new Map(),
+  });
+  const akselitNostot = valitseNostot(akselitK, 3);
+  vertaa(
+    'minuutit, aloitukset ja tiheys eivat valitse',
+    akselitNostot.map((n) => n.rivi.id),
+    [],
+  );
+
+  // 2. YKSI PELAAJA PER SEURA. Kolme KuPS-pelaajaa karjessa.
+  const samaSeura: SuoritusDoc[] = [
+    suoritus({ slug: 'kups1', joukkue: 'KuPS', minuutit: 1900, ottelut: 22, aloitukset: 21, maalit: 12 }),
+    suoritus({ slug: 'kups2', joukkue: 'KuPS', minuutit: 1850, ottelut: 22, aloitukset: 20, maalit: 10 }),
+    suoritus({ slug: 'kups3', joukkue: 'KuPS', minuutit: 1800, ottelut: 22, aloitukset: 20, maalit: 8 }),
+    suoritus({ slug: 'ilves1', joukkue: 'Ilves', minuutit: 900, ottelut: 18, aloitukset: 9, maalit: 1 }),
+    suoritus({ slug: 'hjk1', joukkue: 'HJK', minuutit: 800, ottelut: 18, aloitukset: 8, maalit: 1 }),
+    suoritus({ slug: 'hjk2', joukkue: 'HJK', minuutit: 700, ottelut: 17, aloitukset: 7, maalit: 0 }),
+  ];
+  const seuraK = laskeKaudenKontekstit({
+    kausi: 2026,
+    sarja: 'Veikkausliiga',
+    suoritukset: samaSeura,
+    nimittajat: ['KuPS', 'Ilves', 'HJK'].map((x) => nimittaja(x, 22)),
+    pelipaikat: new Map(),
+  });
+  const seuraNostot = valitseNostot(seuraK, 3);
+  vertaa(
+    'enintaan yksi pelaaja per seura',
+    seuraNostot.length === new Set(seuraNostot.map((n) => n.joukkue)).size,
+    true,
+  );
+  vertaa('paras KuPS-pelaaja valittiin', seuraNostot[0]?.slug, 'kups1');
+  vertaa(
+    'toinen KuPS-pelaaja ei ole valokeilassa',
+    seuraNostot.some((n) => n.slug === 'kups2'),
+    false,
+  );
+
+  // 3. ENINTAAN YKSI AKATEMIAJOUKKUEESTA. Akatemiat ovat karjessa.
+  const akatemiat: SuoritusDoc[] = [
+    suoritus({ slug: 'klubi1', joukkue: 'HJK Klubi 04', minuutit: 1900, ottelut: 22, aloitukset: 21, maalit: 12 }),
+    suoritus({ slug: 'sjka1', joukkue: 'SJK Akatemia', minuutit: 1850, ottelut: 22, aloitukset: 20, maalit: 10 }),
+    suoritus({ slug: 'kups1', joukkue: 'KuPS', minuutit: 1400, ottelut: 20, aloitukset: 15, maalit: 6 }),
+    suoritus({ slug: 'ilves1', joukkue: 'Ilves', minuutit: 900, ottelut: 18, aloitukset: 9, maalit: 1 }),
+    suoritus({ slug: 'hjk1', joukkue: 'HJK', minuutit: 800, ottelut: 18, aloitukset: 8, maalit: 1 }),
+    suoritus({ slug: 'hjk2', joukkue: 'HJK', minuutit: 300, ottelut: 12, aloitukset: 2, maalit: 0 }),
+  ];
+  const akatemiaK = laskeKaudenKontekstit({
+    kausi: 2026,
+    sarja: 'Ykkösliiga',
+    suoritukset: akatemiat.map((x) => ({ ...x, sarja: 'Ykkösliiga' })),
+    nimittajat: nim.map((x) => ({ ...x, sarja: 'Ykkösliiga' })),
+    pelipaikat: new Map(),
+  });
+  const akatemiaNostot = valitseNostot(akatemiaK, 3);
+  vertaa(
+    'enintaan yksi akatemiajoukkueesta',
+    akatemiaNostot.filter((n) => n.akatemia).length <= 1,
+    true,
+  );
+  vertaa('paras akatemiapelaaja valittiin', akatemiaNostot[0]?.slug, 'klubi1');
+  vertaa('akatemia merkitaan', akatemiaNostot[0]?.akatemia, true);
+  vertaa(
+    'toinen akatemia ei ole valokeilassa',
+    akatemiaNostot.some((n) => n.slug === 'sjka1'),
+    false,
+  );
+  vertaa(
+    'muut seurat tayttavat paikat',
+    akatemiaNostot.slice(1).every((n) => !n.akatemia),
+    true,
+  );
+}
+
+// ============================================
+console.log('');
+console.log('EI ARVOTTAVIA SANOJA');
+// ============================================
+{
+  // Lauseessa ei saa olla arvioita pelaajasta. "Karki" ja "jaettu 2."
+  // ovat sijoituksia, eivat arvioita, joten ne EIVAT ole kiellettyja.
+  const kielletyt = [
+    'aloittaa lähes aina',
+    'vakiintumassa kokoonpanoon',
+    'hakee vielä paikkaansa',
+    'pelaa lähes täydet pelit',
+    'kovin',
+    'paras',
+    'parhaa',
+    'parempi',
+    'huippu',
+    'loistav',
+    'vakuuttav',
+    'lupaav',
+  ];
+  const kaikkiLauseet = laskeKaudenKontekstit({
+    kausi: 2026,
+    sarja: 'Veikkausliiga',
+    suoritukset: korkkoRuoppi,
+    nimittajat: nimittajat3,
+    pelipaikat: new Map(paikat),
+  }).flatMap((k) => k.rivit.map((r) => r.teksti));
+
+  vertaa(
+    'lauseita syntyi',
+    kaikkiLauseet.length > 0,
+    true,
+  );
+  vertaa(
+    'ei arvottavia sanoja',
+    kaikkiLauseet.filter((t) =>
+      kielletyt.some((s) => t.toLowerCase().indexOf(s) >= 0),
+    ),
+    [],
+  );
+  // Sijoituslause sailyy: se ei ole arvottava.
+  vertaa(
+    'sijoituslause sailyy',
+    kaikkiLauseet.some((t) => t.indexOf('kärki') >= 0),
+    true,
+  );
 }
 
 console.log('');

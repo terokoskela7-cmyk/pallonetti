@@ -38,6 +38,13 @@ import {
 } from './services/konteksti';
 import { laskePolku } from './services/polku';
 import {
+  laskeSeurakausi,
+  laskeSeuratrendit,
+  laskeVertailuviivat,
+  LIUKUVA_IKKUNA,
+  type Seurakausi,
+} from './services/seurat';
+import {
   laskeTrendit,
   laskeKolmijako,
   luokitteleKansalaisuudet,
@@ -829,6 +836,115 @@ async function kaudenTuontiPvm(
   }
   return typeof tuotu === 'string' ? tuotu : null;
 }
+
+// ============================================
+// SEURAVERTAILU
+//
+// REITTIEN JARJESTYS ON MERKITSEVA. '/api/seurat/trendit' on
+// rekisteroitava ENNEN '/api/seurat/:season', koska Express tasmaa
+// reitit rekisterointijarjestyksessa: toisin pain ':season' nappaisi
+// sanan "trendit" ja parseInt tuottaisi NaN:n. Ala siirra naita.
+// ============================================
+
+/**
+ * GET /api/seurat/trendit — seurakohtaiset aikasarjat kaikilta kausilta.
+ *
+ * Pienet kaaviot lukevat taman: yksi piste per kausi per seura, sama
+ * y-akseli kaikille, ja puuttuva kausi on null eika 0 — kaaviossa
+ * katko. Mukana kolmen kauden liukuva keskiarvo ja sarjan kaksi
+ * vertailuviivaa (kaikki / ilman akatemioita).
+ */
+app.get('/api/seurat/trendit', async (req, res) => {
+  const sarja = pyydettySarja(req.query.sarja);
+  if (sarja === null || sarja === KAIKKI_SARJAT) {
+    sarjaVirhe(res, req.query.sarja);
+    return;
+  }
+  try {
+    const db = admin.firestore();
+    // Kausidokumentit kertovat, mitka kaudet on tuotu. Sarja suodatetaan
+    // muistissa, ja vanhentuneet jaavat pois.
+    const kaudetSnap = await db.collection('kaudet').get();
+    const kaudet = Array.from(
+      new Set(
+        kaudetSnap.docs
+          .map((d) => d.data())
+          .filter((k) => k.vanhentunut !== true)
+          .filter((k) => ((k.sarja as string) || OLETUSSARJA) === sarja)
+          .map((k) => (k.vuosi as number) ?? parseInt(String(k.kausi), 10))
+          .filter((v) => !isNaN(v)),
+      ),
+    ).sort((a, b) => a - b);
+
+    const kausittain = new Map<number, Seurakausi[]>();
+    for (const kausi of kaudet) {
+      const { suoritukset, nimittajat } = await lueKausi(db, kausi, sarja);
+      kausittain.set(kausi, laskeSeurakausi(kausi, sarja, suoritukset, nimittajat));
+    }
+
+    res.set('Cache-Control', 'public, max-age=3600');
+    res.json({
+      success: true,
+      data: {
+        sarja,
+        kaudet,
+        liukuvaIkkuna: LIUKUVA_IKKUNA,
+        seurat: laskeSeuratrendit(kaudet, kausittain),
+        vertailuviivat: laskeVertailuviivat(kaudet, kausittain),
+      },
+      dataSaatavilla: kaudet.length > 0,
+      source: 'firestore',
+      timestamp: new Date().toISOString(),
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Tuntematon virhe';
+    console.error('[seurat/trendit] failed:', message);
+    res.status(500).json({ success: false, error: message });
+  }
+});
+
+/**
+ * GET /api/seurat/:season — yhden kauden seurataulukko.
+ *
+ * Lukee saman laskentafunktion kuin trendireitti, jottei taulukko ja
+ * kaavio voi nayttaa eri lukua samasta seurasta ja kaudesta.
+ */
+app.get('/api/seurat/:season', async (req, res) => {
+  const season = parseInt(req.params.season, 10);
+  if (isNaN(season)) {
+    res.status(400).json({ success: false, error: 'season on virheellinen' });
+    return;
+  }
+  const sarja = pyydettySarja(req.query.sarja);
+  if (sarja === null || sarja === KAIKKI_SARJAT) {
+    sarjaVirhe(res, req.query.sarja);
+    return;
+  }
+  try {
+    const db = admin.firestore();
+    const { suoritukset, nimittajat } = await lueKausi(db, season, sarja);
+    const seurat = laskeSeurakausi(season, sarja, suoritukset, nimittajat);
+    const kausittain = new Map<number, Seurakausi[]>([[season, seurat]]);
+
+    res.set('Cache-Control', 'public, max-age=3600');
+    res.json({
+      success: true,
+      data: {
+        kausi: season,
+        sarja,
+        seurat,
+        vertailuviivat: laskeVertailuviivat([season], kausittain),
+      },
+      dataSaatavilla: seurat.length > 0,
+      source: 'firestore',
+      timestamp: new Date().toISOString(),
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Tuntematon virhe';
+    console.error('[seurat/:season] failed:', message);
+    res.status(500).json({ success: false, error: message });
+  }
+});
 
 /**
  * GET /api/konteksti/:season — kauden kaikkien pelaajien kontekstit ja

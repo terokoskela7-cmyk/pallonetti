@@ -428,6 +428,67 @@ export interface Konteksti {
   ohitetut: string[];
 }
 
+// ============================================
+// SEURAVERTAILU
+//
+// Taulukko ja pienet kaaviot lukevat samaa backend-laskentaa, joten ne
+// eivät voi näyttää eri lukua samasta seurasta ja kaudesta.
+// ============================================
+export interface Seurakausi {
+  tunniste: string;
+  nimi: string;
+  kausi: number;
+  sarja: string;
+  akatemia: boolean;
+  ottelut: number;
+  kapasiteettiMin: number;
+  nuortenMinuutit: number;
+  /** Osuus prosentteina. null = kapasiteettia ei tiedetä. */
+  osuus: number | null;
+  pelaajia: number;
+  keskiIka: number | null;
+}
+
+export interface Vertailuviiva {
+  kausi: number;
+  kaikki: number | null;
+  ilmanAkatemioita: number | null;
+}
+
+export interface Seuratrendi {
+  tunniste: string;
+  nimi: string;
+  akatemia: boolean;
+  /** Yksi piste per kausi, vanhin ensin. null = seura ei ollut sarjassa. */
+  pisteet: Array<number | null>;
+  /** Kolmen kauden liukuva keskiarvo, sama pituus. */
+  liukuva: Array<number | null>;
+  kaudetMukana: number[];
+}
+
+export interface SeuratKausi {
+  kausi: number;
+  sarja: string;
+  seurat: Seurakausi[];
+  vertailuviivat: Vertailuviiva[];
+}
+
+export interface SeuratTrendit {
+  sarja: string;
+  kaudet: number[];
+  liukuvaIkkuna: number;
+  seurat: Seuratrendi[];
+  vertailuviivat: Vertailuviiva[];
+}
+
+export const getSeuratKausi = (
+  season: number,
+  sarja?: string,
+): Promise<SeuratKausi> => fetchApi(`/seurat/${season}` + sarjaParam(sarja));
+
+export const getSeuratTrendit = (sarja?: string): Promise<SeuratTrendit> =>
+  fetchApi('/seurat/trendit' + sarjaParam(sarja));
+
 /** Valokeilan pelaaja: rivi, joka poikkeaa eniten ikäryhmän mediaanista. */
 export interface Nosto {
   slug: string;

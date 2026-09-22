@@ -13,7 +13,7 @@
 // samanarvoisina, jolloin mikaan ei erottunut.
 // ============================================
 import { useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { SisainenLinkki } from '@/components/SisainenLinkki';
 import { Info, Search } from 'lucide-react';
 import { useApi } from '@/hooks/useApi';
 import { naytaKokoNimi } from '@/utils/nimet';
@@ -82,7 +82,7 @@ function LoadingSkeleton() {
 
 function TilastokarjenRivi({ p, sija }: { p: Pelaaja; sija: number }) {
   return (
-    <Link
+    <SisainenLinkki
       to={`/pelaaja/${p.slug}`}
       className="flex items-start gap-4 px-4 py-3 hover:bg-navy-700/40 transition-colors"
     >
@@ -106,7 +106,7 @@ function TilastokarjenRivi({ p, sija }: { p: Pelaaja; sija: number }) {
           min
         </span>
       </span>
-    </Link>
+    </SisainenLinkki>
   );
 }
 
@@ -334,12 +334,12 @@ export default function NuoretPage() {
                 {taulukko.map((p) => (
                   <tr key={p.slug} className="hover:bg-navy-700/40 transition-colors">
                     <td className="px-4 py-2">
-                      <Link
+                      <SisainenLinkki
                         to={`/pelaaja/${p.slug}`}
                         className="text-white/90 hover:text-ice transition-colors"
                       >
                         {nimi(p)}
-                      </Link>
+                      </SisainenLinkki>
                     </td>
                     <td className="px-3 py-2 text-white/60">{p.joukkue}</td>
                     <td className="px-3 py-2 text-right tabular text-white/70">

@@ -11,7 +11,7 @@
 // akatemioita — jotta lukija näkee eron itse.
 // ============================================
 import { useMemo } from 'react';
-import { Link } from 'react-router-dom';
+import { SisainenLinkki } from '@/components/SisainenLinkki';
 import { Info } from 'lucide-react';
 import { useApi } from '@/hooks/useApi';
 import {
@@ -48,12 +48,12 @@ function Rivi({ s, ylaraja }: { s: Seurakausi; ylaraja: number }) {
       <td className="px-4 py-2">
         {/* Seuran nimi vie seuran omalle sivulle. Tunniste on sama kuin
             siellä, joten linkki ei voi osoittaa eri seuraan. */}
-        <Link
+        <SisainenLinkki
           to={`/seurat/${s.tunniste}`}
           className="text-white/90 whitespace-nowrap hover:text-ice transition-colors"
         >
           {s.nimi}
-        </Link>
+        </SisainenLinkki>
         {s.akatemia && (
           <span
             className="ml-2 inline-block rounded border border-navy-500 bg-navy-700/60 px-1.5 text-[10px] text-white/50 align-middle"
@@ -121,6 +121,27 @@ export default function SeuratPage() {
         .sort((a, b) => (b.osuus ?? -1) - (a.osuus ?? -1)),
     [kausiData],
   );
+
+  /**
+   * Kausikehitys vain valitun kauden seuroista.
+   *
+   * Trendirajapinta palauttaa KAIKKI sarjassa joskus pelanneet seurat —
+   * Veikkausliigassa 18, vaikka kaudella pelaa 12. Se on oikein
+   * rajapinnalta, mutta kauden näkymässä RoPS (viimeksi 2020) ja HIFK
+   * (2022) luetaan sarjan nykyisiksi joukkueiksi. Ne eivät katoa: niillä
+   * on omat sivunsa, ja historia on tallessa.
+   */
+  const kaudenTunnisteet = useMemo(
+    () => new Set(seurat.map((s) => s.tunniste)),
+    [seurat],
+  );
+
+  const kaudenTrendit = useMemo(
+    () => (trendit?.seurat ?? []).filter((t) => kaudenTunnisteet.has(t.tunniste)),
+    [trendit, kaudenTunnisteet],
+  );
+
+  const aiempiaSeuroja = (trendit?.seurat.length ?? 0) - kaudenTrendit.length;
 
   // Taulukon palkeille sama yläraja kuin kaavioissa. Luku tulee
   // rajapinnasta; ennen trendien latautumista käytetään kauden omaa
@@ -241,20 +262,31 @@ export default function SeuratPage() {
           </h2>
           {trendit && (
             <span className="text-[11px] text-white/40 tabular">
-              {trendit.kaudet[0]}–{trendit.kaudet[trendit.kaudet.length - 1]}
+              {kaudenTrendit.length} seuraa · {trendit.kaudet[0]}–
+              {trendit.kaudet[trendit.kaudet.length - 1]}
             </span>
           )}
         </div>
         {trendit === null || trendit === undefined ? (
           <p className="text-sm text-white/60">Kausikehitystä ei saatu haettua.</p>
         ) : (
-          <SeuraKaaviot
-            seurat={trendit.seurat}
-            kaudet={trendit.kaudet}
-            vertailuviivat={trendit.vertailuviivat}
-            liukuvaIkkuna={trendit.liukuvaIkkuna}
-            ylaraja={trendit.ylaraja}
-          />
+          <>
+            <SeuraKaaviot
+              seurat={kaudenTrendit}
+              kaudet={trendit.kaudet}
+              vertailuviivat={trendit.vertailuviivat}
+              liukuvaIkkuna={trendit.liukuvaIkkuna}
+              ylaraja={trendit.ylaraja}
+            />
+            {aiempiaSeuroja > 0 && (
+              <p className="text-[11px] text-white/40 leading-relaxed">
+                Kaaviot ovat kauden {kausi} seuroista. {aiempiaSeuroja}{' '}
+                {aiempiaSeuroja === 1 ? 'seura on' : 'seuraa on'} pelannut
+                sarjassa aiemmin mutta ei tällä kaudella; niiden historia on
+                tallessa omilla sivuillaan.
+              </p>
+            )}
+          </>
         )}
       </section>
 

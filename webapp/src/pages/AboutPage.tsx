@@ -1,4 +1,4 @@
-import { Link } from 'react-router-dom';
+import { SisainenLinkki } from '@/components/SisainenLinkki';
 import { ExternalLink, Database } from 'lucide-react';
 import { useValittuKausi, useValittuSarja } from '@/hooks/useKausi';
 import { useApi } from '@/hooks/useApi';
@@ -459,9 +459,9 @@ export default function AboutPage() {
       <div className="border-t border-navy-700 pt-6 text-xs text-white/40">
         <p>
           © {new Date().getFullYear()} pallonetti.fi ·{' '}
-          <Link to="/" className="text-ice hover:text-white transition-colors">
+          <SisainenLinkki to="/" className="text-ice hover:text-white transition-colors">
             Etusivu
-          </Link>
+          </SisainenLinkki>
         </p>
       </div>
     </div>

@@ -17,7 +17,8 @@
 //    Siksi korkeuksia ei voi verrata /seurat-sivun kaavioihin, ja se
 //    sanotaan kaavion alla auki.
 // ============================================
-import { Link, useParams } from 'react-router-dom';
+import { useParams } from 'react-router-dom';
+import { SisainenLinkki } from '@/components/SisainenLinkki';
 import { ArrowLeft, ExternalLink, Info } from 'lucide-react';
 import {
   LineChart,
@@ -66,9 +67,9 @@ function EiLoytynyt({ teamId }: { teamId: string }) {
         Tunnisteella <span className="font-mono text-white/70">{teamId}</span> ei
         ole seuraa kummassakaan sarjassa.
       </div>
-      <Link to="/seurat" className="inline-block text-sm text-ice hover:text-white">
+      <SisainenLinkki to="/seurat" className="inline-block text-sm text-ice hover:text-white">
         ← Kaikki seurat
-      </Link>
+      </SisainenLinkki>
     </div>
   );
 }
@@ -366,13 +367,13 @@ export default function SeuraPage() {
   return (
     <div className="px-6 py-10 md:py-14 max-w-4xl mx-auto space-y-6">
       <div className="flex items-center gap-4 text-sm">
-        <Link
+        <SisainenLinkki
           to="/seurat"
           className="inline-flex items-center gap-1.5 text-ice hover:text-white transition-colors"
         >
           <ArrowLeft className="w-3.5 h-3.5" />
           Seurat
-        </Link>
+        </SisainenLinkki>
       </div>
 
       <header className="bg-navy-700/40 border border-navy-600 rounded-xl p-6 space-y-2">
@@ -451,7 +452,7 @@ export default function SeuraPage() {
         ) : (
           <div className="bg-navy-700/30 border border-navy-600 rounded-xl divide-y divide-navy-600 overflow-hidden">
             {data.pelaajat.map((p) => (
-              <Link
+              <SisainenLinkki
                 key={p.slug}
                 to={`/pelaaja/${p.slug}`}
                 className="block px-4 py-3 hover:bg-navy-700/40 transition-colors"
@@ -485,7 +486,7 @@ export default function SeuraPage() {
                     )}
                   </div>
                 </div>
-              </Link>
+              </SisainenLinkki>
             ))}
           </div>
         )}

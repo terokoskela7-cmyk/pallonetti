@@ -16,6 +16,7 @@ import {
   laskeSeuranAikasarja,
   laskeYlaraja,
   laskeSuhdeYlaraja,
+  suhdeAkselinLukemat,
   LIUKUVA_IKKUNA,
   type Seurakausi,
   type SeuranKausipiste,
@@ -48,6 +49,12 @@ export interface SeuranSivu {
   ylaraja: number;
   /** Suhdeluvun akselin ylaraja, samoin seuran omista luvuista. */
   ylarajaSuhde: number;
+  /**
+   * Akselin lukemat puolikkaan valein. Lasketaan taalla eika selaimessa,
+   * jotta saanto "sarjan taso 1,0 on aina akselilla" on yhdessa paikassa
+   * ja testattavissa.
+   */
+  suhdeLukemat: number[];
   liukuvaIkkuna: number;
 }
 
@@ -190,6 +197,10 @@ export async function kokoaSeuranSivu(
       });
   }
 
+  const suhdeYlaraja = laskeSuhdeYlaraja(
+    aikasarja.pisteet.map((p) => p.suhdeluku),
+  );
+
   const sarjatMukana = Array.from(
     new Set(
       aikasarja.pisteet
@@ -218,7 +229,8 @@ export async function kokoaSeuranSivu(
     // seuraa sarjan asteikolle. Vertailu seurojen valilla tehdaan
     // /seurat-sivulla, jossa akseli on yhteinen.
     ylaraja: laskeYlaraja(aikasarja.pisteet.map((p) => p.osuus)),
-    ylarajaSuhde: laskeSuhdeYlaraja(aikasarja.pisteet.map((p) => p.suhdeluku)),
+    ylarajaSuhde: suhdeYlaraja,
+    suhdeLukemat: suhdeAkselinLukemat(suhdeYlaraja),
     liukuvaIkkuna: LIUKUVA_IKKUNA,
   };
 }

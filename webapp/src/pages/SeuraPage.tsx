@@ -214,6 +214,9 @@ function Aikasarja({ data }: { data: SeuranSivu }) {
               tickLine={false}
               axisLine={false}
               width={38}
+              // Lukemat puolikkaan välein rajapinnasta: sarjan taso 1,0
+              // on aina akselilla, koska se on mittarin vertailukohta.
+              ticks={data.suhdeLukemat}
               // Recharts muotoilee pisteellä; sivusto käyttää pilkkua.
               tickFormatter={(v: number) => desimaali(v)}
             />
@@ -280,11 +283,17 @@ function Aikasarja({ data }: { data: SeuranSivu }) {
       <div className="overflow-x-auto">
         <table className="w-full text-[11px] tabular">
           <thead>
+            {/* Kapealla näytöllä näkyvät Kausi, Sarja ja Suhde. Suhde on
+                kaavion piirtämä suure, joten se ei saa jäädä piiloon;
+                osuus ja sarjan taso ovat sen taustaluvut ja siirtyvät
+                vierityksen taakse. */}
             <tr className="text-white/40 text-left">
               <th className="font-medium py-1 pr-2">Kausi</th>
               <th className="font-medium py-1 pr-2">Sarja</th>
-              <th className="font-medium py-1 pr-2 text-right">Osuus</th>
-              <th className="font-medium py-1 pr-2 text-right whitespace-nowrap">
+              <th className="hidden sm:table-cell font-medium py-1 pr-2 text-right">
+                Osuus
+              </th>
+              <th className="hidden sm:table-cell font-medium py-1 pr-2 text-right whitespace-nowrap">
                 Sarjan taso
               </th>
               <th className="font-medium py-1 text-right">Suhde</th>
@@ -297,10 +306,10 @@ function Aikasarja({ data }: { data: SeuranSivu }) {
                 <td className="py-0.5 pr-2" style={{ color: sarjanVari(p.sarja) }}>
                   {p.sarja ?? 'ei sarjassa'}
                 </td>
-                <td className="py-0.5 pr-2 text-right whitespace-nowrap">
+                <td className="hidden sm:table-cell py-0.5 pr-2 text-right whitespace-nowrap">
                   {p.osuus === null ? '—' : desimaali(p.osuus) + ' %'}
                 </td>
-                <td className="py-0.5 pr-2 text-right whitespace-nowrap">
+                <td className="hidden sm:table-cell py-0.5 pr-2 text-right whitespace-nowrap">
                   {p.sarjanTaso === null ? '—' : desimaali(p.sarjanTaso) + ' %'}
                 </td>
                 <td className="py-0.5 text-right text-white/90">

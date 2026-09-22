@@ -14,7 +14,8 @@ import { lueKausi } from './kausiData';
 import {
   laskeSeurakausi,
   laskeSeuranAikasarja,
-  laskeSeuranYlaraja,
+  laskeYlaraja,
+  laskeSuhdeYlaraja,
   LIUKUVA_IKKUNA,
   type Seurakausi,
   type SeuranKausipiste,
@@ -38,9 +39,15 @@ export interface SeuranSivu {
     liukuva: Array<number | null>;
     useitaSarjoja: boolean;
   };
-  /** Sarjat, joissa seura on pelannut. Akselin selite nojaa tahan. */
+  /** Sarjat, joissa seura on pelannut. Selitteet nojaavat tahan. */
   sarjatMukana: string[];
+  /**
+   * Raa'an osuuden akselin ylaraja SEURAN OMISTA luvuista, jotta
+   * kehitys nakyy. Ei siis sama kuin /seurat-sivulla.
+   */
   ylaraja: number;
+  /** Suhdeluvun akselin ylaraja, samoin seuran omista luvuista. */
+  ylarajaSuhde: number;
   liukuvaIkkuna: number;
 }
 
@@ -206,7 +213,12 @@ export async function kokoaSeuranSivu(
       useitaSarjoja: aikasarja.useitaSarjoja,
     },
     sarjatMukana,
-    ylaraja: laskeSeuranYlaraja(new Set(sarjatMukana), kausittainSarjoittain),
+    // Akseli seuran OMISTA luvuista, ei sarjan aineistosta. Seuran sivu
+    // on seurannan valine: sen on nayttettava kehitys, ei sijoitettava
+    // seuraa sarjan asteikolle. Vertailu seurojen valilla tehdaan
+    // /seurat-sivulla, jossa akseli on yhteinen.
+    ylaraja: laskeYlaraja(aikasarja.pisteet.map((p) => p.osuus)),
+    ylarajaSuhde: laskeSuhdeYlaraja(aikasarja.pisteet.map((p) => p.suhdeluku)),
     liukuvaIkkuna: LIUKUVA_IKKUNA,
   };
 }

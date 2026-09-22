@@ -7,10 +7,15 @@
 //    pelaajasivulla, ja vertailujoukko on koko sarjan ikäryhmä — ei
 //    seuran oma joukko. Muuten "ikäryhmän mediaani" tarkoittaisi eri
 //    asiaa eri sivuilla.
-// 2. Aikasarja kulkee yli sarjojen. Sarjojen lukuja ei lasketa yhteen:
-//    jokainen kausi kertoo oman sarjansa, ja sarjan vaihdos näkyy.
-// 3. Y-akselin yläraja tulee rajapinnasta — sama luku kuin
-//    /seurat-sivulla, jottei lukija vertaa kahta eri mittakaavaa.
+// 2. Aikasarja on YKSI yhtenäinen viiva yli sarjojen, eikä se katkea
+//    sarjan vaihtuessa — seuran linjan seuraaminen on koko sivun idea.
+//    Piirretty suure on SUHDELUKU (seuran osuus ÷ sarjan taso), koska
+//    vain se on vertailukelpoinen sarjojen yli: raaka osuus nousee
+//    usein sarjasta pudotessa ilman että linja on muuttunut. Raaka
+//    osuus ja sarjan taso näkyvät kauden kohdalla numeroina.
+// 3. Y-akseli lasketaan seuran OMISTA luvuista, jotta kehitys näkyy.
+//    Siksi korkeuksia ei voi verrata /seurat-sivun kaavioihin, ja se
+//    sanotaan kaavion alla auki.
 // ============================================
 import { Link, useParams } from 'react-router-dom';
 import { ArrowLeft, ExternalLink, Info } from 'lucide-react';
@@ -19,6 +24,7 @@ import {
   Line,
   XAxis,
   YAxis,
+  ReferenceLine,
   ResponsiveContainer,
   Tooltip,
   type TooltipProps,
@@ -92,26 +98,65 @@ interface Piste {
   kausi: number;
   sarja: string | null;
   osuus: number | null;
+  sarjanTaso: number | null;
+  suhdeluku: number | null;
   liukuva: number | null;
+}
+
+/** Sarjakohtainen pisteen väri. Sama väri myös selitteessä. */
+const SARJAN_VARI: Record<string, string> = {
+  Veikkausliiga: '#00C8FF',
+  Ykkösliiga: '#22C55E',
+};
+const TUNTEMATON_VARI = '#8899AA';
+
+function sarjanVari(sarja: string | null): string {
+  return sarja === null ? TUNTEMATON_VARI : (SARJAN_VARI[sarja] ?? TUNTEMATON_VARI);
+}
+
+/**
+ * Pisteen muoto JA väri kertovat sarjan. Kumpikin yksin riittäisi
+ * näkevälle lukijalle, mutta väri yksin ei riitä värisokealle — siksi
+ * Veikkausliiga on ympyrä ja Ykkösliiga neliö.
+ */
+function SarjaPiste(props: {
+  cx?: number;
+  cy?: number;
+  payload?: Piste;
+}) {
+  const { cx, cy, payload } = props;
+  if (cx === undefined || cy === undefined || !payload) return null;
+  if (payload.suhdeluku === null) return null;
+  const vari = sarjanVari(payload.sarja);
+  if (payload.sarja === 'Ykkösliiga') {
+    return <rect x={cx - 3.5} y={cy - 3.5} width={7} height={7} fill={vari} />;
+  }
+  return <circle cx={cx} cy={cy} r={3.5} fill={vari} />;
 }
 
 function Vihje({ active, payload }: TooltipProps<ValueType, NameType>) {
   if (!active || !payload || payload.length === 0) return null;
   const d = payload[0].payload as Piste;
   return (
-    <div className="bg-navy-800 border border-navy-600 rounded-md shadow-xl px-3 py-2 text-xs">
+    <div className="bg-navy-800 border border-navy-600 rounded-md shadow-xl px-3 py-2 text-xs space-y-0.5">
       <div className="text-white/90 font-medium">{d.kausi}</div>
-      {d.osuus === null ? (
+      {d.suhdeluku === null ? (
         <div className="text-white/50">ei kummassakaan sarjassa</div>
       ) : (
         <>
-          <div className="text-ice tabular">{desimaali(d.osuus)} %</div>
-          <div className="text-white/50">{d.sarja}</div>
+          <div style={{ color: sarjanVari(d.sarja) }}>{d.sarja}</div>
+          <div className="text-white/90 tabular">
+            suhdeluku {desimaali(d.suhdeluku)}
+          </div>
+          <div className="text-white/50 tabular">
+            osuus {desimaali(d.osuus)} % · sarjan taso{' '}
+            {desimaali(d.sarjanTaso)} %
+          </div>
         </>
       )}
       {d.liukuva !== null && (
         <div className="text-white/50 tabular">
-          liukuva {desimaali(d.liukuva)} %
+          liukuva {desimaali(d.liukuva)}
         </div>
       )}
     </div>
@@ -123,36 +168,35 @@ function Aikasarja({ data }: { data: SeuranSivu }) {
     kausi: p.kausi,
     sarja: p.sarja,
     osuus: p.osuus,
+    sarjanTaso: p.sarjanTaso,
+    suhdeluku: p.suhdeluku,
     liukuva: data.aikasarja.liukuva[i],
   }));
 
-  const katkoja = pisteet.some((p) => p.osuus === null);
+  const katkoja = pisteet.some((p) => p.suhdeluku === null);
 
   return (
     <section className="bg-navy-700/40 border border-navy-600 rounded-xl p-5 space-y-2">
       <div className="flex items-baseline justify-between gap-3">
         <h2 className="text-xs uppercase tracking-wider text-white/40">
-          Kausikehitys
+          Suhde sarjan tasoon
         </h2>
         <span className="text-[11px] text-white/40 tabular">
-          0–{data.ylaraja} % · {data.aikasarja.kaudet[0]}–
+          0–{desimaali(data.ylarajaSuhde)} · {data.aikasarja.kaudet[0]}–
           {data.aikasarja.kaudet[data.aikasarja.kaudet.length - 1]}
         </span>
       </div>
 
-      {/* Jos akseli kattaa molemmat sarjat, se on leveämpi kuin
-          kummankaan sarjan oma akseli /seurat-sivulla. Se on sanottava
-          auki, tai lukija vertaa kahta eri asteikkoa huomaamattaan. */}
-      {data.sarjatMukana.length > 1 && (
-        <p className="text-[11px] text-white/60 leading-relaxed border-l-2 border-ice/40 pl-3">
-          Pystyakseli ulottuu {data.ylaraja} prosenttiin, koska se kattaa
-          molemmat sarjat: {data.sarjatMukana.join(' ja ')}. Se on siis
-          leveämpi kuin yhden sarjan akseli seurojen vertailussa, eivätkä
-          viivan korkeudet ole vertailukelpoisia sivujen välillä silmämääräisesti.
-        </p>
-      )}
+      {/* Tämä on koko sivun tärkein lause: ilman sitä raaka osuus
+          luetaan linjan muutoksena, vaikka vain sarja vaihtui. */}
+      <p className="text-[11px] text-white/60 leading-relaxed border-l-2 border-ice/40 pl-3">
+        Sarjojen taso eroaa toisistaan, joten raaka osuus nousee usein
+        sarjasta pudotessa ilman että seuran linja on muuttunut. Suhdeluku
+        kertoo seuran suhteen oman sarjansa tasoon: 1,0 on sarjan taso,
+        1,5 puolitoistakertainen siihen nähden.
+      </p>
 
-      <div style={{ width: '100%', height: 200 }}>
+      <div style={{ width: '100%', height: 210 }}>
         <ResponsiveContainer width="100%" height="100%">
           <LineChart data={pisteet} margin={{ top: 8, right: 12, bottom: 4, left: 0 }}>
             <XAxis
@@ -163,16 +207,24 @@ function Aikasarja({ data }: { data: SeuranSivu }) {
               axisLine={{ stroke: '#243350' }}
             />
             <YAxis
-              // Sama yläraja kuin /seurat-sivulla, rajapinnasta.
-              domain={[0, data.ylaraja]}
+              // Akseli seuran OMISTA luvuista, jotta kehitys näkyy.
+              domain={[0, data.ylarajaSuhde]}
               stroke="#8899AA"
               tick={{ fontSize: 11, fill: '#A5B4C8' }}
               tickLine={false}
               axisLine={false}
-              width={46}
-              unit=" %"
+              width={38}
+              // Recharts muotoilee pisteellä; sivusto käyttää pilkkua.
+              tickFormatter={(v: number) => desimaali(v)}
             />
             <Tooltip content={<Vihje />} cursor={{ stroke: '#00C8FF', strokeOpacity: 0.2 }} />
+            {/* Sarjan taso = 1,0. */}
+            <ReferenceLine
+              y={1}
+              stroke="#8899AA"
+              strokeDasharray="4 4"
+              strokeOpacity={0.6}
+            />
             <Line
               type="monotone"
               dataKey="liukuva"
@@ -185,10 +237,10 @@ function Aikasarja({ data }: { data: SeuranSivu }) {
             />
             <Line
               type="monotone"
-              dataKey="osuus"
+              dataKey="suhdeluku"
               stroke="#00C8FF"
               strokeWidth={2.5}
-              dot={{ fill: '#00C8FF', r: 3 }}
+              dot={<SarjaPiste />}
               activeDot={{ r: 5 }}
               isAnimationActive={false}
               // Katko jätetään auki: puuttuva kausi ei ole nolla.
@@ -198,29 +250,77 @@ function Aikasarja({ data }: { data: SeuranSivu }) {
         </ResponsiveContainer>
       </div>
 
-      {/* Sarja kauden kohdalla. Sarjojen lukuja ei lasketa yhteen, joten
-          jokainen kausi kertoo, missä seura silloin pelasi. */}
-      <div className="flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-white/50 tabular">
-        {data.aikasarja.pisteet.map((p) => (
-          <span key={p.kausi}>
-            {p.kausi}{' '}
-            <span className={p.sarja === null ? 'text-white/30' : 'text-white/70'}>
-              {p.sarja ?? 'ei sarjassa'}
-            </span>
-          </span>
-        ))}
+      {/* Selite pisteiden muodolle ja värille. */}
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-white/50">
+        <span className="inline-flex items-center gap-1.5">
+          <span
+            className="inline-block w-2.5 h-2.5 rounded-full"
+            style={{ background: SARJAN_VARI.Veikkausliiga }}
+          />
+          Veikkausliiga
+        </span>
+        <span className="inline-flex items-center gap-1.5">
+          <span
+            className="inline-block w-2.5 h-2.5"
+            style={{ background: SARJAN_VARI['Ykkösliiga'] }}
+          />
+          Ykkösliiga
+        </span>
+        <span className="inline-flex items-center gap-1.5">
+          <span className="inline-block w-4 border-t border-dashed border-white/40" />
+          sarjan taso 1,0
+        </span>
+        <span className="inline-flex items-center gap-1.5">
+          <span className="inline-block w-4 border-t-2 border-white/30" />
+          {data.liukuvaIkkuna} kauden liukuva
+        </span>
+      </div>
+
+      {/* Kausi kerrallaan: sarja, raaka osuus ja suhdeluku. */}
+      <div className="overflow-x-auto">
+        <table className="w-full text-[11px] tabular">
+          <thead>
+            <tr className="text-white/40 text-left">
+              <th className="font-medium py-1 pr-2">Kausi</th>
+              <th className="font-medium py-1 pr-2">Sarja</th>
+              <th className="font-medium py-1 pr-2 text-right">Osuus</th>
+              <th className="font-medium py-1 pr-2 text-right whitespace-nowrap">
+                Sarjan taso
+              </th>
+              <th className="font-medium py-1 text-right">Suhde</th>
+            </tr>
+          </thead>
+          <tbody className="text-white/60">
+            {pisteet.map((p) => (
+              <tr key={p.kausi}>
+                <td className="py-0.5 pr-2">{p.kausi}</td>
+                <td className="py-0.5 pr-2" style={{ color: sarjanVari(p.sarja) }}>
+                  {p.sarja ?? 'ei sarjassa'}
+                </td>
+                <td className="py-0.5 pr-2 text-right whitespace-nowrap">
+                  {p.osuus === null ? '—' : desimaali(p.osuus) + ' %'}
+                </td>
+                <td className="py-0.5 pr-2 text-right whitespace-nowrap">
+                  {p.sarjanTaso === null ? '—' : desimaali(p.sarjanTaso) + ' %'}
+                </td>
+                <td className="py-0.5 text-right text-white/90">
+                  {p.suhdeluku === null ? '—' : desimaali(p.suhdeluku)}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
       </div>
 
       <p className="text-[11px] text-white/40 leading-relaxed">
-        {data.sarjatMukana.length > 1
-          ? 'Pystyakseli kattaa molemmat sarjat (0–' + data.ylaraja + ' %).'
-          : 'Pystyakseli on sama kuin seurojen vertailussa (0–' +
-            data.ylaraja +
-            ' %).'}{' '}
-        Harmaa viiva on {data.liukuvaIkkuna} kauden liukuva keskiarvo.
+        Pystyakseli on seuran oma (0–{desimaali(data.ylarajaSuhde)}), joten
+        korkeuksia ei voi verrata silmämääräisesti seuravertailun kaavioihin.
+        Liukuva keskiarvo lasketaan suhdeluvusta, ei raa'asta osuudesta, ja se
+        vaatii {data.liukuvaIkkuna} peräkkäistä pelattua kautta — sarjan
+        vaihdos ei katkaise sitä, katko katkaisee.
+        {data.sarjatMukana.includes('Ykkösliiga') &&
+          ' Ykkösliigan taso on sarjan taso kaikkine joukkueineen, myös akatemiajoukkueet mukaan luettuina.'}
         {katkoja && ' Katko tarkoittaa kautta, jona seura ei ollut kummassakaan sarjassa.'}
-        {data.aikasarja.useitaSarjoja &&
-          ' Seura on pelannut molemmissa sarjoissa, eikä sarjojen lukuja lasketa yhteen: osuus on aina osuus oman joukkueen otteluiden minuuteista.'}
       </p>
     </section>
   );

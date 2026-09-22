@@ -203,18 +203,33 @@ async function main(): Promise<void> {
     }
     console.log('');
     console.log(
-      '  ' + sivu.nimi + ' (' + tunniste + ')  akseli 0–' + sivu.ylaraja +
-        ' %  sarjat: ' + sivu.sarjatMukana.join(', '),
+      '  ' + sivu.nimi + ' (' + tunniste + ')  akselit: osuus 0–' +
+        sivu.ylaraja + ' %, suhde 0–' + sivu.ylarajaSuhde +
+        '  sarjat: ' + sivu.sarjatMukana.join(', '),
+    );
+    console.log(
+      '    kausi  sarja            osuus  sarjan taso   suhde  liukuva',
     );
     for (let i = 0; i < sivu.aikasarja.pisteet.length; i++) {
       const p = sivu.aikasarja.pisteet[i];
       const liuk = sivu.aikasarja.liukuva[i];
+      const luku = (x: number | null, d = 1): string =>
+        x === null ? '—' : x.toFixed(d).replace('.', ',');
       console.log(
-        '    ' + p.kausi + '  ' + (p.sarja ?? 'ei sarjassa').padEnd(14) +
-          (p.osuus === null ? '   —  ' : p.osuus.toFixed(1).padStart(6)) +
-          ' %   liukuva ' +
-          (liuk === null ? '  —' : liuk.toFixed(1).padStart(5)),
+        '    ' + p.kausi + '   ' + (p.sarja ?? 'ei sarjassa').padEnd(14) +
+          luku(p.osuus).padStart(6) + ' %' +
+          luku(p.sarjanTaso).padStart(9) + ' %' +
+          luku(p.suhdeluku).padStart(8) +
+          luku(liuk).padStart(9),
       );
+      // Suhdeluku vaatii sarjan tason: jos taso on, suhdeluvun on oltava.
+      if (p.osuus !== null && p.sarjanTaso !== null && p.suhdeluku === null) {
+        moiti(sivu.nimi + ' ' + p.kausi + ': suhdeluku puuttuu vaikka taso on');
+      }
+      // Liukuva lasketaan SUHDELUVUSTA: sita ei saa olla ilman suhdelukua.
+      if (liuk !== null && p.suhdeluku === null) {
+        moiti(sivu.nimi + ' ' + p.kausi + ': liukuva katkon paalla');
+      }
     }
     if (!sivu.aikasarja.useitaSarjoja) {
       moiti(sivu.nimi + ': useitaSarjoja on false vaikka seura on kahdessa sarjassa');

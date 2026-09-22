@@ -488,7 +488,12 @@ export interface SeuratTrendit {
 export interface SeuranKausipiste {
   kausi: number;
   sarja: string | null;
+  /** Raaka osuus joukkueen otteluiden minuuteista. */
   osuus: number | null;
+  /** Sarjan taso samana kautena ja samassa sarjassa, kaikki joukkueet. */
+  sarjanTaso: number | null;
+  /** Osuus ÷ sarjan taso. 1,0 = sarjan taso. */
+  suhdeluku: number | null;
 }
 
 export interface SeuranSivu {
@@ -508,7 +513,10 @@ export interface SeuranSivu {
   };
   /** Sarjat, joissa seura on pelannut. Akselin selite nojaa tähän. */
   sarjatMukana: string[];
+  /** Raa'an osuuden akselin yläraja seuran omista luvuista. */
   ylaraja: number;
+  /** Suhdeluvun akselin yläraja seuran omista luvuista. */
+  ylarajaSuhde: number;
   liukuvaIkkuna: number;
 }
 

@@ -113,13 +113,16 @@ export default function SeuratPage() {
     [kausiData],
   );
 
-  // Taulukon palkeille sama yläraja kuin kaavioissa: datasta, ei vakiosta.
+  // Taulukon palkeille sama yläraja kuin kaavioissa. Luku tulee
+  // rajapinnasta; ennen trendien latautumista käytetään kauden omaa
+  // maksimia, jottei palkki hyppää myöhemmin eri mittakaavaan.
   const ylaraja = useMemo(() => {
+    if (trendit) return trendit.ylaraja;
     const arvot = seurat
       .map((s) => s.osuus)
       .filter((x): x is number => x !== null);
     return Math.ceil(Math.max(10, ...arvot) / 10) * 10;
-  }, [seurat]);
+  }, [seurat, trendit]);
 
   const viiva = kausiData?.vertailuviivat[0] ?? null;
 
@@ -241,6 +244,7 @@ export default function SeuratPage() {
             kaudet={trendit.kaudet}
             vertailuviivat={trendit.vertailuviivat}
             liukuvaIkkuna={trendit.liukuvaIkkuna}
+            ylaraja={trendit.ylaraja}
           />
         )}
       </section>

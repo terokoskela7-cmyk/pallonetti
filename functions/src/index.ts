@@ -41,6 +41,8 @@ import {
   laskeSeurakausi,
   laskeSeuratrendit,
   laskeVertailuviivat,
+  laskeSeuranAikasarja,
+  laskeYlaraja,
   LIUKUVA_IKKUNA,
   type Seurakausi,
 } from './services/seurat';
@@ -891,6 +893,11 @@ app.get('/api/seurat/trendit', async (req, res) => {
         liukuvaIkkuna: LIUKUVA_IKKUNA,
         seurat: laskeSeuratrendit(kaudet, kausittain),
         vertailuviivat: laskeVertailuviivat(kaudet, kausittain),
+        // Ylaraja lasketaan taalla, jotta /seurat ja seuran oma sivu
+        // kayttavat tasmalleen samaa akselia eivatka kahta eri saantoa.
+        ylaraja: laskeYlaraja(
+          laskeSeuratrendit(kaudet, kausittain).flatMap((t) => t.pisteet),
+        ),
       },
       dataSaatavilla: kaudet.length > 0,
       source: 'firestore',
@@ -942,6 +949,181 @@ app.get('/api/seurat/:season', async (req, res) => {
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Tuntematon virhe';
     console.error('[seurat/:season] failed:', message);
+    res.status(500).json({ success: false, error: message });
+  }
+});
+
+/**
+ * GET /api/seurat/:season/:teamId — yhden seuran sivu.
+ *
+ * Tunniste on sama kuin /seurat-listalla, ja se haetaan YLI SARJOJEN:
+ * seura voi olla pelannut eri kausina eri sarjassa, eivatka sarjojen
+ * luvut mene sekaisin — jokainen kausi kertoo oman sarjansa.
+ *
+ * Tuntematon tunniste on 404. Tunnettu seura kaudella, jona se ei
+ * pelannut, on 200 ja `seurakausi: null` — se ei ole virhe vaan tieto.
+ */
+app.get('/api/seurat/:season/:teamId', async (req, res) => {
+  const season = parseInt(req.params.season, 10);
+  const teamId = String(req.params.teamId || '').trim();
+  if (isNaN(season) || !teamId) {
+    res
+      .status(400)
+      .json({ success: false, error: 'season tai teamId puuttuu/virheellinen' });
+    return;
+  }
+  try {
+    const db = admin.firestore();
+    const kaudetSnap = await db.collection('kaudet').get();
+    const kausiRivit = kaudetSnap.docs
+      .map((d) => d.data())
+      .filter((k) => k.vanhentunut !== true);
+
+    // Kaikki kaudet molemmista sarjoista: seuran historia voi ulottua
+    // sarjasta toiseen.
+    const kausittainSarjoittain = new Map<string, Map<number, Seurakausi[]>>();
+    const kaikkiKaudet = new Set<number>();
+
+    for (const sarja of TUETUT_SARJAT) {
+      const kaudet = Array.from(
+        new Set(
+          kausiRivit
+            .filter((k) => ((k.sarja as string) || OLETUSSARJA) === sarja)
+            .map((k) => (k.vuosi as number) ?? parseInt(String(k.kausi), 10))
+            .filter((v) => !isNaN(v)),
+        ),
+      ).sort((a, b) => a - b);
+
+      const kausittain = new Map<number, Seurakausi[]>();
+      for (const kausi of kaudet) {
+        const { suoritukset, nimittajat } = await lueKausi(db, kausi, sarja);
+        kausittain.set(
+          kausi,
+          laskeSeurakausi(kausi, sarja, suoritukset, nimittajat),
+        );
+        kaikkiKaudet.add(kausi);
+      }
+      kausittainSarjoittain.set(sarja, kausittain);
+    }
+
+    const kaudet = Array.from(kaikkiKaudet).sort((a, b) => a - b);
+
+    // Tunnetaanko seura lainkaan? Tuntematon tunniste on 404.
+    let nimi: string | null = null;
+    let akatemia = false;
+    for (const kausittain of kausittainSarjoittain.values()) {
+      for (const rivit of kausittain.values()) {
+        const osuma = rivit.find((s) => s.tunniste === teamId);
+        if (osuma) {
+          nimi = osuma.nimi;
+          akatemia = osuma.akatemia;
+        }
+      }
+    }
+    if (nimi === null) {
+      res.status(404).json({
+        success: false,
+        error: 'Seuraa ei löytynyt tunnisteella ' + teamId,
+      });
+      return;
+    }
+
+    const aikasarja = laskeSeuranAikasarja(teamId, kaudet, kausittainSarjoittain);
+    if (aikasarja.paallekkaisetKaudet.length > 0) {
+      // Ei pitaisi olla mahdollista: sama seura kahdessa sarjassa samalla
+      // kaudella. Ei summata vaan kerrotaan lokiin.
+      console.error(
+        '[seurat/:season/:teamId] ' + teamId + ' loytyy kahdesta sarjasta ' +
+          'kausilta ' + aikasarja.paallekkaisetKaudet.join(', '),
+      );
+    }
+
+    // Valitun kauden sarja tulee aikasarjasta: se kertoo, missa sarjassa
+    // seura kyseisena kautena pelasi.
+    const piste = aikasarja.pisteet.find((p) => p.kausi === season) ?? null;
+    const sarja = piste?.sarja ?? null;
+    const seurakausi =
+      sarja === null
+        ? null
+        : (kausittainSarjoittain.get(sarja)?.get(season) || []).find(
+            (s) => s.tunniste === teamId,
+          ) ?? null;
+
+    // Pelaajat ja kontekstirivit SAMASTA moottorista kuin pelaajasivulla.
+    // Vertailujoukko on koko sarjan ikaryhma, ei seuran oma joukko —
+    // muuten "ikaryhman mediaani" tarkoittaisi eri asiaa eri sivuilla.
+    let pelaajat: Array<Record<string, unknown>> = [];
+    if (sarja !== null && seurakausi !== null) {
+      const { suoritukset, nimittajat } = await lueKausi(db, season, sarja);
+      const pelipaikat = new Map<string, string | null>();
+      if (sarja === OLETUSSARJA) {
+        const kansSnap = await db
+          .collection('seasons')
+          .doc(String(season))
+          .collection('kansalaisuudet')
+          .get();
+        for (const doc of kansSnap.docs) {
+          const arvo = doc.data()?.pelipaikka;
+          pelipaikat.set(doc.id, typeof arvo === 'string' && arvo ? arvo : null);
+        }
+      }
+      pelaajat = laskeKaudenKontekstit({
+        kausi: season,
+        sarja,
+        suoritukset,
+        nimittajat,
+        pelipaikat,
+      })
+        .filter((k) => k.joukkue === seurakausi.nimi)
+        .sort((a, b) => b.faktat.minuutit - a.faktat.minuutit)
+        .map((k) => {
+          const { ohitetut: _ohitetut, ...rest } = k;
+          return {
+            ...rest,
+            siirto: haeSiirto(season, k.etunimi, k.sukunimi, [
+              ...k.seurat,
+              k.joukkue,
+            ]),
+          };
+        });
+    }
+
+    // Ylaraja lasketaan KOKO sarjan aineistosta, ei vain taman seuran
+    // luvuista: akseli on sama kuin /seurat-sivulla.
+    const kaikkiOsuudet: Array<number | null> = [];
+    for (const kausittain of kausittainSarjoittain.values()) {
+      for (const rivit of kausittain.values()) {
+        for (const r of rivit) kaikkiOsuudet.push(r.osuus);
+      }
+    }
+
+    res.set('Cache-Control', 'public, max-age=3600');
+    res.json({
+      success: true,
+      data: {
+        tunniste: teamId,
+        nimi,
+        akatemia,
+        kausi: season,
+        sarja,
+        seurakausi,
+        pelaajat,
+        aikasarja: {
+          kaudet: aikasarja.kaudet,
+          pisteet: aikasarja.pisteet,
+          liukuva: aikasarja.liukuva,
+          useitaSarjoja: aikasarja.useitaSarjoja,
+        },
+        ylaraja: laskeYlaraja(kaikkiOsuudet),
+        liukuvaIkkuna: LIUKUVA_IKKUNA,
+      },
+      dataSaatavilla: seurakausi !== null,
+      source: 'firestore',
+      timestamp: new Date().toISOString(),
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Tuntematon virhe';
+    console.error('[seurat/:season/:teamId] failed:', message);
     res.status(500).json({ success: false, error: message });
   }
 });

@@ -178,6 +178,11 @@ interface Props {
   kaudet: number[];
   vertailuviivat: Vertailuviiva[];
   liukuvaIkkuna: number;
+  /**
+   * Yhteinen yläraja rajapinnasta. EI lasketa täällä: seuran oma sivu
+   * käyttää samaa lukua, ja kaksi sääntöä ehtisi eriytyä.
+   */
+  ylaraja: number;
 }
 
 export function SeuraKaaviot({
@@ -185,17 +190,9 @@ export function SeuraKaaviot({
   kaudet,
   vertailuviivat,
   liukuvaIkkuna,
+  ylaraja,
 }: Props) {
   if (seurat.length === 0 || kaudet.length === 0) return null;
-
-  // Yläraja datasta, ei vakiosta: pyöristys ylöspäin kymmeneen, jotta
-  // akseli on luettava. Vähintään 10, jottei matala kausi venytä
-  // kaikkia viivoja kattoon.
-  const suurin = Math.max(
-    10,
-    ...seurat.flatMap((s) => s.pisteet.filter((p): p is number => p !== null)),
-  );
-  const ylaraja = Math.ceil(suurin / 10) * 10;
 
   const viimeisin =
     vertailuviivat.length > 0 ? vertailuviivat[vertailuviivat.length - 1] : null;

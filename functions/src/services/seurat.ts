@@ -238,3 +238,82 @@ export function laskeVertailuviivat(
     };
   });
 }
+
+/**
+ * Kaavioiden yhteinen ylaraja.
+ *
+ * Sama saanto seka /seurat-sivun pienille kaavioille etta seuran omalle
+ * sivulle: ylaraja lasketaan datasta ja pyoristetaan ylospain kymmeneen.
+ * Jos seuran oma sivu skaalautuisi omaan maksimiinsa, 5 %:n seura
+ * nayttaisi sielta katsottuna samalta kuin 50 %:n seura /seurat-sivulla,
+ * ja lukija vertaisi kahta eri mittakaavaa huomaamattaan.
+ *
+ * Vahintaan 10, jottei matala kausi venyta viivoja kattoon.
+ */
+export function laskeYlaraja(arvot: Array<number | null>): number {
+  const luvut = arvot.filter((x): x is number => x !== null);
+  return Math.ceil(Math.max(10, ...luvut) / 10) * 10;
+}
+
+/** Yksi kausi seuran omalla sivulla. */
+export interface SeuranKausipiste {
+  kausi: number;
+  /** Sarja, jossa seura pelasi. null = ei kummassakaan sarjassa. */
+  sarja: string | null;
+  osuus: number | null;
+}
+
+export interface SeuranAikasarja {
+  kaudet: number[];
+  pisteet: SeuranKausipiste[];
+  /** Kolmen kauden liukuva keskiarvo, sama pituus kuin pisteet. */
+  liukuva: Array<number | null>;
+  /** true = seura on pelannut useammassa kuin yhdessa sarjassa. */
+  useitaSarjoja: boolean;
+}
+
+/**
+ * Seuran aikasarja YLI SARJOJEN.
+ *
+ * Sarjojen lukuja EI lasketa yhteen: jokainen kausi kuuluu yhteen
+ * sarjaan, ja sivu kertoo kauden kohdalla, missa sarjassa seura pelasi.
+ * Osuus on molemmissa sarjoissa sama asia — osuus oman joukkueen
+ * otteluiden minuuteista — joten viiva on jatkuva, mutta sarjan vaihdos
+ * on merkittava nakyviin, jottei lukija lue nousua sarjatason
+ * muutoksesta johtuvaksi.
+ *
+ * Jos seura loytyy samalta kaudelta kahdesta sarjasta (ei pitaisi olla
+ * mahdollista), valitaan enemman otteluita pelannut ja tilanne
+ * raportoidaan kutsujalle epavarmana — ei summata.
+ */
+export function laskeSeuranAikasarja(
+  tunniste: string,
+  kaudet: number[],
+  kausittainSarjoittain: Map<string, Map<number, Seurakausi[]>>,
+): SeuranAikasarja & { paallekkaisetKaudet: number[] } {
+  const paallekkaiset: number[] = [];
+  const sarjatMukana = new Set<string>();
+
+  const pisteet: SeuranKausipiste[] = kaudet.map((kausi) => {
+    const osumat: Seurakausi[] = [];
+    for (const kausittain of kausittainSarjoittain.values()) {
+      const rivi = (kausittain.get(kausi) || []).find(
+        (s) => s.tunniste === tunniste,
+      );
+      if (rivi) osumat.push(rivi);
+    }
+    if (osumat.length === 0) return { kausi, sarja: null, osuus: null };
+    if (osumat.length > 1) paallekkaiset.push(kausi);
+    const valittu = osumat.slice().sort((a, b) => b.ottelut - a.ottelut)[0];
+    sarjatMukana.add(valittu.sarja);
+    return { kausi, sarja: valittu.sarja, osuus: valittu.osuus };
+  });
+
+  return {
+    kaudet,
+    pisteet,
+    liukuva: laskeLiukuva(pisteet.map((p) => p.osuus)),
+    useitaSarjoja: sarjatMukana.size > 1,
+    paallekkaisetKaudet: paallekkaiset,
+  };
+}

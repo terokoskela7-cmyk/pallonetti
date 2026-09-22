@@ -479,6 +479,57 @@ export interface SeuratTrendit {
   liukuvaIkkuna: number;
   seurat: Seuratrendi[];
   vertailuviivat: Vertailuviiva[];
+  /** Kaavioiden yhteinen yläraja. Lasketaan backendissä, jotta seuran
+   *  oma sivu käyttää samaa akselia eikä toista sääntöä. */
+  ylaraja: number;
+}
+
+/** Yksi kausi seuran omalla sivulla. Sarja kertoo, missä seura pelasi. */
+export interface SeuranKausipiste {
+  kausi: number;
+  sarja: string | null;
+  osuus: number | null;
+}
+
+export interface SeuranSivu {
+  tunniste: string;
+  nimi: string;
+  akatemia: boolean;
+  kausi: number;
+  /** Sarja, jossa seura pelasi valittuna kautena. null = ei kummassakaan. */
+  sarja: string | null;
+  seurakausi: Seurakausi | null;
+  pelaajat: Array<Omit<Konteksti, 'ohitetut'> & { siirto: Siirto | null }>;
+  aikasarja: {
+    kaudet: number[];
+    pisteet: SeuranKausipiste[];
+    liukuva: Array<number | null>;
+    useitaSarjoja: boolean;
+  };
+  ylaraja: number;
+  liukuvaIkkuna: number;
+}
+
+/** Yhden seuran sivu. null = tuntematon tunniste (404). */
+export async function getSeuranSivu(
+  season: number,
+  teamId: string,
+): Promise<SeuranSivu | null> {
+  const url = `${API_BASE_URL}/seurat/${season}/${encodeURIComponent(teamId)}`;
+  const response = await fetch(url, {
+    headers: { 'Content-Type': 'application/json' },
+  });
+  if (response.status === 404) return null;
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({}));
+    throw new Error(error.error || `API error: ${response.status}`);
+  }
+  const result = (await response.json()) as {
+    success: boolean;
+    data: SeuranSivu;
+  };
+  if (!result.success) throw new Error('API returned unsuccessful response');
+  return result.data;
 }
 
 export const getSeuratKausi = (

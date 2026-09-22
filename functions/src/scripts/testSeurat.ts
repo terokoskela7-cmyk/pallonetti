@@ -13,6 +13,8 @@ import {
   laskeLiukuva,
   laskeSeuratrendit,
   laskeVertailuviivat,
+  laskeYlaraja,
+  laskeSeuranAikasarja,
   seuraTunniste,
   LIUKUVA_IKKUNA,
   type Seurakausi,
@@ -265,6 +267,106 @@ console.log('VERTAILUVIIVAT');
     kaksiKautta[1].ilmanAkatemioita,
     null,
   );
+}
+
+// ============================================
+console.log('');
+console.log('KAAVION YLARAJA');
+// ============================================
+{
+  vertaa('pyoristys ylospain kymmeneen', laskeYlaraja([12, 3, 7]), 20);
+  vertaa('tasan kymmenen', laskeYlaraja([10, 5]), 10);
+  vertaa('vahintaan kymmenen', laskeYlaraja([2, 3]), 10);
+  vertaa('nullit ohitetaan', laskeYlaraja([null, 42, null]), 50);
+  vertaa('pelkka null -> minimi', laskeYlaraja([null, null]), 10);
+  vertaa('tyhja -> minimi', laskeYlaraja([]), 10);
+  // Akatemiajoukkue vie akselin ylos, ja juuri niin pitaakin: muuten
+  // seuran oma sivu ja /seurat kayttaisivat eri mittakaavaa.
+  vertaa('akatemia nostaa akselin', laskeYlaraja([99, 5, 8]), 100);
+}
+
+// ============================================
+console.log('');
+console.log('SEURAN AIKASARJA YLI SARJOJEN');
+// ============================================
+{
+  const rivi = (
+    nimi: string, kausi: number, sarja: string, osuus: number, ottelut = 22,
+  ): Seurakausi => ({
+    tunniste: seuraTunniste(nimi), nimi, kausi, sarja, akatemia: false,
+    ottelut, kapasiteettiMin: ottelut * 90 * 11,
+    nuortenMinuutit: Math.round((osuus / 100) * ottelut * 90 * 11),
+    osuus, pelaajia: 3, keskiIka: 19,
+  });
+
+  const kaudet = [2022, 2023, 2024, 2025, 2026];
+  // KTP: Veikkausliigassa 2022–2023, Ykkosliigassa 2024 ja 2026,
+  // ei kummassakaan 2025.
+  const vl = new Map<number, Seurakausi[]>([
+    [2022, [rivi('KTP', 2022, 'Veikkausliiga', 12)]],
+    [2023, [rivi('KTP', 2023, 'Veikkausliiga', 15)]],
+    [2024, []], [2025, []], [2026, []],
+  ]);
+  const yl = new Map<number, Seurakausi[]>([
+    [2022, []], [2023, []],
+    [2024, [rivi('KTP', 2024, 'Ykkösliiga', 26)]],
+    [2025, []],
+    [2026, [rivi('KTP', 2026, 'Ykkösliiga', 18)]],
+  ]);
+  const sarjoittain = new Map([['Veikkausliiga', vl], ['Ykkösliiga', yl]]);
+  const a = laskeSeuranAikasarja(seuraTunniste('KTP'), kaudet, sarjoittain);
+
+  vertaa(
+    'jokainen kausi kertoo oman sarjansa',
+    a.pisteet.map((p) => [p.kausi, p.sarja, p.osuus]),
+    [
+      [2022, 'Veikkausliiga', 12],
+      [2023, 'Veikkausliiga', 15],
+      [2024, 'Ykkösliiga', 26],
+      [2025, null, null],
+      [2026, 'Ykkösliiga', 18],
+    ],
+  );
+  vertaa('sarjan vaihdos merkitaan', a.useitaSarjoja, true);
+  vertaa('ei paallekkaisia kausia', a.paallekkaisetKaudet, []);
+  // Katko 2025 estaa liukuvan kolmelta viimeiselta kaudelta.
+  vertaa('liukuva kunnioittaa katkoa', a.liukuva, [null, null, 17.7, null, null]);
+
+  // Sarjojen lukuja EI lasketa yhteen: 2024 on 26, ei 12+26.
+  vertaa('sarjoja ei summata', a.pisteet[2].osuus, 26);
+
+  // Yhden sarjan seura: ei sarjamerkintaa tarvita.
+  const yksi = laskeSeuranAikasarja(
+    seuraTunniste('HJK'),
+    [2025, 2026],
+    new Map([['Veikkausliiga', new Map<number, Seurakausi[]>([
+      [2025, [rivi('HJK', 2025, 'Veikkausliiga', 20)]],
+      [2026, [rivi('HJK', 2026, 'Veikkausliiga', 24)]],
+    ])]]),
+  );
+  vertaa('yksi sarja', yksi.useitaSarjoja, false);
+
+  // Tuntematon tunniste: pelkkia nulleja, ei kaatumista. Reitti tekee
+  // tasta 404:n.
+  const tuntematon = laskeSeuranAikasarja('ei-ole', kaudet, sarjoittain);
+  vertaa(
+    'tuntematon seura -> pelkkia nulleja',
+    tuntematon.pisteet.every((p) => p.osuus === null && p.sarja === null),
+    true,
+  );
+
+  // Sama seura kahdessa sarjassa samalla kaudella: ei summata, vaan
+  // valitaan enemman otteluita pelannut ja tilanne raportoidaan.
+  const paallekkain = laskeSeuranAikasarja(
+    seuraTunniste('KTP'),
+    [2026],
+    new Map([
+      ['Veikkausliiga', new Map([[2026, [rivi('KTP', 2026, 'Veikkausliiga', 9, 10)]]])],
+      ['Ykkösliiga', new Map([[2026, [rivi('KTP', 2026, 'Ykkösliiga', 18, 22)]]])],
+    ]),
+  );
+  vertaa('paallekkaisyys raportoidaan', paallekkain.paallekkaisetKaudet, [2026]);
+  vertaa('valitaan enemman pelannut, ei summata', paallekkain.pisteet[0].osuus, 18);
 }
 
 console.log('');

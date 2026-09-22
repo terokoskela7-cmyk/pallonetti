@@ -17,6 +17,7 @@ import type {
 import { useApi } from '@/hooks/useApi';
 import { naytaKokoNimi } from '@/utils/nimet';
 import { Kontekstirivit } from '@/components/Kontekstirivit';
+import { lahdeRivi } from '@/constants/lahde';
 import {
   getSeasonPlayer,
   getPlayerRounds,
@@ -383,7 +384,7 @@ export default function PelaajaPage() {
       </section>
 
       <div className="text-xs text-white/40 pt-1">
-        Lähde: sarjan viralliset tilastot (kausivienti)
+        {lahdeRivi(sarja)}
       </div>
     </div>
   );

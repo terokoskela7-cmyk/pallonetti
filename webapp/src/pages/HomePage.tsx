@@ -38,6 +38,7 @@ import { pros, luku } from '@/utils/luvut';
 import { Hero } from '@/components/Hero';
 import { ResearchCard } from '@/components/ResearchCard';
 import { EtusivunLause } from '@/components/Valokeila';
+import { lahdeMaininta } from '@/constants/lahde';
 
 // ============================================================
 // Sivuston rakenne — opastaa käyttäjää
@@ -280,8 +281,8 @@ export default function HomePage() {
           'Seuraa suomalaisten nuorten pelaajien peliaikaa ' +
           (sarja === 'Ykkösliiga' ? 'Ykkösliigassa' : 'Veikkausliigassa') +
           '. Lähteenä ' +
-          sarja +
-          'n viralliset tilastot.'
+          lahdeMaininta(sarja) +
+          '.'
         }
         height="lg"
       />
@@ -290,6 +291,7 @@ export default function HomePage() {
       <EtusivunLause
         nosto={konteksti?.valokeilassa[0] ?? null}
         tuotuPvm={konteksti?.tuotuPvm ?? null}
+        sarja={sarja}
       />
 
       {/* ---------- Osio 2 — Sivuston rakenne ---------- */}
@@ -451,7 +453,7 @@ export default function HomePage() {
         <span className="w-px h-3 bg-white/20" />
         <span>
           Lähde:{' '}
-          <span className="text-white/60">{sarja}n viralliset tilastot</span>
+          <span className="text-white/60">{lahdeMaininta(sarja)}</span>
         </span>
         <span className="w-px h-3 bg-white/20" />
         <span>

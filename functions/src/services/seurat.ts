@@ -238,3 +238,166 @@ export function laskeVertailuviivat(
     };
   });
 }
+
+/**
+ * Kaavioiden yhteinen ylaraja.
+ *
+ * Sama saanto seka /seurat-sivun pienille kaavioille etta seuran omalle
+ * sivulle: ylaraja lasketaan datasta ja pyoristetaan ylospain kymmeneen.
+ * Jos seuran oma sivu skaalautuisi omaan maksimiinsa, 5 %:n seura
+ * nayttaisi sielta katsottuna samalta kuin 50 %:n seura /seurat-sivulla,
+ * ja lukija vertaisi kahta eri mittakaavaa huomaamattaan.
+ *
+ * Vahintaan 10, jottei matala kausi venyta viivoja kattoon.
+ */
+export function laskeYlaraja(arvot: Array<number | null>): number {
+  const luvut = arvot.filter((x): x is number => x !== null);
+  return Math.ceil(Math.max(10, ...luvut) / 10) * 10;
+}
+
+/** Yksi kausi seuran omalla sivulla. */
+export interface SeuranKausipiste {
+  kausi: number;
+  /** Sarja, jossa seura pelasi. null = ei kummassakaan sarjassa. */
+  sarja: string | null;
+  /** Raaka osuus joukkueen otteluiden minuuteista. */
+  osuus: number | null;
+  /**
+   * Sarjan taso samana kautena ja samassa sarjassa — sama luku, joka
+   * nakyy /seurat-sivun vertailuviivassa. Ykkosliigassa kaytetaan
+   * tasoa KAIKKINE joukkueineen, ei akatemioista puhdistettua: seuraa
+   * verrataan siihen sarjaan, jossa se tosiasiassa pelasi.
+   */
+  sarjanTaso: number | null;
+  /**
+   * Seuran osuus jaettuna sarjan tasolla. 1,0 = sarjan taso.
+   *
+   * Tama on ainoa luku, joka on vertailukelpoinen sarjojen yli: raaka
+   * osuus nousee usein sarjasta pudotessa ilman etta seuran linja on
+   * muuttunut, koska sarjojen taso eroaa toisistaan.
+   */
+  suhdeluku: number | null;
+}
+
+export interface SeuranAikasarja {
+  kaudet: number[];
+  pisteet: SeuranKausipiste[];
+  /**
+   * Kolmen kauden liukuva keskiarvo SUHDELUVUSTA, ei raa'asta
+   * osuudesta. Raa'alle osuudelle liukuvaa ei lasketa lainkaan: se
+   * sekoittaisi kaksi eri sarjatasoa samaan keskiarvoon.
+   */
+  liukuva: Array<number | null>;
+  /** true = seura on pelannut useammassa kuin yhdessa sarjassa. */
+  useitaSarjoja: boolean;
+}
+
+/**
+ * Seuran aikasarja YLI SARJOJEN.
+ *
+ * Sarjojen lukuja EI lasketa yhteen: jokainen kausi kuuluu yhteen
+ * sarjaan, ja sivu kertoo kauden kohdalla, missa sarjassa seura pelasi.
+ * Osuus on molemmissa sarjoissa sama asia — osuus oman joukkueen
+ * otteluiden minuuteista — joten viiva on jatkuva, mutta sarjan vaihdos
+ * on merkittava nakyviin, jottei lukija lue nousua sarjatason
+ * muutoksesta johtuvaksi.
+ *
+ * Jos seura loytyy samalta kaudelta kahdesta sarjasta (ei pitaisi olla
+ * mahdollista), valitaan enemman otteluita pelannut ja tilanne
+ * raportoidaan kutsujalle epavarmana — ei summata.
+ */
+export function laskeSeuranAikasarja(
+  tunniste: string,
+  kaudet: number[],
+  kausittainSarjoittain: Map<string, Map<number, Seurakausi[]>>,
+): SeuranAikasarja & { paallekkaisetKaudet: number[] } {
+  const paallekkaiset: number[] = [];
+  const sarjatMukana = new Set<string>();
+
+  // Sarjan taso kaudittain, sarjoittain. Sama laskenta kuin
+  // /seurat-sivun vertailuviivassa, jotta suhdeluku nojaa samaan
+  // lukuun jonka lukija nakee sielta.
+  const tasot = new Map<string, Map<number, number | null>>();
+  for (const [sarja, kausittain] of kausittainSarjoittain) {
+    const omatKaudet = Array.from(kausittain.keys()).sort((a, b) => a - b);
+    const viivat = laskeVertailuviivat(omatKaudet, kausittain);
+    tasot.set(sarja, new Map(viivat.map((v) => [v.kausi, v.kaikki])));
+  }
+
+  const pisteet: SeuranKausipiste[] = kaudet.map((kausi) => {
+    const osumat: Seurakausi[] = [];
+    for (const kausittain of kausittainSarjoittain.values()) {
+      const rivi = (kausittain.get(kausi) || []).find(
+        (s) => s.tunniste === tunniste,
+      );
+      if (rivi) osumat.push(rivi);
+    }
+    if (osumat.length === 0) {
+      return { kausi, sarja: null, osuus: null, sarjanTaso: null, suhdeluku: null };
+    }
+    if (osumat.length > 1) paallekkaiset.push(kausi);
+    const valittu = osumat.slice().sort((a, b) => b.ottelut - a.ottelut)[0];
+    sarjatMukana.add(valittu.sarja);
+
+    const taso = tasot.get(valittu.sarja)?.get(kausi) ?? null;
+    const suhdeluku =
+      valittu.osuus === null || taso === null || taso <= 0
+        ? null
+        : pyorista(valittu.osuus / taso, 1);
+
+    return {
+      kausi,
+      sarja: valittu.sarja,
+      osuus: valittu.osuus,
+      sarjanTaso: taso,
+      suhdeluku,
+    };
+  });
+
+  return {
+    kaudet,
+    pisteet,
+    // Liukuva SUHDELUVUSTA. Katko katkaisee sen (laskeLiukuva vaatii
+    // kaikki kolme), mutta sarjan vaihdos EI: suhdeluku on
+    // vertailukelpoinen sarjojen yli, ja juuri siksi seuran linjan
+    // seuraaminen onnistuu vaikka sarja vaihtuu.
+    liukuva: laskeLiukuva(pisteet.map((p) => p.suhdeluku)),
+    useitaSarjoja: sarjatMukana.size > 1,
+    paallekkaisetKaudet: paallekkaiset,
+  };
+}
+
+/**
+ * Suhdeluvun akselin ylaraja seuran omista luvuista.
+ *
+ * Pyoristetaan ylospain puolikkaaseen, ja vahintaan 1,5 jotta sarjan
+ * tason viiva (1,0) on aina nakyvissa eika osu kattoon.
+ */
+export function laskeSuhdeYlaraja(arvot: Array<number | null>): number {
+  const luvut = arvot.filter((x): x is number => x !== null);
+  return Math.max(1.5, Math.ceil(Math.max(0, ...luvut) * 2) / 2);
+}
+
+/**
+ * Seuran oman sivun y-akselin ylaraja.
+ *
+ * Mukaan otetaan vain ne sarjat, joissa seura on pelannut. Jos
+ * laskettaisiin aina molemmista, Veikkausliigan seuran sivu
+ * skaalautuisi Ykkosliigan akatemioiden mukaan siina missa /seurat
+ * nayttaa saman seuran kapeammalla akselilla — ja sama viiva nayttaisi
+ * kahdella sivulla eri korkuiselta. Sarjaa vaihtanut seura tarvitsee
+ * molempien akselin, ja saa sen.
+ */
+export function laskeSeuranYlaraja(
+  omatSarjat: Set<string>,
+  kausittainSarjoittain: Map<string, Map<number, Seurakausi[]>>,
+): number {
+  const osuudet: Array<number | null> = [];
+  for (const [sarja, kausittain] of kausittainSarjoittain) {
+    if (omatSarjat.size > 0 && !omatSarjat.has(sarja)) continue;
+    for (const rivit of kausittain.values()) {
+      for (const r of rivit) osuudet.push(r.osuus);
+    }
+  }
+  return laskeYlaraja(osuudet);
+}

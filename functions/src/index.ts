@@ -41,9 +41,11 @@ import {
   laskeSeurakausi,
   laskeSeuratrendit,
   laskeVertailuviivat,
+  laskeYlaraja,
   LIUKUVA_IKKUNA,
   type Seurakausi,
 } from './services/seurat';
+import { kokoaSeuranSivu } from './services/seuranSivu';
 import {
   laskeTrendit,
   laskeKolmijako,
@@ -891,6 +893,11 @@ app.get('/api/seurat/trendit', async (req, res) => {
         liukuvaIkkuna: LIUKUVA_IKKUNA,
         seurat: laskeSeuratrendit(kaudet, kausittain),
         vertailuviivat: laskeVertailuviivat(kaudet, kausittain),
+        // Ylaraja lasketaan taalla, jotta /seurat ja seuran oma sivu
+        // kayttavat tasmalleen samaa akselia eivatka kahta eri saantoa.
+        ylaraja: laskeYlaraja(
+          laskeSeuratrendit(kaudet, kausittain).flatMap((t) => t.pisteet),
+        ),
       },
       dataSaatavilla: kaudet.length > 0,
       source: 'firestore',
@@ -942,6 +949,52 @@ app.get('/api/seurat/:season', async (req, res) => {
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Tuntematon virhe';
     console.error('[seurat/:season] failed:', message);
+    res.status(500).json({ success: false, error: message });
+  }
+});
+
+/**
+ * GET /api/seurat/:season/:teamId — yhden seuran sivu.
+ *
+ * Tunniste on sama kuin /seurat-listalla, ja se haetaan YLI SARJOJEN:
+ * seura voi olla pelannut eri kausina eri sarjassa, eivatka sarjojen
+ * luvut mene sekaisin — jokainen kausi kertoo oman sarjansa.
+ *
+ * Tuntematon tunniste on 404. Tunnettu seura kaudella, jona se ei
+ * pelannut, on 200 ja `seurakausi: null` — se ei ole virhe vaan tieto.
+ */
+app.get('/api/seurat/:season/:teamId', async (req, res) => {
+  const season = parseInt(req.params.season, 10);
+  const teamId = String(req.params.teamId || '').trim();
+  if (isNaN(season) || !teamId) {
+    res
+      .status(400)
+      .json({ success: false, error: 'season tai teamId puuttuu/virheellinen' });
+    return;
+  }
+  try {
+    // Kaikki luku ja laskenta on services/seuranSivu.ts:ssa. Tama reitti
+    // jasentaa parametrit, kutsuu ja muotoilee vastauksen.
+    const data = await kokoaSeuranSivu(admin.firestore(), season, teamId);
+    if (data === null) {
+      res.status(404).json({
+        success: false,
+        error: 'Seuraa ei löytynyt tunnisteella ' + teamId,
+      });
+      return;
+    }
+
+    res.set('Cache-Control', 'public, max-age=3600');
+    res.json({
+      success: true,
+      data,
+      dataSaatavilla: data.seurakausi !== null,
+      source: 'firestore',
+      timestamp: new Date().toISOString(),
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Tuntematon virhe';
+    console.error('[seurat/:season/:teamId] failed:', message);
     res.status(500).json({ success: false, error: message });
   }
 });

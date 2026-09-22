@@ -24,10 +24,13 @@ import {
   laskeSeurakausi,
   laskeSeuratrendit,
   laskeVertailuviivat,
+  seuraTunniste,
+  laskeSuhdeYlaraja,
   LIUKUVA_IKKUNA,
   type Seurakausi,
 } from '../services/seurat';
 import { TUETUT_SARJAT, OLETUSSARJA } from '../services/kausiImport';
+import { kokoaSeuranSivu } from '../services/seuranSivu';
 
 function pros(x: number | null): string {
   return x === null ? 'ei dataa' : x.toFixed(1).replace('.', ',') + ' %';
@@ -46,6 +49,9 @@ async function main(): Promise<void> {
   };
 
   const kaudetSnap = await db.collection('kaudet').get();
+  // Talletetaan kaikkien sarjojen aineisto, jotta suhdeluvut voi laskea
+  // koko aineistosta lopuksi — ei vain sarjaa vaihtaneille seuroille.
+  const kaikkiSarjat = new Map<string, Map<number, Seurakausi[]>>();
 
   for (const sarja of TUETUT_SARJAT) {
     const kaudet = Array.from(
@@ -101,6 +107,8 @@ async function main(): Promise<void> {
       );
     }
 
+    kaikkiSarjat.set(sarja, kausittain);
+
     // 4. Tunnisteen pysyvyys kausien yli.
     const nimetTunnisteelle = new Map<string, Set<string>>();
     const tunnisteetNimelle = new Map<string, Set<string>>();
@@ -153,6 +161,160 @@ async function main(): Promise<void> {
     }
     console.log('    ' + ' '.repeat(26) + kaudet.map((k) => String(k).padStart(5)).join(' '));
   }
+
+  // --- 5. Seuran oma sivu: sarjaa vaihtaneet seurat --------------------
+  // Naiden kohdalla sivu nayttaa kauden kohdalla, missa sarjassa seura
+  // pelasi, eika laske sarjojen lukuja yhteen. Akseli kattaa molemmat
+  // sarjat, joten se on leveampi kuin kummankaan sarjan oma akseli.
+  const tunnisteetSarjoittain = new Map<string, Set<string>>();
+  for (const sarja of TUETUT_SARJAT) {
+    const snap = await db.collection('nimittajat').get();
+    for (const d of snap.docs) {
+      const n = d.data();
+      if (n.vanhentunut === true) continue;
+      if (((n.sarja as string) || OLETUSSARJA) !== sarja) continue;
+      const t = seuraTunniste(String(n.joukkue));
+      if (!tunnisteetSarjoittain.has(t)) tunnisteetSarjoittain.set(t, new Set());
+      tunnisteetSarjoittain.get(t)!.add(sarja);
+    }
+  }
+  const monessaSarjassa = Array.from(tunnisteetSarjoittain.entries())
+    .filter(([, sarjat]) => sarjat.size > 1)
+    .map(([t]) => t)
+    .sort();
+
+  console.log('');
+  console.log('='.repeat(78));
+  console.log(
+    'SEURAT MOLEMMISSA SARJOISSA (' + monessaSarjassa.length + ') — seuran sivu',
+  );
+  console.log('='.repeat(78));
+
+  const viimeisinKausi = Math.max(
+    ...TUETUT_SARJAT.flatMap((sarja) =>
+      kaudetSnap.docs
+        .map((d) => d.data())
+        .filter((k) => k.vanhentunut !== true)
+        .filter((k) => ((k.sarja as string) || OLETUSSARJA) === sarja)
+        .map((k) => (k.vuosi as number) ?? parseInt(String(k.kausi), 10))
+        .filter((v) => !isNaN(v)),
+    ),
+  );
+
+  for (const tunniste of monessaSarjassa) {
+    const sivu = await kokoaSeuranSivu(db, viimeisinKausi, tunniste);
+    if (sivu === null) {
+      moiti(tunniste + ': kokoaSeuranSivu palautti null vaikka seura on datassa');
+      continue;
+    }
+    console.log('');
+    console.log(
+      '  ' + sivu.nimi + ' (' + tunniste + ')  akselit: osuus 0–' +
+        sivu.ylaraja + ' %, suhde 0–' + sivu.ylarajaSuhde +
+        '  sarjat: ' + sivu.sarjatMukana.join(', '),
+    );
+    console.log(
+      '    kausi  sarja            osuus  sarjan taso   suhde  liukuva',
+    );
+    for (let i = 0; i < sivu.aikasarja.pisteet.length; i++) {
+      const p = sivu.aikasarja.pisteet[i];
+      const liuk = sivu.aikasarja.liukuva[i];
+      const luku = (x: number | null, d = 1): string =>
+        x === null ? '—' : x.toFixed(d).replace('.', ',');
+      console.log(
+        '    ' + p.kausi + '   ' + (p.sarja ?? 'ei sarjassa').padEnd(14) +
+          luku(p.osuus).padStart(6) + ' %' +
+          luku(p.sarjanTaso).padStart(9) + ' %' +
+          luku(p.suhdeluku).padStart(8) +
+          luku(liuk).padStart(9),
+      );
+      // Suhdeluku vaatii sarjan tason: jos taso on, suhdeluvun on oltava.
+      if (p.osuus !== null && p.sarjanTaso !== null && p.suhdeluku === null) {
+        moiti(sivu.nimi + ' ' + p.kausi + ': suhdeluku puuttuu vaikka taso on');
+      }
+      // Liukuva lasketaan SUHDELUVUSTA: sita ei saa olla ilman suhdelukua.
+      if (liuk !== null && p.suhdeluku === null) {
+        moiti(sivu.nimi + ' ' + p.kausi + ': liukuva katkon paalla');
+      }
+    }
+    if (!sivu.aikasarja.useitaSarjoja) {
+      moiti(sivu.nimi + ': useitaSarjoja on false vaikka seura on kahdessa sarjassa');
+    }
+  }
+
+  // --- 6. Suhdeluvun aariarvot koko aineistossa -----------------------
+  // Jokaisella seuralla on oma sivu ja oma akseli. Jos akseli leikkaisi
+  // yhdenkin pisteen, kaavio valehtelisi. Tarkistetaan seurakohtaisesti,
+  // etta akseli kattaa seuran omat luvut, ja raportoidaan aariarvot.
+  interface Aari {
+    arvo: number;
+    seura: string;
+    kausi: number;
+    sarja: string;
+  }
+  let suurin: Aari | null = null;
+  let pienin: Aari | null = null;
+  const suhteetSeuroittain = new Map<string, { nimi: string; arvot: number[] }>();
+
+  for (const [sarja, kausittain] of kaikkiSarjat) {
+    const omatKaudet = Array.from(kausittain.keys()).sort((a, b) => a - b);
+    const viivat = new Map(
+      laskeVertailuviivat(omatKaudet, kausittain).map((v) => [v.kausi, v.kaikki]),
+    );
+    for (const kausi of omatKaudet) {
+      const taso = viivat.get(kausi) ?? null;
+      if (taso === null || taso <= 0) continue;
+      for (const s of kausittain.get(kausi) || []) {
+        if (s.osuus === null) continue;
+        const suhde = Math.round((s.osuus / taso) * 10) / 10;
+        if (suurin === null || suhde > suurin.arvo) {
+          suurin = { arvo: suhde, seura: s.nimi, kausi, sarja };
+        }
+        if (pienin === null || suhde < pienin.arvo) {
+          pienin = { arvo: suhde, seura: s.nimi, kausi, sarja };
+        }
+        if (!suhteetSeuroittain.has(s.tunniste)) {
+          suhteetSeuroittain.set(s.tunniste, { nimi: s.nimi, arvot: [] });
+        }
+        suhteetSeuroittain.get(s.tunniste)!.arvot.push(suhde);
+      }
+    }
+  }
+
+  console.log('');
+  console.log('='.repeat(78));
+  console.log('SUHDELUVUN AARIARVOT KOKO AINEISTOSSA');
+  console.log('='.repeat(78));
+  const naytaAari = (nimi: string, a: Aari | null): void => {
+    console.log(
+      '  ' + nimi + ': ' +
+        (a === null
+          ? 'ei lukuja'
+          : a.arvo.toFixed(1).replace('.', ',') + '  ' + a.seura + '  ' +
+            a.kausi + '  ' + a.sarja),
+    );
+  };
+  naytaAari('suurin ', suurin);
+  naytaAari('pienin ', pienin);
+
+  // Leikkaako yhdenkaan seuran akseli sen omia lukuja?
+  let leikkaavia = 0;
+  for (const [tunniste, { nimi, arvot }] of suhteetSeuroittain) {
+    const ylaraja = laskeSuhdeYlaraja(arvot);
+    const omaSuurin = Math.max(...arvot);
+    if (omaSuurin > ylaraja) {
+      leikkaavia++;
+      moiti(
+        nimi + ' (' + tunniste + '): akseli 0–' + ylaraja +
+          ' leikkaa suurimman arvon ' + omaSuurin,
+      );
+    }
+  }
+  console.log(
+    '  akseli kattaa seuran omat luvut: ' +
+      (suhteetSeuroittain.size - leikkaavia) + ' / ' + suhteetSeuroittain.size +
+      ' seuraa',
+  );
 
   console.log('');
   console.log('='.repeat(78));

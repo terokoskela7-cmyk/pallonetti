@@ -5,6 +5,7 @@ import HomePage from '@/pages/HomePage';
 import PelaikaPage from '@/pages/PelaikaPage';
 import NuoretPage from '@/pages/NuoretPage';
 import SeuratPage from '@/pages/SeuratPage';
+import SeuraPage from '@/pages/SeuraPage';
 import PelaajatPage from '@/pages/PelaajatPage';
 import PelaajaPage from '@/pages/PelaajaPage';
 import AboutPage from '@/pages/AboutPage';
@@ -19,6 +20,7 @@ export default function App() {
           <Route path="/" element={<HomePage />} />
           <Route path="/nuoret" element={<NuoretPage />} />
           <Route path="/seurat" element={<SeuratPage />} />
+          <Route path="/seurat/:teamId" element={<SeuraPage />} />
           <Route path="/pelaajat" element={<PelaajatPage />} />
           <Route path="/peliaika" element={<PelaikaPage />} />
           <Route path="/pelaaja/:slug" element={<PelaajaPage />} />

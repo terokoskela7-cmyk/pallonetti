@@ -204,14 +204,21 @@ export function SeuraKaaviot({
     <div className="space-y-3">
       <p className="text-[11px] text-white/40 leading-relaxed max-w-3xl">
         Kaikilla kaavioilla on sama pystyakseli (0–{ylaraja} %), joten ne ovat
-        vertailukelpoisia keskenään. Katkoviivat ovat sarjan taso viimeisimmältä
-        kaudelta: tiheämpi katkoviiva kaikki joukkueet
-        {viimeisin?.kaikki === null ? '' : ' (' + desimaali(viimeisin!.kaikki) + ' %)'},
-        harvempi ilman akatemiajoukkueita
-        {viimeisin?.ilmanAkatemioita === null
+        vertailukelpoisia keskenään.
+        {/* Toinen katkoviiva piirretään vain, jos sarjassa on
+            akatemiajoukkueita — muuten viivoja olisi kaksi päällekkäin. */}
+        {viimeisin === null || viimeisin.kaikki === null
           ? ''
-          : ' (' + desimaali(viimeisin!.ilmanAkatemioita) + ' %)'}
-        .
+          : viimeisin.ilmanAkatemioita === null
+            ? ' Katkoviiva on sarjan taso viimeisimmältä kaudelta (' +
+              desimaali(viimeisin.kaikki) +
+              ' %).'
+            : ' Katkoviivat ovat sarjan taso viimeisimmältä kaudelta: tiheämpi' +
+              ' kaikki joukkueet (' +
+              desimaali(viimeisin.kaikki) +
+              ' %), harvempi ilman akatemiajoukkueita (' +
+              desimaali(viimeisin.ilmanAkatemioita) +
+              ' %).'}
       </p>
       {/* Mobiilissa kaksi saraketta. */}
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2.5">

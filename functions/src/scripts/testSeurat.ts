@@ -212,6 +212,59 @@ console.log('VERTAILUVIIVAT');
   // Tyhja kausi: ei lukuja, ei nollaa.
   const tyhja = laskeVertailuviivat([2026], new Map());
   vertaa('tyhja kausi -> null', tyhja[0], { kausi: 2026, kaikki: null, ilmanAkatemioita: null });
+
+  // --- Toinen viiva syntyy VAIN jos akatemioita on ---------------------
+  // Ehto paatellaan datasta onAkatemia-funktiolla, EI sarjan nimesta.
+
+  // 1. Sarja, jossa EI ole akatemiajoukkueita (kuten Veikkausliiga):
+  //    vain yksi viiva. Kaksi identtista lukua vierekkain vaittaisi
+  //    vertailua, jota ei ole tehty.
+  const ilmanAkatemioita = laskeVertailuviivat(
+    [2026],
+    new Map([[2026, [rivi('KuPS', 2178, false), rivi('Ilves', 4356, false)]]]),
+  );
+  vertaa('ei akatemioita: kaikki-luku on', ilmanAkatemioita[0].kaikki, 15);
+  vertaa(
+    'ei akatemioita: toista viivaa ei ole',
+    ilmanAkatemioita[0].ilmanAkatemioita,
+    null,
+  );
+
+  // 2. Sarja, jossa on yksikin akatemiajoukkue: kaksi viivaa.
+  const yksiAkatemia = laskeVertailuviivat(
+    [2026],
+    new Map([[2026, [
+      rivi('HJK Klubi 04', 21000, true),
+      rivi('KuPS', 2178, false),
+      rivi('Ilves', 4356, false),
+    ]]]),
+  );
+  vertaa('yksi akatemia riittaa toiseen viivaan',
+    yksiAkatemia[0].ilmanAkatemioita !== null, true);
+  vertaa('toinen viiva jattaa akatemian pois',
+    yksiAkatemia[0].ilmanAkatemioita, 15);
+  vertaa('akatemia nostaa kaikki-lukua',
+    yksiAkatemia[0].kaikki! > yksiAkatemia[0].ilmanAkatemioita!, true);
+
+  // 3. Sama sarja, eri kausi: akatemia putoaa pois -> viiva katoaa.
+  //    Tama on syy paatella ehto kaudelta eika sarjan nimesta.
+  const kaksiKautta = laskeVertailuviivat(
+    [2025, 2026],
+    new Map([
+      [2025, [rivi('HJK Klubi 04', 21000, true), rivi('KuPS', 2178, false)]],
+      [2026, [rivi('KuPS', 2178, false)]],
+    ]),
+  );
+  vertaa(
+    'akatemiakausi saa kaksi viivaa',
+    kaksiKautta[0].ilmanAkatemioita !== null,
+    true,
+  );
+  vertaa(
+    'akatemiaton kausi saa yhden',
+    kaksiKautta[1].ilmanAkatemioita,
+    null,
+  );
 }
 
 console.log('');

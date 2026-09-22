@@ -195,7 +195,12 @@ export interface Vertailuviiva {
   kausi: number;
   /** Koko sarjan osuus. */
   kaikki: number | null;
-  /** Sama ilman akatemiajoukkueita. */
+  /**
+   * Sama ilman akatemiajoukkueita, tai null jos sarjassa ei OLE
+   * akatemiajoukkueita kyseisella kaudella. null tarkoittaa "ei toista
+   * viivaa", ei "ei dataa": kaksi identtista lukua vierekkain vaittaisi
+   * vertailua, jota ei ole tehty.
+   */
   ilmanAkatemioita: number | null;
 }
 
@@ -205,8 +210,13 @@ export interface Vertailuviiva {
  * Kaksi viivaa on Ykkosliigassa valttamatonta: HJK Klubi 04:n ja SJK
  * Akatemian peliajasta valtaosa menee nuorille, joten yksi keskiarvo
  * nostaisi sarjan tason sellaiseksi, joka ei kerro muiden seurojen
- * kaytannosta. Veikkausliigassa viivat ovat lahella toisiaan, ja
- * molemmat naytetaan silti — jotta lukija nakee sen itse.
+ * kaytannosta.
+ *
+ * TOINEN VIIVA SYNTYY VAIN, JOS AKATEMIOITA ON. Se paatellaan datasta
+ * onAkatemia-funktiolla, EI sarjan nimesta: sarjan nimi ei kerro, mitka
+ * joukkueet siina pelaavat, ja akatemia voi nousta tai pudota. Ilman
+ * tata Veikkausliiga nayttaisi kaksi identtista lukua vierekkain, mika
+ * vaittaisi vertailua jota ei ole tehty.
  */
 export function laskeVertailuviivat(
   kaudet: number[],
@@ -219,10 +229,12 @@ export function laskeVertailuviivat(
       const min = joukko.reduce((a, s) => a + s.nuortenMinuutit, 0);
       return kap > 0 ? pyorista((min / kap) * 100, 1) : null;
     };
+    const akatemioita = rivit.filter((s) => s.akatemia).length;
     return {
       kausi,
       kaikki: osuus(rivit),
-      ilmanAkatemioita: osuus(rivit.filter((s) => !s.akatemia)),
+      ilmanAkatemioita:
+        akatemioita > 0 ? osuus(rivit.filter((s) => !s.akatemia)) : null,
     };
   });
 }

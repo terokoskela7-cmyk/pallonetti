@@ -160,15 +160,26 @@ export default function SeuratPage() {
             Sarjan taso
           </h2>
           <p className="text-sm text-white/85 tabular">
-            Kaikki joukkueet {desimaali(viiva.kaikki)} %
-            <span className="text-white/30"> · </span>
-            ilman akatemiajoukkueita {desimaali(viiva.ilmanAkatemioita)} %
+            {viiva.ilmanAkatemioita === null ? (
+              <>Kaikki joukkueet {desimaali(viiva.kaikki)} %</>
+            ) : (
+              <>
+                Kaikki joukkueet {desimaali(viiva.kaikki)} %
+                <span className="text-white/30"> · </span>
+                ilman akatemiajoukkueita {desimaali(viiva.ilmanAkatemioita)} %
+              </>
+            )}
           </p>
-          <p className="text-[11px] text-white/40 leading-relaxed max-w-3xl">
-            Kaksi lukua, koska akatemiajoukkueen koko idea on peluuttaa nuoria.
-            Yksi keskiarvo nostaisi sarjan tason sellaiseksi, joka ei kerro
-            muiden seurojen käytännöstä.
-          </p>
+          {/* Toinen luku vain jos sarjassa on akatemiajoukkueita. Kaksi
+              identtistä lukua vierekkäin väittäisi vertailua, jota ei ole
+              tehty — ehto tulee datasta, ei sarjan nimestä. */}
+          {viiva.ilmanAkatemioita !== null && (
+            <p className="text-[11px] text-white/40 leading-relaxed max-w-3xl">
+              Kaksi lukua, koska akatemiajoukkueen koko idea on peluuttaa
+              nuoria. Yksi keskiarvo nostaisi sarjan tason sellaiseksi, joka ei
+              kerro muiden seurojen käytännöstä.
+            </p>
+          )}
         </section>
       )}
 

@@ -1,11 +1,12 @@
 import { Link } from 'react-router-dom';
 import { ExternalLink, Database } from 'lucide-react';
-import { useValittuKausi } from '@/hooks/useKausi';
+import { useValittuKausi, useValittuSarja } from '@/hooks/useKausi';
 import { useApi } from '@/hooks/useApi';
 import { getKansalaisuudet, getTrendit } from '@/services/api';
 import { luku, pros } from '@/utils/luvut';
 import { ALLE_21_MAX, CIES_TANSKA_PCT, NUORET_MIN, NUORET_MAX } from '@/constants/ika';
 import { AKATEMIAJOUKKUEET } from '@/constants/akatemiat';
+import { lahdeMaininta } from '@/constants/lahde';
 
 // ============================================
 // CIES Football Observatory -vertailuluvut.
@@ -108,6 +109,7 @@ function SourceItem({
 
 export default function AboutPage() {
   const kausi = useValittuKausi();
+  const sarja = useValittuSarja();
 
   // Kaikki sivun luvut tulevat ajosta, eivat tekstista. Jos haku ei
   // onnistu, kappale kertoo sen eika nayta vanhaa lukua uutena.
@@ -427,9 +429,12 @@ export default function AboutPage() {
           joten se voi poiketa omasta tarkasta arvostaan kymmenesosalla.
         </p>
         <p>
-          Pelaajan sivun luvut tulevat virallisista tilastoista sellaisenaan.
+          Pelaajan sivun luvut tulevat {lahdeMaininta(sarja)} sellaisenaan.
           Lukuja ei yhdistellä useasta lähteestä, jottei pelaajalle synny
-          numeroita, joita mikään yksittäinen lähde ei kerro.
+          numeroita, joita mikään yksittäinen lähde ei kerro. Sama
+          lähdemaininta näkyy jokaisella luvut esittävällä sivulla, ja se
+          muodostetaan yhdestä paikasta — sarjan nimi ei siis voi eriytyä
+          sivulta toiselle.
         </p>
       </Section>
 

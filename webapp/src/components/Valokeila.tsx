@@ -15,6 +15,7 @@ import { ExternalLink } from 'lucide-react';
 import type { Nosto, Siirto } from '@/services/api';
 import { naytaKokoNimi } from '@/utils/nimet';
 import { AKATEMIA_SELITE } from '@/constants/akatemiat';
+import { lahdeRivi } from '@/constants/lahde';
 
 /** "Yllson Lika (21 v, KäPa)" — nimi näyttöasussa, ei lähteen kirjoitusasussa. */
 function tunniste(n: Nosto): string {
@@ -39,11 +40,17 @@ function suomalainenPvm(iso: string): string | null {
  * maarana: joukkueilla on eri maara otteluita pelattuna, joten yksi
  * ottelumaara olisi vaara ja vali ei kerro lukijalle mitaan.
  */
-export function Tilannerivi({ tuotuPvm }: { tuotuPvm: string | null }) {
+export function Tilannerivi({
+  tuotuPvm,
+  sarja,
+}: {
+  tuotuPvm: string | null;
+  sarja: string;
+}) {
   const pvm = tuotuPvm === null ? null : suomalainenPvm(tuotuPvm);
   return (
     <p className="text-xs text-white/40">
-      Lähde: sarjan viralliset tilastot (kausivienti)
+      {lahdeRivi(sarja)}
       {pvm === null ? '' : ' · tilanne ' + pvm}
     </p>
   );
@@ -100,9 +107,11 @@ function SiirtoMerkki({ siirto, linkki }: { siirto: Siirto; linkki?: boolean }) 
 export function EtusivunLause({
   nosto,
   tuotuPvm,
+  sarja,
 }: {
   nosto: Nosto | null;
   tuotuPvm: string | null;
+  sarja: string;
 }) {
   if (!nosto) return null;
   return (
@@ -131,7 +140,7 @@ export function EtusivunLause({
         mitattuna osuutena joukkueen minuuteista tai maalisijoituksena.
         Vertailujoukko: {nosto.rivi.vertailujoukko ?? 'oma ikäryhmä'}.
       </p>
-      <Tilannerivi tuotuPvm={tuotuPvm} />
+      <Tilannerivi tuotuPvm={tuotuPvm} sarja={sarja} />
     </section>
   );
 }

@@ -43,6 +43,7 @@ import {
 } from '@/services/api';
 import { useValittuKausi, useValittuSarja } from '@/hooks/useKausi';
 import { IKAKAISTAT, kaistalla, NUORET_LABEL } from '@/constants/ika';
+import { lahdeMaininta } from '@/constants/lahde';
 import { pros } from '@/utils/luvut';
 import { InsightBar } from '@/components/InsightBar';
 import { InfoTooltip } from '@/components/InfoTooltip';
@@ -719,7 +720,7 @@ export default function PelaikaPage() {
         <span className="w-px h-3 bg-white/20" />
         <span>
           Lähde:{' '}
-          <span className="text-white/60">{sarja}n viralliset tilastot</span>{' '}
+          <span className="text-white/60">{lahdeMaininta(sarja)}</span>{' '}
           (kausivienti)
         </span>
       </footer>

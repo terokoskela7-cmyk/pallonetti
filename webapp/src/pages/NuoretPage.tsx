@@ -365,7 +365,7 @@ export default function NuoretPage() {
         )}
       </section>
 
-      <Tilannerivi tuotuPvm={data.tuotuPvm} />
+      <Tilannerivi tuotuPvm={data.tuotuPvm} sarja={sarja} />
     </div>
   );
 }

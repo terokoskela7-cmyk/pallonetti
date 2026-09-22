@@ -25,6 +25,7 @@ import {
   laskeSeuratrendit,
   laskeVertailuviivat,
   seuraTunniste,
+  laskeSuhdeYlaraja,
   LIUKUVA_IKKUNA,
   type Seurakausi,
 } from '../services/seurat';
@@ -48,6 +49,9 @@ async function main(): Promise<void> {
   };
 
   const kaudetSnap = await db.collection('kaudet').get();
+  // Talletetaan kaikkien sarjojen aineisto, jotta suhdeluvut voi laskea
+  // koko aineistosta lopuksi — ei vain sarjaa vaihtaneille seuroille.
+  const kaikkiSarjat = new Map<string, Map<number, Seurakausi[]>>();
 
   for (const sarja of TUETUT_SARJAT) {
     const kaudet = Array.from(
@@ -102,6 +106,8 @@ async function main(): Promise<void> {
           pros(viiva.ilmanAkatemioita),
       );
     }
+
+    kaikkiSarjat.set(sarja, kausittain);
 
     // 4. Tunnisteen pysyvyys kausien yli.
     const nimetTunnisteelle = new Map<string, Set<string>>();
@@ -235,6 +241,80 @@ async function main(): Promise<void> {
       moiti(sivu.nimi + ': useitaSarjoja on false vaikka seura on kahdessa sarjassa');
     }
   }
+
+  // --- 6. Suhdeluvun aariarvot koko aineistossa -----------------------
+  // Jokaisella seuralla on oma sivu ja oma akseli. Jos akseli leikkaisi
+  // yhdenkin pisteen, kaavio valehtelisi. Tarkistetaan seurakohtaisesti,
+  // etta akseli kattaa seuran omat luvut, ja raportoidaan aariarvot.
+  interface Aari {
+    arvo: number;
+    seura: string;
+    kausi: number;
+    sarja: string;
+  }
+  let suurin: Aari | null = null;
+  let pienin: Aari | null = null;
+  const suhteetSeuroittain = new Map<string, { nimi: string; arvot: number[] }>();
+
+  for (const [sarja, kausittain] of kaikkiSarjat) {
+    const omatKaudet = Array.from(kausittain.keys()).sort((a, b) => a - b);
+    const viivat = new Map(
+      laskeVertailuviivat(omatKaudet, kausittain).map((v) => [v.kausi, v.kaikki]),
+    );
+    for (const kausi of omatKaudet) {
+      const taso = viivat.get(kausi) ?? null;
+      if (taso === null || taso <= 0) continue;
+      for (const s of kausittain.get(kausi) || []) {
+        if (s.osuus === null) continue;
+        const suhde = Math.round((s.osuus / taso) * 10) / 10;
+        if (suurin === null || suhde > suurin.arvo) {
+          suurin = { arvo: suhde, seura: s.nimi, kausi, sarja };
+        }
+        if (pienin === null || suhde < pienin.arvo) {
+          pienin = { arvo: suhde, seura: s.nimi, kausi, sarja };
+        }
+        if (!suhteetSeuroittain.has(s.tunniste)) {
+          suhteetSeuroittain.set(s.tunniste, { nimi: s.nimi, arvot: [] });
+        }
+        suhteetSeuroittain.get(s.tunniste)!.arvot.push(suhde);
+      }
+    }
+  }
+
+  console.log('');
+  console.log('='.repeat(78));
+  console.log('SUHDELUVUN AARIARVOT KOKO AINEISTOSSA');
+  console.log('='.repeat(78));
+  const naytaAari = (nimi: string, a: Aari | null): void => {
+    console.log(
+      '  ' + nimi + ': ' +
+        (a === null
+          ? 'ei lukuja'
+          : a.arvo.toFixed(1).replace('.', ',') + '  ' + a.seura + '  ' +
+            a.kausi + '  ' + a.sarja),
+    );
+  };
+  naytaAari('suurin ', suurin);
+  naytaAari('pienin ', pienin);
+
+  // Leikkaako yhdenkaan seuran akseli sen omia lukuja?
+  let leikkaavia = 0;
+  for (const [tunniste, { nimi, arvot }] of suhteetSeuroittain) {
+    const ylaraja = laskeSuhdeYlaraja(arvot);
+    const omaSuurin = Math.max(...arvot);
+    if (omaSuurin > ylaraja) {
+      leikkaavia++;
+      moiti(
+        nimi + ' (' + tunniste + '): akseli 0–' + ylaraja +
+          ' leikkaa suurimman arvon ' + omaSuurin,
+      );
+    }
+  }
+  console.log(
+    '  akseli kattaa seuran omat luvut: ' +
+      (suhteetSeuroittain.size - leikkaavia) + ' / ' + suhteetSeuroittain.size +
+      ' seuraa',
+  );
 
   console.log('');
   console.log('='.repeat(78));

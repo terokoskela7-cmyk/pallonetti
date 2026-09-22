@@ -317,3 +317,27 @@ export function laskeSeuranAikasarja(
     paallekkaisetKaudet: paallekkaiset,
   };
 }
+
+/**
+ * Seuran oman sivun y-akselin ylaraja.
+ *
+ * Mukaan otetaan vain ne sarjat, joissa seura on pelannut. Jos
+ * laskettaisiin aina molemmista, Veikkausliigan seuran sivu
+ * skaalautuisi Ykkosliigan akatemioiden mukaan siina missa /seurat
+ * nayttaa saman seuran kapeammalla akselilla — ja sama viiva nayttaisi
+ * kahdella sivulla eri korkuiselta. Sarjaa vaihtanut seura tarvitsee
+ * molempien akselin, ja saa sen.
+ */
+export function laskeSeuranYlaraja(
+  omatSarjat: Set<string>,
+  kausittainSarjoittain: Map<string, Map<number, Seurakausi[]>>,
+): number {
+  const osuudet: Array<number | null> = [];
+  for (const [sarja, kausittain] of kausittainSarjoittain) {
+    if (omatSarjat.size > 0 && !omatSarjat.has(sarja)) continue;
+    for (const rivit of kausittain.values()) {
+      for (const r of rivit) osuudet.push(r.osuus);
+    }
+  }
+  return laskeYlaraja(osuudet);
+}

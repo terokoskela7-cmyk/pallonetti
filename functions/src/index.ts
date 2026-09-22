@@ -43,6 +43,7 @@ import {
   laskeVertailuviivat,
   laskeSeuranAikasarja,
   laskeYlaraja,
+  laskeSeuranYlaraja,
   LIUKUVA_IKKUNA,
   type Seurakausi,
 } from './services/seurat';
@@ -1090,12 +1091,18 @@ app.get('/api/seurat/:season/:teamId', async (req, res) => {
 
     // Ylaraja lasketaan KOKO sarjan aineistosta, ei vain taman seuran
     // luvuista: akseli on sama kuin /seurat-sivulla.
-    const kaikkiOsuudet: Array<number | null> = [];
-    for (const kausittain of kausittainSarjoittain.values()) {
-      for (const rivit of kausittain.values()) {
-        for (const r of rivit) kaikkiOsuudet.push(r.osuus);
-      }
-    }
+    //
+    // Mukaan otetaan vain ne sarjat, joissa seura on pelannut. Jos
+    // laskettaisiin aina molemmista, Veikkausliigan seuran sivu
+    // skaalautuisi Ykkosliigan akatemioiden mukaan (0–90 %) siina missa
+    // /seurat nayttaa saman seuran akselilla 0–30 %, ja sama viiva
+    // nayttaisi kahdella sivulla eri korkuiselta. Sarjaa vaihtanut seura
+    // tarvitsee molemmat, ja saa ne.
+    const omatSarjat = new Set(
+      aikasarja.pisteet
+        .map((p) => p.sarja)
+        .filter((x): x is string => x !== null),
+    );
 
     res.set('Cache-Control', 'public, max-age=3600');
     res.json({
@@ -1114,7 +1121,7 @@ app.get('/api/seurat/:season/:teamId', async (req, res) => {
           liukuva: aikasarja.liukuva,
           useitaSarjoja: aikasarja.useitaSarjoja,
         },
-        ylaraja: laskeYlaraja(kaikkiOsuudet),
+        ylaraja: laskeSeuranYlaraja(omatSarjat, kausittainSarjoittain),
         liukuvaIkkuna: LIUKUVA_IKKUNA,
       },
       dataSaatavilla: seurakausi !== null,

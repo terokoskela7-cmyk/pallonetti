@@ -15,6 +15,7 @@ import {
   laskeVertailuviivat,
   laskeYlaraja,
   laskeSeuranAikasarja,
+  laskeSeuranYlaraja,
   seuraTunniste,
   LIUKUVA_IKKUNA,
   type Seurakausi,
@@ -367,6 +368,36 @@ console.log('SEURAN AIKASARJA YLI SARJOJEN');
   );
   vertaa('paallekkaisyys raportoidaan', paallekkain.paallekkaisetKaudet, [2026]);
   vertaa('valitaan enemman pelannut, ei summata', paallekkain.pisteet[0].osuus, 18);
+
+  // --- Akseli kattaa seuran omat sarjat, ei muita -----------------------
+  // Ykkosliigan akatemia (95 %) ei saa venyttaa Veikkausliigan seuran
+  // akselia: muuten sama viiva nayttaisi /seurat-sivulla ja seuran omalla
+  // sivulla eri korkuiselta.
+  const vlJaYl = new Map([
+    ['Veikkausliiga', new Map<number, Seurakausi[]>([
+      [2026, [rivi('HJK', 2026, 'Veikkausliiga', 26), rivi('KuPS', 2026, 'Veikkausliiga', 13)]],
+    ])],
+    ['Ykkösliiga', new Map<number, Seurakausi[]>([
+      [2026, [rivi('SJK Akatemia', 2026, 'Ykkösliiga', 95)]],
+    ])],
+  ]);
+  vertaa(
+    'vain Veikkausliiga -> kapea akseli',
+    laskeSeuranYlaraja(new Set(['Veikkausliiga']), vlJaYl),
+    30,
+  );
+  vertaa(
+    'vain Ykkosliiga -> leveä akseli',
+    laskeSeuranYlaraja(new Set(['Ykkösliiga']), vlJaYl),
+    100,
+  );
+  vertaa(
+    'molemmat sarjat -> kattaa molemmat',
+    laskeSeuranYlaraja(new Set(['Veikkausliiga', 'Ykkösliiga']), vlJaYl),
+    100,
+  );
+  // Seura, jolla ei ole yhtaan kautta: akseli kaikesta datasta, ei kaadu.
+  vertaa('ei sarjoja -> kaikki mukaan', laskeSeuranYlaraja(new Set(), vlJaYl), 100);
 }
 
 console.log('');

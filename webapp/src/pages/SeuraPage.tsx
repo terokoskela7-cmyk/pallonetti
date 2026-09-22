@@ -32,6 +32,7 @@ import { naytaKokoNimi } from '@/utils/nimet';
 import { getSeuranSivu, type SeuranSivu, type Siirto } from '@/services/api';
 import { useValittuKausi } from '@/hooks/useKausi';
 import { AKATEMIA_SELITE } from '@/constants/akatemiat';
+import { lahdeRivi } from '@/constants/lahde';
 import { desimaali, luku } from '@/utils/luvut';
 import { Kontekstirivit } from '@/components/Kontekstirivit';
 
@@ -141,7 +142,7 @@ function Aikasarja({ data }: { data: SeuranSivu }) {
 
       <div style={{ width: '100%', height: 200 }}>
         <ResponsiveContainer width="100%" height="100%">
-          <LineChart data={pisteet} margin={{ top: 8, right: 12, bottom: 4, left: -18 }}>
+          <LineChart data={pisteet} margin={{ top: 8, right: 12, bottom: 4, left: 0 }}>
             <XAxis
               dataKey="kausi"
               stroke="#8899AA"
@@ -156,7 +157,7 @@ function Aikasarja({ data }: { data: SeuranSivu }) {
               tick={{ fontSize: 11, fill: '#A5B4C8' }}
               tickLine={false}
               axisLine={false}
-              width={42}
+              width={46}
               unit=" %"
             />
             <Tooltip content={<Vihje />} cursor={{ stroke: '#00C8FF', strokeOpacity: 0.2 }} />
@@ -365,10 +366,14 @@ export default function SeuraPage() {
         )}
       </section>
 
+      {/* Sarja tulee kaudelta: seura on voinut pelata eri kausina eri
+          sarjassa. Jos kautta ei ole, sarjaa ei tiedetä — silloin
+          lahdeRivi antaa muodon "sarjan", joka on oikein muttei nimeä
+          sarjaa. */}
       <p className="text-xs text-white/40">
-        Lähde: sarjan viralliset tilastot (kausivienti). Kontekstirivit
-        lasketaan samalla moottorilla kuin pelaajasivulla, ja vertailujoukko
-        on koko sarjan ikäryhmä.
+        {lahdeRivi(data.sarja ?? '')}. Kontekstirivit lasketaan samalla
+        moottorilla kuin pelaajasivulla, ja vertailujoukko on koko sarjan
+        ikäryhmä.
       </p>
     </div>
   );

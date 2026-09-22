@@ -17,6 +17,7 @@ import {
   laskeSeuranAikasarja,
   laskeSeuranYlaraja,
   laskeSuhdeYlaraja,
+  suhdeAkselinLukemat,
   seuraTunniste,
   LIUKUVA_IKKUNA,
   type Seurakausi,
@@ -519,6 +520,19 @@ console.log('SUHDELUVUN AKSELI');
   vertaa('tasan puolikas sailyy', laskeSuhdeYlaraja([2.5]), 2.5);
   vertaa('nullit ohitetaan', laskeSuhdeYlaraja([null, 2.9, null]), 3);
   vertaa('pelkka null -> 1,5', laskeSuhdeYlaraja([null]), 1.5);
+
+  // Akselin lukemat puolikkaan valein, ja 1,0 AINA mukana: se on sarjan
+  // taso eli koko mittarin vertailukohta.
+  vertaa('lukemat 1,5:een', suhdeAkselinLukemat(1.5), [0, 0.5, 1, 1.5]);
+  vertaa('lukemat 2:een', suhdeAkselinLukemat(2), [0, 0.5, 1, 1.5, 2]);
+  vertaa('lukemat 3:een', suhdeAkselinLukemat(3), [0, 0.5, 1, 1.5, 2, 2.5, 3]);
+  for (const yr of [1.5, 2, 2.5, 3, 3.5]) {
+    vertaa(
+      'sarjan taso 1,0 akselilla kun ylaraja ' + yr,
+      suhdeAkselinLukemat(yr).includes(1),
+      true,
+    );
+  }
 }
 
 console.log('');

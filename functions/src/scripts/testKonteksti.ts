@@ -115,6 +115,16 @@ console.log('GENETIIVI — koko kartta');
     SalPa: 'SalPan',
     TPS: 'TPS:n',
     VPS: 'VPS:n',
+    'Atlantis FC': 'Atlantis FC:n',
+    EPS: 'EPS:n',
+    'FC Jazz': 'FC Jazzin',
+    'FC Vaajakoski': 'FC Vaajakosken',
+    'JJK Jyväskylä': 'JJK Jyväskylän',
+    KPV: 'KPV:n',
+    'KuPS Akatemia I': 'KuPS Akatemia I:n',
+    OLS: 'OLS:n',
+    PKKU: 'PKKU:n',
+    VIFK: 'VIFK:n',
   };
 
   for (const seura of Object.keys(odotetut)) {

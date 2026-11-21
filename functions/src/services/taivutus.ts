@@ -11,7 +11,7 @@
 // lisataan tahan karttaan, ja testi listaa datasta ne jotka puuttuvat.
 // ============================================
 
-/** Seura -> genetiivi. Kattaa kaikki kausien 2020–2026 seurat. */
+/** Seura -> genetiivi. Kattaa kaikki datan seurat (VL 2020–, Ykkösliiga 2024–, Ykkönen 2024). */
 export const SEURAN_GENETIIVI: Record<string, string> = {
   'AC Oulu': 'AC Oulun',
   EIF: 'EIF:n',
@@ -39,6 +39,17 @@ export const SEURAN_GENETIIVI: Record<string, string> = {
   SalPa: 'SalPan',
   TPS: 'TPS:n',
   VPS: 'VPS:n',
+  // Miesten Ykkönen 2024 (lisätty 21.11.2026)
+  'Atlantis FC': 'Atlantis FC:n',
+  EPS: 'EPS:n',
+  'FC Jazz': 'FC Jazzin',
+  'FC Vaajakoski': 'FC Vaajakosken',
+  'JJK Jyväskylä': 'JJK Jyväskylän',
+  KPV: 'KPV:n',
+  'KuPS Akatemia I': 'KuPS Akatemia I:n',
+  OLS: 'OLS:n',
+  PKKU: 'PKKU:n',
+  VIFK: 'VIFK:n',
 };
 
 function avain(nimi: string): string {

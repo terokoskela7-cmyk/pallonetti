@@ -254,10 +254,14 @@ export default function HomePage() {
   );
 
   const pct = laskeNuortenOsuus(veikkausliiga);
+  // Eri pelaajat, joilla on minuutteja: sama luku kuin peliaikasivun
+  // "peliaikaa saaneet". Joukkuerivien summa laski seuranvaihtajat kahdesti
+  // ja mukaan tulivat myös nollaminuuttiset.
   const count: number | null =
     veikkausliiga.length === 0
       ? null
-      : veikkausliiga.reduce((s, t) => s + t.pelaajatNuoret, 0);
+      : (data.agg.pelaajatPeliajalla ??
+        veikkausliiga.reduce((s, t) => s + t.pelaajatNuoret, 0));
   const players = nuoretPelaajat;
   const topPlayer = players[0] ?? null;
 

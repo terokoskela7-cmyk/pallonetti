@@ -10,7 +10,7 @@
 //   npx esbuild testit/lahde.testi.ts --bundle --platform=node \
 //     --format=cjs --outfile=/tmp/lahde.cjs --alias:@=./src && node /tmp/lahde.cjs
 // ============================================
-import { lahdeMaininta, lahdeRivi, sarjaGenetiivi } from '../src/constants/lahde';
+import { lahdeMaininta, lahdeRivi, sarjaGenetiivi, sarjaInessiivi } from '../src/constants/lahde';
 
 let virheita = 0;
 function vertaa(nimi: string, saatu: unknown, odotettu: unknown) {
@@ -52,6 +52,9 @@ console.log('');
 console.log('GENETIIVI');
 vertaa('Veikkausliiga', sarjaGenetiivi('Veikkausliiga'), 'Veikkausliigan');
 vertaa('Ykkösliiga', sarjaGenetiivi('Ykkösliiga'), 'Ykkösliigan');
+vertaa('Miesten Ykkönen', sarjaGenetiivi('Miesten Ykkönen'), 'Miesten Ykkösen');
+vertaa('inessiivi Miesten Ykkönen', sarjaInessiivi('Miesten Ykkönen'), 'Miesten Ykkösessä');
+vertaa('inessiivi tuntematon', sarjaInessiivi('Kakkonen'), 'sarjassa');
 // Ylimääräiset välilyönnit eivät saa pudottaa taivutusta.
 vertaa('välit siedetään', sarjaGenetiivi('  Ykkösliiga '), 'Ykkösliigan');
 

@@ -108,6 +108,7 @@ interface Piste {
 const SARJAN_VARI: Record<string, string> = {
   Veikkausliiga: '#00C8FF',
   Ykkösliiga: '#22C55E',
+  'Miesten Ykkönen': '#F59E0B',
 };
 const TUNTEMATON_VARI = '#8899AA';
 
@@ -118,7 +119,7 @@ function sarjanVari(sarja: string | null): string {
 /**
  * Pisteen muoto JA väri kertovat sarjan. Kumpikin yksin riittäisi
  * näkevälle lukijalle, mutta väri yksin ei riitä värisokealle — siksi
- * Veikkausliiga on ympyrä ja Ykkösliiga neliö.
+ * Veikkausliiga on ympyrä, Ykkösliiga neliö ja Miesten Ykkönen kolmio.
  */
 function SarjaPiste(props: {
   cx?: number;
@@ -131,6 +132,14 @@ function SarjaPiste(props: {
   const vari = sarjanVari(payload.sarja);
   if (payload.sarja === 'Ykkösliiga') {
     return <rect x={cx - 3.5} y={cy - 3.5} width={7} height={7} fill={vari} />;
+  }
+  if (payload.sarja === 'Miesten Ykkönen') {
+    return (
+      <polygon
+        points={cx + ',' + (cy - 4.5) + ' ' + (cx + 4.5) + ',' + (cy + 3.5) + ' ' + (cx - 4.5) + ',' + (cy + 3.5)}
+        fill={vari}
+      />
+    );
   }
   return <circle cx={cx} cy={cy} r={3.5} fill={vari} />;
 }
@@ -270,6 +279,14 @@ function Aikasarja({ data }: { data: SeuranSivu }) {
           />
           Ykkösliiga
         </span>
+        {data.sarjatMukana.includes('Miesten Ykkönen') && (
+          <span className="inline-flex items-center gap-1.5">
+            <svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true">
+              <polygon points="5,0 10,9 0,9" fill={SARJAN_VARI['Miesten Ykkönen']} />
+            </svg>
+            Miesten Ykkönen
+          </span>
+        )}
         <span className="inline-flex items-center gap-1.5">
           <span className="inline-block w-4 border-t border-dashed border-white/40" />
           sarjan taso 1,0

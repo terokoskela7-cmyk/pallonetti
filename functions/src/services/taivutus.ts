@@ -74,6 +74,7 @@ export function genetiiviTaiJoukkueen(joukkue: string): string {
 const SARJAN_INESSIIVI: Record<string, string> = {
   Veikkausliiga: 'Veikkausliigassa',
   Ykkösliiga: 'Ykkösliigassa',
+  'Miesten Ykkönen': 'Miesten Ykkösessä',
 };
 
 /** "Veikkausliigassa", tai "sarjassa" jos sarjaa ei tunneta. */

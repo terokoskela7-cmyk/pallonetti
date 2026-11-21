@@ -14,7 +14,7 @@ export const OLETUSSARJA = 'Veikkausliiga';
  * Näyttöjärjestys. Sarjat, joita ei ole listalla, tulevat perään
  * aakkosjärjestyksessä — uusi sarja ei siis katoa näkyvistä.
  */
-const JARJESTYS = ['Veikkausliiga', 'Ykkösliiga'];
+const JARJESTYS = ['Veikkausliiga', 'Ykkösliiga', 'Miesten Ykkönen'];
 
 /** Sama normalisointi kuin backendissä: "Ykkösliiga" → "ykkosliiga". */
 export function sarjaAvain(sarja: string): string {
@@ -36,4 +36,18 @@ export function jarjestaSarjat(sarjat: string[]): string[] {
     if (ib >= 0) return 1;
     return a.localeCompare(b, 'fi');
   });
+}
+
+/**
+ * /youth-stats/:season/all palauttaa kaikki sarjat yhdessä vastauksessa.
+ * Valinta tehdään tässä eikä sivuilla, jotta uusi sarja ei putoa
+ * kaksihaaraisen ehdon else-haaraan ja näytä Veikkausliigan lukuja.
+ */
+export function sarjanRivit<T>(
+  kaikki: { veikkausliiga?: T[]; ykkosliiga?: T[]; ykkonen?: T[] },
+  sarja: string,
+): T[] {
+  if (sarja === 'Ykkösliiga') return kaikki.ykkosliiga ?? [];
+  if (sarja === 'Miesten Ykkönen') return kaikki.ykkonen ?? [];
+  return kaikki.veikkausliiga ?? [];
 }

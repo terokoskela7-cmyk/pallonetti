@@ -38,7 +38,8 @@ import { pros, luku } from '@/utils/luvut';
 import { Hero } from '@/components/Hero';
 import { ResearchCard } from '@/components/ResearchCard';
 import { EtusivunLause } from '@/components/Valokeila';
-import { lahdeMaininta } from '@/constants/lahde';
+import { lahdeMaininta, sarjaInessiivi } from '@/constants/lahde';
+import { sarjanRivit } from '@/constants/sarjat';
 
 // ============================================================
 // Sivuston rakenne — opastaa käyttäjää
@@ -249,9 +250,7 @@ export default function HomePage() {
 
   // Sama vastaus sisältää molemmat sarjat; valitaan se, jota katsotaan.
   const veikkausliiga = filterReliableTeams(
-    (sarja === 'Ykkösliiga'
-      ? data.stats.ykkosliiga
-      : data.stats.veikkausliiga) ?? [],
+    sarjanRivit(data.stats, sarja),
   );
 
   const pct = laskeNuortenOsuus(veikkausliiga);
@@ -279,7 +278,7 @@ export default function HomePage() {
         }
         subtitle={
           'Seuraa suomalaisten nuorten pelaajien peliaikaa ' +
-          (sarja === 'Ykkösliiga' ? 'Ykkösliigassa' : 'Veikkausliigassa') +
+          sarjaInessiivi(sarja) +
           '. Lähteenä ' +
           lahdeMaininta(sarja) +
           '.'

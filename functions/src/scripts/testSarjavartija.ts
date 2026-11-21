@@ -108,7 +108,7 @@ console.log('SARJA TIEDOSTOSTA');
   vertaa(
     'viesti kertoo tuetut sarjat',
     VIESTI_TUNTEMATON_SARJA,
-    'Tiedostossa on sarja, jota ei tueta. Tuetut sarjat: Veikkausliiga, Ykkösliiga.',
+    'Tiedostossa on sarja, jota ei tueta. Tuetut sarjat: Veikkausliiga, Ykkösliiga, Miesten Ykkönen.',
   );
   vertaa('tuntematon rivi ei päädy dataan', tuntematon.suoritukset.length, 0);
 
@@ -130,6 +130,7 @@ console.log('AVAIMET');
 {
   vertaa('sarjaAvain: Veikkausliiga', sarjaAvain('Veikkausliiga'), 'veikkausliiga');
   vertaa('sarjaAvain: skandit', sarjaAvain('Ykkösliiga'), 'ykkosliiga');
+  vertaa('sarjaAvain: välilyönti', sarjaAvain('Miesten Ykkönen'), 'miesten-ykkonen');
   vertaa('sarjaAvain: tyhjä -> oletus', sarjaAvain(''), 'veikkausliiga');
 
   const vlRivi = { sarja: 'Veikkausliiga', kausi: '2026', vaihe: 'Runkosarja', joukkue: 'KuPS', pelaajaAvain: 'otto ruoppi', slug: 'otto-ruoppi' };

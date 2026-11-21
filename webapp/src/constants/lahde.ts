@@ -17,6 +17,7 @@
 const SARJAN_GENETIIVI: Record<string, string> = {
   Veikkausliiga: 'Veikkausliigan',
   Ykkösliiga: 'Ykkösliigan',
+  'Miesten Ykkönen': 'Miesten Ykkösen',
 };
 
 /** Muoto tuntemattomalle sarjalle: oikein, muttei nimeä sarjaa. */
@@ -24,6 +25,18 @@ const TUNTEMATON = 'sarjan';
 
 function avain(sarja: string): string {
   return String(sarja || '').replace(/\s+/g, ' ').trim();
+}
+
+/** Sarja → inessiivi ("Peliaika Veikkausliigassa"). Sama kartta kuin backendissä. */
+const SARJAN_INESSIIVI: Record<string, string> = {
+  Veikkausliiga: 'Veikkausliigassa',
+  Ykkösliiga: 'Ykkösliigassa',
+  'Miesten Ykkönen': 'Miesten Ykkösessä',
+};
+
+/** Sarjan inessiivi, tai "sarjassa" jos sarjaa ei tunneta. */
+export function sarjaInessiivi(sarja: string): string {
+  return SARJAN_INESSIIVI[avain(sarja)] ?? 'sarjassa';
 }
 
 /** Sarjan genetiivi, tai "sarjan" jos sarjaa ei tunneta. */

@@ -317,9 +317,10 @@ app.get('/api/youth-stats/:season/all', async (req, res) => {
   try {
     const db = admin.firestore();
     const paivitetty = new Date().toISOString();
-    const [vl, yl] = await Promise.all([
+    const [vl, yl, yk] = await Promise.all([
       lueKausi(db, season, 'Veikkausliiga'),
       lueKausi(db, season, 'Ykkösliiga'),
+      lueKausi(db, season, 'Miesten Ykkönen'),
     ]);
     const veikkausliiga = laskeJoukkueidenOsuudet(
       season,
@@ -333,17 +334,24 @@ app.get('/api/youth-stats/:season/all', async (req, res) => {
       yl.nimittajat,
       paivitetty,
     );
+    const ykkonen = laskeJoukkueidenOsuudet(
+      season,
+      yk.suoritukset,
+      yk.nimittajat,
+      paivitetty,
+    );
     res.set('Cache-Control', 'public, max-age=3600');
     res.json({
       success: true,
-      data: { veikkausliiga, ykkosliiga, ykkonen: [] },
+      data: { veikkausliiga, ykkosliiga, ykkonen },
       dataSaatavilla: {
         veikkausliiga: veikkausliiga.length > 0,
         ykkosliiga: ykkosliiga.length > 0,
-        ykkonen: false,
+        ykkonen: ykkonen.length > 0,
       },
       ikahaarukka: paatteleIkahaarukka(vl.suoritukset),
       ikahaarukkaYkkosliiga: paatteleIkahaarukka(yl.suoritukset),
+      ikahaarukkaYkkonen: paatteleIkahaarukka(yk.suoritukset),
       source: 'kausituonti',
       timestamp: new Date().toISOString(),
     });

@@ -44,6 +44,7 @@ import {
 import { useValittuKausi, useValittuSarja } from '@/hooks/useKausi';
 import { IKAKAISTAT, kaistalla, NUORET_LABEL } from '@/constants/ika';
 import { lahdeMaininta } from '@/constants/lahde';
+import { sarjanRivit } from '@/constants/sarjat';
 import { pros } from '@/utils/luvut';
 import { InsightBar } from '@/components/InsightBar';
 import { InfoTooltip } from '@/components/InfoTooltip';
@@ -430,9 +431,7 @@ export default function PelaikaPage() {
   // Sama vastaus sisältää molemmat sarjat; valitaan se, jota katsotaan.
   const veikkausliiga = useMemo(() => {
     if (!statsData) return [];
-    const rivit =
-      sarja === 'Ykkösliiga' ? statsData.ykkosliiga : statsData.veikkausliiga;
-    return filterReliableTeams(rivit ?? []);
+    return filterReliableTeams(sarjanRivit(statsData, sarja));
   }, [statsData, sarja]);
 
   const players = useMemo(() => seasonPlayers ?? [], [seasonPlayers]);

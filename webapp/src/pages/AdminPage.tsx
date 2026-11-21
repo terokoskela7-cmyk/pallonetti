@@ -74,6 +74,19 @@ function Rivi({ label, arvo }: { label: string; arvo: string }) {
   );
 }
 
+/** Ohitetut rivit syittäin: ikärajan ohittamia voi olla tuhansia. */
+function ryhmitteleOhitetut(
+  ohitetut: Array<{ rivi: number; syy: string }>,
+): Array<{ syy: string; rivit: number[] }> {
+  const ryhmat = new Map<string, number[]>();
+  for (const o of ohitetut) {
+    const rivit = ryhmat.get(o.syy) ?? [];
+    rivit.push(o.rivi);
+    ryhmat.set(o.syy, rivit);
+  }
+  return Array.from(ryhmat, ([syy, rivit]) => ({ syy, rivit }));
+}
+
 export default function AdminPage() {
   const [adminKey, setAdminKey] = useState('');
   const [file, setFile] = useState<File | null>(null);
@@ -208,9 +221,11 @@ export default function AdminPage() {
               arvo={luku(tila.data.rivit.kayttokelpoiset)}
             />
             <Rivi label="Ohitettu" arvo={luku(tila.data.rivit.ohitetut.length)} />
-            {tila.data.rivit.ohitetut.map((o) => (
-              <div key={o.rivi} className="text-xs text-white/40 pl-4">
-                rivi {o.rivi}: {o.syy}
+            {ryhmitteleOhitetut(tila.data.rivit.ohitetut).map((r) => (
+              <div key={r.syy} className="text-xs text-white/40 pl-4">
+                {r.syy}: {r.rivit.length} {r.rivit.length === 1 ? 'rivi' : 'riviä'} (rivit{' '}
+                {r.rivit.slice(0, 5).join(', ')}
+                {r.rivit.length > 5 ? ', …' : ''})
               </div>
             ))}
           </div>

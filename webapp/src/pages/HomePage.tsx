@@ -315,7 +315,10 @@ export default function HomePage() {
             to="/pelaajat"
             icon={Search}
             title="Kaikki pelaajat"
-            body="Hakemisto Veikkausliigan pelaajista virallisista tilastoista. Hae nimellä tai suodata joukkueella."
+            body={
+              'Hakemisto Veikkausliigan pelaajista virallisista tilastoista. Hae nimellä tai suodata joukkueella.' +
+              (sarja !== 'Veikkausliiga' ? ' Kattaa vain Veikkausliigan.' : '')
+            }
           />
           <GuideCard
             to="/about"

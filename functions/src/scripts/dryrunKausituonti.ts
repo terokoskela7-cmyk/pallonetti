@@ -9,7 +9,7 @@
 //   node lib/scripts/dryrunKausituonti.js "/polku/data.xlsx"
 // ============================================
 import * as fs from 'fs';
-import { parsiKausiExcel, nimittajaId } from '../services/kausiImport';
+import { parsiKausiExcel, nimittajaId, ryhmitteleOhitetut } from '../services/kausiImport';
 
 function pros(x: number): string {
   return (x * 100).toFixed(1).replace('.', ',') + ' %';
@@ -48,9 +48,7 @@ function main(): void {
   console.log('  Luettu (pl. otsikko):  ' + tulos.rivitLuettu);
   console.log('  Käyttökelpoisia:       ' + tulos.suoritukset.length);
   console.log('  Ohitettu:              ' + tulos.ohitetut.length);
-  for (const o of tulos.ohitetut) {
-    console.log('     rivi ' + o.rivi + ': ' + o.syy);
-  }
+  for (const r of ryhmitteleOhitetut(tulos.ohitetut)) console.log('     ' + r);
 
   console.log('');
   console.log('KAUDET');

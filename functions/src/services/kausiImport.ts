@@ -16,6 +16,7 @@
 // Projektin invariantit: päivämäärät Date.UTC(), ei sisäkkäisiä template
 // literaaleja (käytetään +-ketjutusta).
 // ============================================
+import { NUORET_MIN, NUORET_MAX } from './ikarajat';
 import * as XLSX from 'xlsx';
 import { toSlug } from './excelImport';
 
@@ -51,6 +52,10 @@ const VALINNAISET_SARAKKEET = [
  * rikkinaisilta.
  */
 export const TUETUT_SARJAT = ['Veikkausliiga', 'Ykkösliiga', 'Miesten Ykkönen'] as const;
+
+/** Ohitussyy rajan ulkopuoliselle iälle. Sama teksti ryhmittelyä varten. */
+export const IKARAJAN_SYY =
+  'ikä ' + NUORET_MIN + '–' + NUORET_MAX + ' v ulkopuolella (sivusto kattaa vain tämän ikähaarukan)';
 
 /** Oletussarja: vanhat osoitteet ja vanha data tarkoittavat Veikkausliigaa. */
 export const OLETUSSARJA = 'Veikkausliiga';
@@ -495,6 +500,19 @@ export function parsiKausiExcel(buffer: Buffer): TuontiTulos {
       continue;
     }
 
+    // 8) Ikärajaus. Sivuston laskenta olettaa, että vienti sisältää vain
+    //    17–21-vuotiaat: ikähaarukka päätellään datasta, ja seura- ja
+    //    nuoret-näkymät laskevat kaikki rivit nuoriksi. 21.11.2026 tuotiin
+    //    vienti, jossa olivat kaikki ikäluokat, ja nuorten osuus nousi
+    //    ~100 %:iin. Siksi rajan ulkopuoliset rivit ohitetaan tässä eikä
+    //    luoteta siihen, että vienti on suodatettu. Puuttuva ikä (0) pidetään
+    //    kuten ennenkin.
+    const ika = toNum(kentta(rivi, 'Pelaajan ikä kaudella'));
+    if (ika > 0 && (ika < NUORET_MIN || ika > NUORET_MAX)) {
+      ohitetut.push({ rivi: excelRivi, syy: IKARAJAN_SYY });
+      continue;
+    }
+
     const etunimi = toStr(kentta(rivi, 'Etunimi'));
     const sukunimi = toStr(kentta(rivi, 'Sukunimi'));
     const ottelut = toNum(kentta(rivi, 'Pelatut ottelut'));
@@ -509,7 +527,7 @@ export function parsiKausiExcel(buffer: Buffer): TuontiTulos {
       slug: toSlug(etunimi, sukunimi),
       etunimi,
       sukunimi,
-      ika: toNum(kentta(rivi, 'Pelaajan ikä kaudella')),
+      ika,
       minuutit,
       minuutit_pros: toNum(kentta(rivi, 'Pelatut minuutit (%)')),
       aloitukset: toNum(kentta(rivi, 'Ottelut aloituksessa')),
@@ -883,4 +901,28 @@ function tyhjaTulos(virheet: string[]): TuontiTulos {
     projektiot: [],
     suoritusIdt: [],
   };
+}
+
+/**
+ * Ohitetut rivit syittäin, esim. "ikä 17–21 v ulkopuolella …: 1437 riviä
+ * (rivit 3, 4, 5, 6, 7, …)". Kaikkien ikärajan ohittamien rivien
+ * tulostaminen yksitellen hukuttaisi muut syyt.
+ */
+export function ryhmitteleOhitetut(
+  ohitetut: Array<{ rivi: number; syy: string }>,
+): string[] {
+  const ryhmat = new Map<string, number[]>();
+  for (const o of ohitetut) {
+    const rivit = ryhmat.get(o.syy) ?? [];
+    rivit.push(o.rivi);
+    ryhmat.set(o.syy, rivit);
+  }
+  const tulos: string[] = [];
+  for (const [syy, rivit] of ryhmat) {
+    tulos.push(
+      syy + ': ' + rivit.length + (rivit.length === 1 ? ' rivi' : ' riviä') +
+        ' (rivit ' + rivit.slice(0, 5).join(', ') + (rivit.length > 5 ? ', …' : '') + ')',
+    );
+  }
+  return tulos;
 }

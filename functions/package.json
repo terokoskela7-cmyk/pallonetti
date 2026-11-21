@@ -4,7 +4,7 @@
   "description": "Pallotalentti.fi - Firebase backend for Finnish football data",
   "main": "lib/index.js",
   "engines": {
-    "node": "20"
+    "node": "22"
   },
   "scripts": {
     "build": "tsc",

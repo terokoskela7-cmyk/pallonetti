@@ -17,7 +17,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import * as admin from 'firebase-admin';
-import { parsiKausiExcel } from '../services/kausiImport';
+import { parsiKausiExcel, ryhmitteleOhitetut } from '../services/kausiImport';
 import {
   arvioiMuutokset,
   kirjoitaKausituonti,
@@ -102,7 +102,7 @@ async function main(): Promise<void> {
   console.log('LUETTU');
   console.log('  rivejä ' + tulos.rivitLuettu + ', käyttökelpoisia ' +
     tulos.suoritukset.length + ', ohitettu ' + tulos.ohitetut.length);
-  for (const o of tulos.ohitetut) console.log('     rivi ' + o.rivi + ': ' + o.syy);
+  for (const r of ryhmitteleOhitetut(tulos.ohitetut)) console.log('     ' + r);
   console.log('');
   for (const k of tulos.kaudet) {
     console.log(

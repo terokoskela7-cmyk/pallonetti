@@ -18,6 +18,8 @@ import {
   nimittajaId,
   kausiId,
   projektioId,
+  IKARAJAN_SYY,
+  ryhmitteleOhitetut,
 } from '../services/kausiImport';
 
 let virheita = 0;
@@ -158,6 +160,40 @@ console.log('AVAIMET');
     'puuttuva sarja = Veikkausliiga',
     suoritusId({ kausi: '2026', vaihe: 'Runkosarja', joukkue: 'KuPS', pelaajaAvain: 'otto ruoppi' }),
     suoritusId(vlRivi),
+  );
+}
+
+console.log('');
+console.log('IKÄRAJAUS 17–21');
+{
+  // 21.11.2026 tuotiin vienti, jossa olivat kaikki ikäluokat. Rajan
+  // ulkopuoliset rivit ohitetaan; puuttuva ikä (0) pidetään kuten ennen.
+  const ikaRivi = (suku: string, ika: number): unknown[] =>
+    ['Testi', suku, '2026', 'Veikkausliiga', 'Runkosarja', 'HJK', ika, 900, 10, 10, 10, 1, 27];
+  const t = parsiKausiExcel(
+    tiedosto([
+      ikaRivi('Kuusitoista', 16),
+      ikaRivi('Seitsemäntoista', 17),
+      ikaRivi('Kaksikymmentäyksi', 21),
+      ikaRivi('Kaksikymmentäkaksi', 22),
+      ikaRivi('Tuntematon', 0),
+    ]),
+  );
+  vertaa('ei virheitä', t.virheet, []);
+  vertaa(
+    'rajan sisällä ja ikä puuttuu → mukana',
+    t.suoritukset.map((x) => x.sukunimi),
+    ['Seitsemäntoista', 'Kaksikymmentäyksi', 'Tuntematon'],
+  );
+  vertaa(
+    '16 ja 22 v ohitetaan ikärajan syyllä',
+    t.ohitetut.map((o) => [o.rivi, o.syy]),
+    [[2, IKARAJAN_SYY], [5, IKARAJAN_SYY]],
+  );
+  vertaa(
+    'ohitetut ryhmitellään syittäin',
+    ryhmitteleOhitetut(t.ohitetut),
+    [IKARAJAN_SYY + ': 2 riviä (rivit 2, 5)'],
   );
 }
 

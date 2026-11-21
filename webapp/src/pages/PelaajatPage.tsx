@@ -6,6 +6,8 @@ import { naytaNimi } from '@/utils/nimet';
 import { getOfficialStats, type OfficialPlayer } from '@/services/api';
 import { useValittuKausi, useValittuSarja } from '@/hooks/useKausi';
 import { Hero } from '@/components/Hero';
+import { SisainenLinkki } from '@/components/SisainenLinkki';
+import { sarjaGenetiivi } from '@/constants/lahde';
 
 /** Yksinkertainen slugify joka säilyttää ascii:n. Käytetään tulevan
  *  /pelaaja/:id-reitin parametriksi (placeholder-navigointi). */
@@ -114,7 +116,25 @@ export default function PelaajatPage() {
         <div className="rounded-r-md bg-navy-600 border-l-2 border-ice px-5 py-4 flex items-start gap-3">
           <Info className="w-4 h-4 text-ice shrink-0 mt-0.5" />
           <p className="text-sm text-white/60">
-            Yhtään pelaajaa ei vastaa suodattimia.
+            {data.data.length > 0 ? (
+              'Yhtään pelaajaa ei vastaa suodattimia.'
+            ) : (
+              <>
+                Veikkausliigan rekisterin tilastoja ei ole tallennettu kaudelta{' '}
+                {kausi}.
+              </>
+            )}
+            {sarja !== 'Veikkausliiga' && (
+              <>
+                {' '}
+                Tämä hakemisto kattaa vain Veikkausliigan. {sarjaGenetiivi(sarja)}{' '}
+                17–21-vuotiaat löytyvät{' '}
+                <SisainenLinkki to="/nuoret" className="text-ice hover:underline">
+                  Nuoret-sivulta
+                </SisainenLinkki>
+                .
+              </>
+            )}
           </p>
         </div>
       ) : (

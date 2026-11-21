@@ -50,7 +50,7 @@ const VALINNAISET_SARAKKEET = [
  * minuutit sekoittuisivat samoihin avaimiin eivatka nayttaisi
  * rikkinaisilta.
  */
-export const TUETUT_SARJAT = ['Veikkausliiga', 'Ykkösliiga'] as const;
+export const TUETUT_SARJAT = ['Veikkausliiga', 'Ykkösliiga', 'Miesten Ykkönen'] as const;
 
 /** Oletussarja: vanhat osoitteet ja vanha data tarkoittavat Veikkausliigaa. */
 export const OLETUSSARJA = 'Veikkausliiga';

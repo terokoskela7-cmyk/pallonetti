@@ -89,10 +89,17 @@ export async function lueKaikkiSarjat(
       ),
     ).sort((a, b) => a - b);
 
+    // Kaudet rinnakkain: peräkkäin luettuna seurasivu odotti jokaista
+    // kautta erikseen.
+    const tulokset = await Promise.all(
+      kaudet.map(async (kausi) => {
+        const { suoritukset, nimittajat } = await lueKausi(db, kausi, sarja);
+        return [kausi, laskeSeurakausi(kausi, sarja, suoritukset, nimittajat)] as const;
+      }),
+    );
     const kausittain = new Map<number, Seurakausi[]>();
-    for (const kausi of kaudet) {
-      const { suoritukset, nimittajat } = await lueKausi(db, kausi, sarja);
-      kausittain.set(kausi, laskeSeurakausi(kausi, sarja, suoritukset, nimittajat));
+    for (const [kausi, rivit] of tulokset) {
+      kausittain.set(kausi, rivit);
       kaikkiKaudet.add(kausi);
     }
     kausittainSarjoittain.set(sarja, kausittain);

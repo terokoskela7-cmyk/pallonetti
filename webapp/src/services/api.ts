@@ -149,6 +149,8 @@ export interface YouthAggregation {
   league: string;
   totalPlayersAnalyzed: number;
   pelaajatNuoret: number;
+  /** Eri pelaajat, joilla on minuutteja (seuranvaihtaja kerran). */
+  pelaajatPeliajalla?: number;
   totalMinutesPlayed: number;
   minuutitNuoret: number;
   osuusNuoret: number;

@@ -391,9 +391,14 @@ app.get('/api/youth-aggregation/:season', async (req, res) => {
       // suodatettu 17-21-vuotiaisiin — ks. ikahaarukka.
       data: {
         season,
-        league: 'Veikkausliiga',
+        league: sarja,
         totalPlayersAnalyzed: yhteenveto.pelaajia,
         pelaajatNuoret: yhteenveto.pelaajia,
+        // Eri pelaajat, joilla on minuutteja. Joukkuerivien summa laskisi
+        // kauden aikana seuraa vaihtaneen kahdesti.
+        pelaajatPeliajalla: new Set(
+          suoritukset.filter((s) => s.minuutit > 0).map((s) => s.slug),
+        ).size,
         totalMinutesPlayed: yhteenveto.kapasiteettiMinuutit,
         minuutitNuoret: yhteenveto.nuortenMinuutit,
         osuusNuoret: yhteenveto.nuortenOsuus,

@@ -115,6 +115,43 @@ export function joukkueTunniste(nimi: string): string {
     .replace(/^-+|-+$/g, '');
 }
 
+// ============================================
+// KAUDEN RIVIEN LYHYT MUISTI
+//
+// Kauden suoritukset luetaan sarjasta riippumatta (sarja suodatetaan
+// muistissa), joten seurasivu ja kaikkien sarjojen trendi lukivat saman
+// kauden kolmesti — kerran per sarja. Ilman välimuistia seurasivu vei
+// ~14 s ja trendi 5–11 s, ja sivu jäi tyhjäksi. Lupaus tallennetaan
+// instanssin muistiin minuutiksi: samanaikaiset ja peräkkäiset luvut
+// jakavat yhden Firestore-haun. Minuutti on lyhyt suhteessa vastausten
+// tunnin HTTP-välimuistiin, joten tuonnin jälkeinen viive ei kasva.
+// ============================================
+const RIVIEN_MUISTI_MS = 60 * 1000;
+const rivienMuisti = new Map<
+  string,
+  { luettu: number; lupaus: Promise<{ sDocs: SuoritusDoc[]; nDocs: NimittajaDoc[] }> }
+>();
+
+function lueKaudenRivit(
+  db: firestore.Firestore,
+  kausi: string,
+): Promise<{ sDocs: SuoritusDoc[]; nDocs: NimittajaDoc[] }> {
+  const nyt = Date.now();
+  const muistissa = rivienMuisti.get(kausi);
+  if (muistissa && nyt - muistissa.luettu < RIVIEN_MUISTI_MS) return muistissa.lupaus;
+  const lupaus = Promise.all([
+    db.collection('suoritukset').where('kausi', '==', kausi).get(),
+    db.collection('nimittajat').where('kausi', '==', kausi).get(),
+  ]).then(([sSnap, nSnap]) => ({
+    sDocs: sSnap.docs.map((d) => d.data() as SuoritusDoc),
+    nDocs: nSnap.docs.map((d) => d.data() as NimittajaDoc),
+  }));
+  // Epäonnistunut haku ei jää muistiin: seuraava kutsu yrittää uudelleen.
+  lupaus.catch(() => rivienMuisti.delete(kausi));
+  rivienMuisti.set(kausi, { luettu: nyt, lupaus });
+  return lupaus;
+}
+
 /**
  * Lukee kauden suoritukset ja nimittäjät. Vanhentuneiksi merkityt
  * suoritukset jätetään pois: ne ovat pelaajia jotka ovat poistuneet
@@ -125,11 +162,7 @@ export async function lueKausi(
   season: number,
   sarja: string = OLETUSSARJA,
 ): Promise<{ suoritukset: SuoritusDoc[]; nimittajat: NimittajaDoc[] }> {
-  const kausi = String(season);
-  const [sSnap, nSnap] = await Promise.all([
-    db.collection('suoritukset').where('kausi', '==', kausi).get(),
-    db.collection('nimittajat').where('kausi', '==', kausi).get(),
-  ]);
+  const { sDocs, nDocs } = await lueKaudenRivit(db, String(season));
 
   // Sarja suodatetaan MUISTISSA, ei where-ehdolla. Vanhoissa
   // dokumenteissa kenttaa ei ole, ja where jattaisi ne kokonaan pois —
@@ -139,14 +172,12 @@ export async function lueKausi(
     (x.sarja || OLETUSSARJA) === sarja;
 
   return {
-    suoritukset: sSnap.docs
-      .map((d) => d.data() as SuoritusDoc)
+    suoritukset: sDocs
       .filter((s) => s.vanhentunut !== true)
       .filter(omaSarja),
     // Nimittajat suodatetaan samoin kuin suoritukset: vanhentunut
     // nimittaja kasvattaisi kapasiteettia ja pienentaisi osuutta.
-    nimittajat: nSnap.docs
-      .map((d) => d.data() as NimittajaDoc)
+    nimittajat: nDocs
       .filter((n) => n.vanhentunut !== true)
       .filter(omaSarja),
   };

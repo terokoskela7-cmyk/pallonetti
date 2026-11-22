@@ -31,7 +31,7 @@ import { muodostaOtsikkolause } from '@/utils/otsikkolause';
 //   1. Otsikkolause kausitrendistä + pieni trendikaavio
 //   2. KPI-rivi: peliaika, aloitukset, penkkikerrat, CIES-vertailu
 //   3. Seurat nuorten osuuden mukaan (palkit + sarjan taso)
-//      ja sivupalstassa eniten peliaikaa + valokeila
+//      ja sivupalstassa eniten peliaikaa; valokeila omana rivinään
 //   4. Kausittain: koko trendikaavio ja vertailurivi
 //
 // Jokainen osio, jonka data puuttuu, jää pois tai näyttää "ei dataa" —
@@ -313,7 +313,7 @@ export default function HomePage() {
           )}
         </section>
 
-        <aside className="flex-[1_1_20rem] space-y-6">
+        <aside className="flex-[1_1_20rem]">
           <section aria-labelledby="karki" className="bg-navy-700/40 border border-navy-600 rounded-xl p-5 md:p-6">
             <h2 id="karki" className="text-lg font-medium text-white mb-4">
               Eniten peliaikaa
@@ -346,29 +346,38 @@ export default function HomePage() {
             </SisainenLinkki>
           </section>
 
-          {valokeila.length > 0 && (
-            <section aria-labelledby="valokeila" className="bg-navy-700/40 border border-navy-600 rounded-xl p-5 md:p-6 space-y-4">
-              <div>
-                <h2 id="valokeila" className="text-lg font-medium text-white">
-                  Valokeilassa
-                </h2>
-                <p className="text-xs text-white/50 mt-1">Suurin ero oman ikäryhmän mediaaniin</p>
-              </div>
-              {valokeila.map((n) => (
-                <div key={n.slug} className="pt-3 border-t border-navy-600 space-y-1">
-                  <SisainenLinkki to={`/pelaaja/${n.slug}`} className="text-white font-medium hover:text-ice">
-                    {naytaNimi(n.etunimi + ' ' + n.sukunimi)}
-                  </SisainenLinkki>
-                  <p className="text-xs text-white/50">
-                    {n.ika} v · {n.joukkue}
-                  </p>
-                  <p className="text-sm text-white/80 tabular">{n.rivi.teksti}</p>
-                </div>
-              ))}
-            </section>
-          )}
         </aside>
       </div>
+
+      {/* ---------- 3b. Valokeila omana rivinään ----------
+          Sivupalstassa valokeila teki palstasta pidemmän kuin seuralista,
+          ja seuralaatikon alle jäi tyhjää. Omana rivinään kolme nostoa
+          mahtuvat rinnakkain. */}
+      {valokeila.length > 0 && (
+        <section aria-labelledby="valokeila" className="space-y-4">
+          <div className="flex flex-wrap items-baseline justify-between gap-2">
+            <h2 id="valokeila" className="text-lg font-medium text-white">
+              Valokeilassa
+            </h2>
+            <span className="text-xs text-white/50">Suurin ero oman ikäryhmän mediaaniin</span>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            {valokeila.map((n) => (
+              <SisainenLinkki
+                key={n.slug}
+                to={`/pelaaja/${n.slug}`}
+                className="block bg-navy-700/40 border border-navy-600 rounded-xl p-5 space-y-2 hover:border-ice/50 transition-colors"
+              >
+                <p className="text-xs uppercase tracking-[0.08em] text-white/50 font-mono">
+                  {n.ika} v · {n.joukkue}
+                </p>
+                <p className="text-lg text-white font-medium">{naytaNimi(n.etunimi + ' ' + n.sukunimi)}</p>
+                <p className="text-sm text-white/80 tabular">{n.rivi.teksti}</p>
+              </SisainenLinkki>
+            ))}
+          </div>
+        </section>
+      )}
 
       {/* ---------- 4. Kausittain ---------- */}
       <section aria-labelledby="kausittain" className="bg-navy-700/40 border border-navy-600 rounded-xl p-5 md:p-6 space-y-5">

@@ -23,12 +23,17 @@ import {
   getSeasonPlayer,
   getPlayerRounds,
   getKonteksti,
+  getPelaajanPolku,
+  type PolkuKausi,
   type SeasonPlayer,
   type PlayerRound,
   type Siirto,
   type Konteksti,
 } from '@/services/api';
 import { useValittuKausi, useValittuSarja } from '@/hooks/useKausi';
+import { sarjaAvain, sarjanLyhytNimi } from '@/constants/sarjat';
+
+const luku = (n: number) => n.toLocaleString('fi-FI');
 
 function fullName(p: SeasonPlayer): string {
   // Lähteen kirjoitusasu vaihtelee ("OSKU MAUKONEN", "alex RAMULA"),
@@ -99,10 +104,12 @@ function NotFoundState({ slug, kausi }: { slug: string; kausi: number }) {
 interface StatBlockProps {
   label: string;
   value: string;
+  /** Pieni selite luvun alla, esim. "24 / 24 ottelua". */
+  sub?: string;
   accent?: 'ice' | 'aurora' | 'white';
 }
 
-function StatBlock({ label, value, accent = 'white' }: StatBlockProps) {
+function StatBlock({ label, value, sub, accent = 'white' }: StatBlockProps) {
   const color =
     accent === 'ice'
       ? 'text-ice'
@@ -119,7 +126,74 @@ function StatBlock({ label, value, accent = 'white' }: StatBlockProps) {
       >
         {value}
       </div>
+      {sub && <div className="mt-1.5 text-[11px] text-white/40">{sub}</div>}
     </div>
+  );
+}
+
+/**
+ * Pelaajan polku kausittain, vanhin ensin. Näytettävä kausi korostetaan;
+ * muut ovat linkkejä saman pelaajan sivulle kyseisellä kaudella ja sarjalla.
+ */
+function Polku({
+  slug,
+  kaudet,
+  kausi,
+  sarja,
+}: {
+  slug: string;
+  kaudet: PolkuKausi[];
+  kausi: number;
+  sarja: string;
+}) {
+  const jarjestys = [...kaudet].sort(
+    (a, b) => a.kausi - b.kausi || a.sarja.localeCompare(b.sarja),
+  );
+  return (
+    <ol className="flex flex-col md:flex-row md:flex-wrap gap-3">
+      {jarjestys.map((k) => {
+        const nykyinen = k.kausi === kausi && k.sarja === sarja;
+        const sisalto = (
+          <>
+            <div className="text-[11px] uppercase tracking-wider text-white/40 font-mono">
+              {k.kausi}
+              {k.ika > 0 && ` · ${k.ika} v`}
+            </div>
+            <div className="mt-1 text-white/90 font-medium">
+              {sarjanLyhytNimi(k.sarja)}
+            </div>
+            <div className="text-sm text-white/60">
+              {(k.joukkueet.length > 0 ? k.joukkueet : [k.joukkue]).join(', ')}
+            </div>
+            <div className="mt-2 text-xs text-white/50 font-mono tabular">
+              {luku(k.minTotal)} min · {k.ottelutTotal} ott · aloitti {k.aloituksetTotal}
+              {k.maaliTotal > 0 && ` · ${k.maaliTotal} maalia`}
+            </div>
+          </>
+        );
+        const luokka =
+          'block rounded-lg border px-4 py-3 md:min-w-[12rem] ' +
+          (nykyinen
+            ? 'border-ice/50 bg-ice/5'
+            : 'border-navy-600 bg-navy-800/40 hover:border-ice/40 transition-colors');
+        return (
+          <li key={k.kausi + k.sarja} className="md:flex-1">
+            {nykyinen ? (
+              <div className={luokka} aria-current="page">
+                {sisalto}
+              </div>
+            ) : (
+              <SisainenLinkki
+                to={`/pelaaja/${slug}?sarja=${sarjaAvain(k.sarja)}&kausi=${k.kausi}`}
+                className={luokka}
+              >
+                {sisalto}
+              </SisainenLinkki>
+            )}
+          </li>
+        );
+      })}
+    </ol>
   );
 }
 
@@ -282,6 +356,19 @@ export default function PelaajaPage() {
     [slug, kausi, sarja],
   );
 
+  // Polku muista kausista ja sarjoista. Virhe ei kaada sivua.
+  const { data: polku } = useApi(
+    async () => {
+      if (!slug) return [] as PolkuKausi[];
+      try {
+        return await getPelaajanPolku(slug, kausi, sarja);
+      } catch {
+        return [] as PolkuKausi[];
+      }
+    },
+    [slug, kausi, sarja],
+  );
+
   const name = player ? fullName(player) : '';
 
   if (loading) return <LoadingState />;
@@ -299,6 +386,12 @@ export default function PelaajaPage() {
   if (!player) return <NotFoundState slug={slug} kausi={kausi} />;
 
   const hasRounds = (rounds?.length ?? 0) > 0;
+  const ott = player.ottelutTotal;
+  const kok = typeof player.kokoonpanossaTotal === 'number' ? player.kokoonpanossaTotal : null;
+  // Aloitusosuus pelaajalle = aloitukset / pelatut ottelut.
+  const aloitusosuus = ott > 0 ? Math.round((player.aloituksetTotal / ott) * 100) : null;
+  const penkilla = kok !== null ? Math.max(0, kok - ott) : null;
+  const minOttelu = ott > 0 ? Math.round(player.minTotal / ott) : null;
 
   return (
     <div className="px-6 py-10 md:py-14 max-w-4xl mx-auto space-y-6">
@@ -352,12 +445,38 @@ export default function PelaajaPage() {
         <div className="text-xs uppercase tracking-wider text-white/40 px-5 pt-4">
           Kauden tilastot
         </div>
-        <div className="grid grid-cols-2 md:grid-cols-4 divide-x divide-y md:divide-y-0 divide-navy-600">
-          <StatBlock label="Minuutit" value={String(player.minTotal)} accent="ice" />
-          <StatBlock label="Maalit" value={String(player.maaliTotal)} accent="aurora" />
-          <StatBlock label="Ottelut" value={String(player.ottelutTotal)} />
-          <StatBlock label="Aloitukset" value={String(player.aloituksetTotal)} />
+        <div className="grid grid-cols-2 md:grid-cols-5 divide-x divide-y md:divide-y-0 divide-navy-600">
+          <StatBlock label="Minuutit" value={luku(player.minTotal)} accent="ice" />
+          <StatBlock label="Ottelut" value={String(ott)} sub={`aloitti ${player.aloituksetTotal}`} />
+          <StatBlock
+            label="Aloitusosuus"
+            value={aloitusosuus !== null ? `${aloitusosuus} %` : '–'}
+            sub={`${player.aloituksetTotal} / ${ott} ottelua`}
+          />
+          <StatBlock
+            label="Penkillä ilman peliaikaa"
+            value={penkilla !== null ? String(penkilla) : '–'}
+            sub={kok !== null ? `${kok} kertaa kokoonpanossa` : 'kokoonpanotieto puuttuu'}
+          />
+          <StatBlock
+            label="Min / ottelu"
+            value={minOttelu !== null ? String(minOttelu) : '–'}
+            sub={`maalit ${player.maaliTotal}`}
+            accent="aurora"
+          />
         </div>
+      </section>
+
+      {/* Polku — kaudet ja sarjat, joissa sama pelaaja esiintyy */}
+      <section className="bg-navy-700/40 border border-navy-600 rounded-xl p-5 space-y-3">
+        <h2 className="text-xs uppercase tracking-wider text-white/40">Polku</h2>
+        {(polku?.length ?? 0) > 1 ? (
+          <Polku slug={slug} kaudet={polku!} kausi={kausi} sarja={sarja} />
+        ) : (
+          <p className="text-sm text-white/50">
+            Polku näytetään, kun pelaaja löytyy useamman kauden tai sarjan datasta.
+          </p>
+        )}
       </section>
 
       {/* Kehityskäyrä — minuutit per kierros (delta kierrosdatasta) */}

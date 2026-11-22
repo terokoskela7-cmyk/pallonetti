@@ -1,9 +1,11 @@
 // ============================================
 // AKATEMIAJOUKKUEET
 //
-// Kaksi Ykkosliigan joukkuetta on akatemiajoukkue, jonka koko idea on
+// Akatemiajoukkue on seuran oma kasvattajajoukkue, jonka koko idea on
 // peluuttaa nuoria: HJK Klubi 04:n peliajasta noin 99 % ja SJK Akatemian
 // 80–93 % menee alle 21-vuotiaille. Muissa seuroissa haarukka on 3–59 %.
+// KuPS Akatemia I lisättiin 22.11.2026, kun Miesten Ykkönen 2024 tuotiin
+// (17–21-vuotiaiden osuus 75,2 %).
 //
 // Jos liigaluku laskettaisiin vain yhtena lukuna, nama kaksi seuraa
 // nostaisivat sen tasolle, joka ei kerro muiden seurojen kaytannosta.
@@ -16,7 +18,7 @@
 // ============================================
 
 /** Joukkueet, jotka rajataan pois "ilman akatemioita" -luvusta. */
-export const AKATEMIAJOUKKUEET = ['HJK Klubi 04', 'SJK Akatemia'] as const;
+export const AKATEMIAJOUKKUEET = ['HJK Klubi 04', 'SJK Akatemia', 'KuPS Akatemia I'] as const;
 
 /** Vertailu kestaa kirjainkoon ja ylimaaraiset valilyonnit. */
 function avain(nimi: string): string {

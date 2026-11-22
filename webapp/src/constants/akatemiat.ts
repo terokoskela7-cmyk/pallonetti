@@ -9,7 +9,7 @@
 // etsiminen nimestä olisi arvaus, joka muuttuisi äänettömästi.
 // ============================================
 
-export const AKATEMIAJOUKKUEET = ['HJK Klubi 04', 'SJK Akatemia'];
+export const AKATEMIAJOUKKUEET = ['HJK Klubi 04', 'SJK Akatemia', 'KuPS Akatemia I'];
 
 function avain(nimi: string): string {
   return String(nimi || '').replace(/\s+/g, ' ').trim().toLowerCase();

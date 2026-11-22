@@ -24,6 +24,7 @@ import {
 import { laskeKaudenKontekstit, type Konteksti } from './konteksti';
 import { haeSiirto, type Siirto } from './siirrot';
 import { TUETUT_SARJAT, OLETUSSARJA } from './kausiImport';
+import { luokitteleKansalaisuudet } from './trendit';
 
 export interface SeuranSivu {
   tunniste: string;
@@ -33,6 +34,8 @@ export interface SeuranSivu {
   /** Sarja, jossa seura pelasi valittuna kautena. null = ei kummassakaan. */
   sarja: string | null;
   seurakausi: Seurakausi | null;
+  /** Suomen kansalaisten osuus koko sarjan kapasiteetista valittuna kautena; null = ei tietoa. */
+  suomiTaso: number | null;
   pelaajat: Array<Omit<Konteksti, 'ohitetut'> & { siirto: Siirto | null }>;
   aikasarja: {
     kaudet: number[];
@@ -158,7 +161,7 @@ export async function kokoaSeuranSivu(
 
   const piste = aikasarja.pisteet.find((p) => p.kausi === season) ?? null;
   const sarja = piste?.sarja ?? null;
-  const seurakausi =
+  let seurakausi =
     sarja === null
       ? null
       : (kausittainSarjoittain.get(sarja)?.get(season) || []).find(
@@ -169,7 +172,9 @@ export async function kokoaSeuranSivu(
   // Vertailujoukko on koko sarjan ikaryhma, ei seuran oma joukko —
   // muuten "ikaryhman mediaani" tarkoittaisi eri asiaa eri sivuilla.
   let pelaajat: SeuranSivu['pelaajat'] = [];
+  let suomiTaso: number | null = null;
   if (sarja !== null && seurakausi !== null) {
+    const seuranNimi = seurakausi.nimi;
     const { suoritukset, nimittajat } = await lueKausi(db, season, sarja);
     const pelipaikat = new Map<string, string | null>();
     if (sarja === OLETUSSARJA) {
@@ -182,6 +187,16 @@ export async function kokoaSeuranSivu(
         const arvo = doc.data()?.pelipaikka;
         pelipaikat.set(doc.id, typeof arvo === 'string' && arvo ? arvo : null);
       }
+      // Suomen kansalaisten osuus samalla laskennalla kuin Seurat-sivulla.
+      const luokat = luokitteleKansalaisuudet(kansSnap.docs);
+      if (luokat.saatavilla) {
+        const kaikkiSeurat = laskeSeurakausi(season, sarja, suoritukset, nimittajat, luokat.fin);
+        const tama = kaikkiSeurat.find((s) => s.tunniste === tunniste);
+        if (tama) seurakausi = tama;
+        const kap = kaikkiSeurat.reduce((a, s) => a + s.kapasiteettiMin, 0);
+        const fin = kaikkiSeurat.reduce((a, s) => a + (s.suomiMinuutit ?? 0), 0);
+        suomiTaso = kap > 0 ? Math.round((fin / kap) * 1000) / 10 : null;
+      }
     }
     pelaajat = laskeKaudenKontekstit({
       kausi: season,
@@ -190,7 +205,7 @@ export async function kokoaSeuranSivu(
       nimittajat,
       pelipaikat,
     })
-      .filter((k) => k.joukkue === seurakausi.nimi)
+      .filter((k) => k.joukkue === seuranNimi)
       .sort((a, b) => b.faktat.minuutit - a.faktat.minuutit)
       .map((k) => {
         const { ohitetut: _ohitetut, ...rest } = k;
@@ -223,6 +238,7 @@ export async function kokoaSeuranSivu(
     kausi: season,
     sarja,
     seurakausi,
+    suomiTaso,
     pelaajat,
     aikasarja: {
       kaudet: aikasarja.kaudet,

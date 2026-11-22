@@ -108,6 +108,23 @@ export function luokitteleKansalaisuudet(
 }
 
 /**
+ * Kauden kansalaisuusluokat sarjalle, tai null jos tietoa ei ole.
+ * Kansalaisuudet on haettu toistaiseksi vain oletussarjalle
+ * (Veikkausliigan pelaajarekisteri); muille sarjoille null, ei tyhjä
+ * joukko — puuttuva tieto ei ole "ei yhtään suomalaista".
+ */
+export async function haeKansalaisuusLuokat(
+  db: firestore.Firestore,
+  kausi: number,
+  sarja: string,
+): Promise<KansalaisuusLuokat | null> {
+  if (sarja !== OLETUSSARJA) return null;
+  const snap = await db.collection('seasons').doc(String(kausi)).collection('kansalaisuudet').get();
+  const luokat = luokitteleKansalaisuudet(snap.docs);
+  return luokat.saatavilla ? luokat : null;
+}
+
+/**
  * Suurimman jaannoksen pyoristys yhteen desimaaliin.
  *
  * Varamenetelma: kaytetaan vain, jos FIN ja muu pyoristyvat yhdessa yli

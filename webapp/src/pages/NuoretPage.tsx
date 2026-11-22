@@ -122,13 +122,32 @@ export default function NuoretPage() {
   const [naytetaan, setNaytetaan] = useState(SIVUN_KOKO);
   const [haku, setHaku] = useState('');
   const [seura, setSeura] = useState('all');
+  // Oletuksena vain Suomen kansalaiset, kun sarjalta on kansalaisuustieto:
+  // sivun kysymys on suomalaisten nuorten peliaika. Kaikki saa näkyviin.
+  const [vainSuomi, setVainSuomi] = useState(true);
 
   const { data, loading, error } = useApi(
     () => getKaudenKonteksti(kausi, sarja),
     [kausi, sarja],
   );
 
-  const kaikki = useMemo<Pelaaja[]>(() => data?.kontekstit ?? [], [data]);
+  const kansalaisuusSaatavilla = data?.kansalaisuusSaatavilla === true;
+  const suodataSuomi = kansalaisuusSaatavilla && vainSuomi;
+  const kaikkiRivit = useMemo<Pelaaja[]>(() => data?.kontekstit ?? [], [data]);
+  const kaikki = useMemo<Pelaaja[]>(
+    () =>
+      suodataSuomi
+        ? (data?.kontekstit ?? []).filter((p) => p.kansalaisuus === 'suomi')
+        : kaikkiRivit,
+    [data, kaikkiRivit, suodataSuomi],
+  );
+  // Valokeila valitaan palvelimella kaikista; suodatetaan samalla
+  // rajauksella (voi jäädä alle kolmen).
+  const suomiSlugit = useMemo(() => new Set(kaikki.map((p) => p.slug)), [kaikki]);
+  const valokeila = useMemo(
+    () => (data?.valokeilassa ?? []).filter((n) => !suodataSuomi || suomiSlugit.has(n.slug)),
+    [data, suodataSuomi, suomiSlugit],
+  );
 
   // Seurattavat = ne joilla on peliaikaa. Nolla minuuttia ei ole
   // puuttuva arvo vaan tieto siita, ettei pelaaja ole pelannut.
@@ -198,9 +217,51 @@ export default function NuoretPage() {
         </p>
         <h1 className="text-3xl md:text-4xl font-medium tracking-tight text-white">Nuoret pelaajat</h1>
         <p className="text-base text-toissijainen">
-          Mukana {kaikki.length} pelaajaa ({NUORET_LABEL_PITKA}), joista {peliaikaa.length} sai
-          peliaikaa.
+          {suodataSuomi ? (
+            <>
+              Mukana {kaikki.length} Suomen kansalaista ({NUORET_LABEL_PITKA}), joista{' '}
+              {peliaikaa.length} sai peliaikaa. Kaikkiaan kokoonpanoissa oli {kaikkiRivit.length} pelaajaa kansalaisuudesta
+              riippumatta.
+            </>
+          ) : (
+            <>
+              Mukana {kaikki.length} pelaajaa ({NUORET_LABEL_PITKA}), joista {peliaikaa.length} sai
+              peliaikaa{kansalaisuusSaatavilla ? ', kaikki kansalaisuudet' : ''}.
+            </>
+          )}
         </p>
+        {kansalaisuusSaatavilla && (
+          <div className="flex flex-wrap items-center gap-3 pt-1">
+            <div role="group" aria-label="Pelaajat" className="inline-flex border border-navy-500 rounded-lg overflow-hidden">
+              <button
+                type="button"
+                aria-pressed={vainSuomi}
+                onClick={() => setVainSuomi(true)}
+                className={
+                  'px-3 py-1.5 text-sm transition-colors ' +
+                  (vainSuomi ? 'bg-ice text-navy-900 font-medium' : 'text-toissijainen hover:text-white')
+                }
+              >
+                Suomen kansalaiset
+              </button>
+              <button
+                type="button"
+                aria-pressed={!vainSuomi}
+                onClick={() => setVainSuomi(false)}
+                className={
+                  'px-3 py-1.5 text-sm transition-colors ' +
+                  (!vainSuomi ? 'bg-ice text-navy-900 font-medium' : 'text-toissijainen hover:text-white')
+                }
+              >
+                Kaikki
+              </button>
+            </div>
+            <span className="text-xs text-vaimea">
+              Kansalaisuus pelaajarekisterin mukaan; pelaaja, jota rekisteristä ei löydy, näkyy vain
+              kohdassa Kaikki.
+            </span>
+          </div>
+        )}
       </section>
 
       {/* 1. VALOKEILASSA */}
@@ -213,12 +274,12 @@ export default function NuoretPage() {
             suurin poikkeama ikäryhmän mediaanista ylöspäin · yksi pelaaja per seura
           </span>
         </div>
-        {data.valokeilassa.length === 0 ? (
+        {valokeila.length === 0 ? (
           <p className="text-sm text-toissijainen">
             Kaudelta ei vielä löydy vertailukelpoista poikkeamaa.
           </p>
         ) : (
-          <ValokeilaKortit nostot={data.valokeilassa} />
+          <ValokeilaKortit nostot={valokeila} />
         )}
       </section>
 

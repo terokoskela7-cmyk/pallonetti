@@ -425,9 +425,22 @@ export default function SeuraPage() {
           <div className="text-xs uppercase tracking-wider text-vaimea px-5 pt-4">
             Kauden {data.kausi} luvut
           </div>
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-px bg-navy-600">
+          <div
+            className={
+              'grid grid-cols-2 sm:grid-cols-3 gap-px bg-navy-600 ' +
+              (k.suomiOsuus !== null && k.suomiOsuus !== undefined ? 'lg:grid-cols-7' : 'lg:grid-cols-6')
+            }
+          >
             {[
-              ['Nuorten osuus', desimaali(k.osuus) + ' %', 'ice'],
+              // Suomen kansalaisten osuus päämittarina, kun tieto on.
+              ...(k.suomiOsuus !== null && k.suomiOsuus !== undefined
+                ? [['Suomalaisten osuus', desimaali(k.suomiOsuus) + ' %', 'ice'] as const]
+                : []),
+              [
+                k.suomiOsuus !== null && k.suomiOsuus !== undefined ? 'Kaikki 17–21' : 'Nuorten osuus',
+                desimaali(k.osuus) + ' %',
+                k.suomiOsuus !== null && k.suomiOsuus !== undefined ? 'white' : 'ice',
+              ],
               ['Suhde sarjaan', suhde === null ? '–' : desimaali(suhde) + '×', suhde !== null && suhde >= 1 ? 'aurora' : 'white'],
               [
                 'Aloituksista',
@@ -459,7 +472,17 @@ export default function SeuraPage() {
           </div>
           <p className="text-[11px] text-vaimea px-5 pb-4 pt-2">
             Osuus = nuorten minuutit jaettuna joukkueen {k.ottelut} ottelun
-            kokonaisminuuteilla. Aloituksista = nuorten osuus {k.ottelut * 11}{' '}
+            kokonaisminuuteilla.
+            {k.suomiOsuus !== null && k.suomiOsuus !== undefined && (
+              <>
+                {' '}Suomalaisten osuus = Suomen kansalaisten (pelaajarekisteri) minuutit samalla
+                nimittäjällä
+                {data.suomiTaso !== null && data.suomiTaso !== undefined
+                  ? '; sarjan taso ' + desimaali(data.suomiTaso) + ' %'
+                  : ''}
+                . Kaikki 17–21 sisältää myös muun maan pelaajat.
+              </>
+            )} Aloituksista = nuorten osuus {k.ottelut * 11}{' '}
             aloituspaikasta. Penkillä = kerrat, jolloin nuori oli kokoonpanossa
             mutta ei pelannut.
           </p>

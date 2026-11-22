@@ -41,6 +41,7 @@ const VALINNAISET_SARAKKEET = [
   'Pelatut ottelut',
   'Ottelut kokoonpanossa',
   'Maalit',
+  'palloid',
 ] as const;
 
 // ---------- Sarjarajaus ----------
@@ -56,6 +57,23 @@ export const TUETUT_SARJAT = ['Veikkausliiga', 'Ykkösliiga', 'Miesten Ykkönen'
 /** Ohitussyy rajan ulkopuoliselle iälle. Sama teksti ryhmittelyä varten. */
 export const IKARAJAN_SYY =
   'ikä ' + NUORET_MIN + '–' + NUORET_MAX + ' v ulkopuolella (sivusto kattaa vain tämän ikähaarukan)';
+
+/**
+ * Lähteen vaiheen nimi yhtenäiseksi. Miesten Ykkösen kaudella 2021
+ * runkosarjan vaihe on lähteessä nimetty sarjan mukaan ("Ykkönen"), muina
+ * kausina "Runkosarja". Laskenta tunnistaa runkosarjan nimestä
+ * 'Runkosarja' (runkosarjan osuus, nimittäjän tarkistus), joten ilman
+ * tätä kauden 2021 runkosarjan osuudeksi tulisi 0 %.
+ *
+ * Sääntö: vaihe, jonka nimi on sarjan nimi (myös ilman "Miesten "-alkua),
+ * on runkosarja. Muut vaiheet säilyvät sellaisinaan.
+ */
+export function normalisoiVaihe(vaihe: string, sarja: string): string {
+  const pieni = (x: string) => x.replace(/\s+/g, ' ').trim().toLowerCase();
+  const v = pieni(vaihe);
+  const sarjanNimet = [pieni(sarja), pieni(sarja.replace(/^miesten\s+/i, ''))];
+  return sarjanNimet.includes(v) ? 'Runkosarja' : vaihe;
+}
 
 /** Oletussarja: vanhat osoitteet ja vanha data tarkoittavat Veikkausliigaa. */
 export const OLETUSSARJA = 'Veikkausliiga';
@@ -104,6 +122,12 @@ export interface SuoritusRivi {
   pelaajaAvain: string;
   /** Linkki olemassa oleviin pelaajasivuihin (/pelaaja/:slug). */
   slug: string;
+  /**
+   * Palloliiton pysyvä pelaajatunniste. null = lähteessä ei saraketta tai
+   * arvo puuttuu. Nimi ja slug voivat olla kahdella pelaajalla samat;
+   * palloid ei.
+   */
+  palloid: string | null;
   etunimi: string;
   sukunimi: string;
   ika: number;
@@ -167,6 +191,8 @@ export interface KausiProjektio {
   kausi: string;
   slug: string;
   pelaajaAvain: string;
+  /** Ks. SuoritusRivi.palloid. */
+  palloid: string | null;
   etunimi: string;
   sukunimi: string;
   ika: number;
@@ -521,11 +547,12 @@ export function parsiKausiExcel(buffer: Buffer): TuontiTulos {
     suoritukset.push({
       rivi: excelRivi,
       kausi,
-      vaihe: toStr(kentta(rivi, 'Sarjan vaihe')),
+      vaihe: normalisoiVaihe(toStr(kentta(rivi, 'Sarjan vaihe')), tunnettuSarja),
       joukkue: toStr(kentta(rivi, 'Joukkue')),
       sarja: tunnettuSarja,
       pelaajaAvain: pelaajaAvaimeksi(etunimi, sukunimi),
       slug: toSlug(etunimi, sukunimi),
+      palloid: toStr(kentta(rivi, 'palloid')) || null,
       etunimi,
       sukunimi,
       ika,
@@ -849,6 +876,7 @@ export function laskeProjektiot(suoritukset: SuoritusRivi[]): KausiProjektio[] {
         kausi: s.kausi,
         slug: s.slug,
         pelaajaAvain: s.pelaajaAvain,
+        palloid: s.palloid,
         etunimi: s.etunimi,
         sukunimi: s.sukunimi,
         ika: s.ika,
@@ -869,6 +897,7 @@ export function laskeProjektiot(suoritukset: SuoritusRivi[]): KausiProjektio[] {
     p.kokoonpanossaTotal += s.kokoonpanossa;
     p.maaliTotal += s.maalit;
     if (!p.ika && s.ika) p.ika = s.ika;
+    if (!p.palloid && s.palloid) p.palloid = s.palloid;
     p.minPerSeura.set(s.joukkue, (p.minPerSeura.get(s.joukkue) || 0) + s.minuutit);
   }
 

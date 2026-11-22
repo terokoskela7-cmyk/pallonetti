@@ -151,6 +151,14 @@ export interface YouthAggregation {
   pelaajatNuoret: number;
   /** Eri pelaajat, joilla on minuutteja (seuranvaihtaja kerran). */
   pelaajatPeliajalla?: number;
+  /** 17–21-vuotiaiden aloitukset. */
+  nuortenAloitukset?: number;
+  /** Nuorten osuus aloituspaikoista (ottelut × 11), %. */
+  aloitusosuus?: number | null;
+  /** Kerrat kokoonpanossa ilman peliaikaa. null = ei tiedetä. */
+  penkkikerrat?: number | null;
+  /** Kokoonpanossa olleet nuoret, joilla ei yhtään minuuttia. */
+  pelaajatIlmanMinuutteja?: number;
   totalMinutesPlayed: number;
   minuutitNuoret: number;
   osuusNuoret: number;
@@ -331,6 +339,8 @@ export interface SeasonPlayer {
   minTotal: number;
   ottelutTotal: number;
   aloituksetTotal: number;
+  /** null = projektio tuotu ennen kentän lisäämistä. */
+  kokoonpanossaTotal?: number | null;
   maaliTotal: number;
   lastUpdatedRound: number;
   /** Vain yksittaisen pelaajan haussa; listassa kentta puuttuu. */
@@ -414,6 +424,10 @@ export interface Konteksti {
     ottelut: number;
     maalit: number;
     aloitukset: number;
+    /** null = ei tiedetä (vanha data). */
+    kokoonpanossa?: number | null;
+    /** Kokoonpanossa mutta ei pelannut. null = ei tiedetä. */
+    penkilla?: number | null;
     minuutitPaaseurassa: number;
     ottelutPaaseurassa: number;
     joukkueenOttelut: number | null;
@@ -449,6 +463,9 @@ export interface Seurakausi {
   osuus: number | null;
   pelaajia: number;
   keskiIka: number | null;
+  nuortenAloitukset?: number;
+  aloitusosuus?: number | null;
+  penkkikerrat?: number | null;
 }
 
 export interface Vertailuviiva {

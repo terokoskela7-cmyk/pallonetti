@@ -28,6 +28,7 @@
 // jokainen poisjatetty lause kirjataan syineen (ohitetut), jotta
 // puuttuminen voidaan katselmoida.
 // ============================================
+import { KokoonpanoRivi, penkkikerrat } from './kokoonpanot';
 import type { NimittajaDoc, SuoritusDoc } from './kausiData';
 import type { Siirto } from './siirrot';
 import { onAkatemia } from './akatemiat';
@@ -85,6 +86,10 @@ export interface Konteksti {
     ottelut: number;
     maalit: number;
     aloitukset: number;
+    /** Ottelut kokoonpanossa kaikissa seuroissa. null = ei tiedetä. */
+    kokoonpanossa: number | null;
+    /** Kokoonpanossa mutta ei pelannut. null = ei tiedetä. */
+    penkilla: number | null;
     /** Minuutit paaseurassa — osuus lasketaan naista. */
     minuutitPaaseurassa: number;
     ottelutPaaseurassa: number;
@@ -113,6 +118,8 @@ interface Kooste {
   ottelut: number;
   maalit: number;
   aloitukset: number;
+  /** Pelaajan rivit kokoonpanotietoineen penkkikertojen laskemiseen. */
+  kokoonpanoRivit: KokoonpanoRivi[];
   seurat: Map<string, { minuutit: number; ottelut: number; aloitukset: number }>;
   paaseura: string;
   minuutitPaaseurassa: number;
@@ -135,6 +142,7 @@ function kokoaPelaajat(suoritukset: SuoritusDoc[]): Map<string, Kooste> {
         ottelut: 0,
         maalit: 0,
         aloitukset: 0,
+        kokoonpanoRivit: [],
         seurat: new Map(),
         paaseura: s.joukkue,
         minuutitPaaseurassa: 0,
@@ -147,6 +155,7 @@ function kokoaPelaajat(suoritukset: SuoritusDoc[]): Map<string, Kooste> {
     p.ottelut += s.ottelut;
     p.maalit += s.maalit;
     p.aloitukset += s.aloitukset;
+    p.kokoonpanoRivit.push({ ottelut: s.ottelut, kokoonpanossa: s.kokoonpanossa });
     if (!p.ika && s.ika) p.ika = s.ika;
     const seura =
       p.seurat.get(s.joukkue) || { minuutit: 0, ottelut: 0, aloitukset: 0 };
@@ -606,6 +615,10 @@ export function laskeKonteksti(syote: KontekstiSyote): Konteksti | null {
       ottelut: oma.ottelut,
       maalit: oma.maalit,
       aloitukset: oma.aloitukset,
+      kokoonpanossa: oma.kokoonpanoRivit.every((r) => typeof r.kokoonpanossa === 'number')
+        ? oma.kokoonpanoRivit.reduce((a, r) => a + (r.kokoonpanossa as number), 0)
+        : null,
+      penkilla: penkkikerrat(oma.kokoonpanoRivit),
       minuutitPaaseurassa: oma.minuutitPaaseurassa,
       ottelutPaaseurassa: oma.ottelutPaaseurassa,
       aloituksetPaaseurassa: oma.aloituksetPaaseurassa,

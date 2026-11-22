@@ -559,6 +559,7 @@ export async function kirjoitaKausituonti(
       minTotal: p.minTotal,
       ottelutTotal: p.ottelutTotal,
       aloituksetTotal: p.aloituksetTotal,
+      kokoonpanossaTotal: p.kokoonpanossaTotal,
       maaliTotal: p.maaliTotal,
       lastUpdatedRound: asetukset.kierros === undefined || asetukset.kierros === null
         ? 0

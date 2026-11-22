@@ -177,6 +177,7 @@ export interface KausiProjektio {
   minTotal: number;
   ottelutTotal: number;
   aloituksetTotal: number;
+  kokoonpanossaTotal: number;
   maaliTotal: number;
 }
 
@@ -856,6 +857,7 @@ export function laskeProjektiot(suoritukset: SuoritusRivi[]): KausiProjektio[] {
         minTotal: 0,
         ottelutTotal: 0,
         aloituksetTotal: 0,
+        kokoonpanossaTotal: 0,
         maaliTotal: 0,
         minPerSeura: new Map(),
       };
@@ -864,6 +866,7 @@ export function laskeProjektiot(suoritukset: SuoritusRivi[]): KausiProjektio[] {
     p.minTotal += s.minuutit;
     p.ottelutTotal += s.ottelut;
     p.aloituksetTotal += s.aloitukset;
+    p.kokoonpanossaTotal += s.kokoonpanossa;
     p.maaliTotal += s.maalit;
     if (!p.ika && s.ika) p.ika = s.ika;
     p.minPerSeura.set(s.joukkue, (p.minPerSeura.get(s.joukkue) || 0) + s.minuutit);

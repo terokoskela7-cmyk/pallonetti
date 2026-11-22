@@ -1,9 +1,13 @@
 // ============================================
-// NOUSIJAT — Ykkösliigasta Veikkausliigaan
+// NOUSIJAT — toiselta tasolta Veikkausliigaan, läpimurrot ja jatko
 //
-// Kokoaa kaikki saatavilla olevat siirtymät (kausi N Ykkösliigassa →
-// kausi N+1 Veikkausliigassa) yhdelle sivulle. Luvut ja pelaajalista
-// tulevat /polku/:kausi-rajapinnasta sellaisinaan; selain ei laske mitään.
+// 1. Siirtymät (kausi N toisella tasolla → kausi N+1 Veikkausliigassa).
+//    Toinen taso on Ykkönen 2021–2023 ja Ykkösliiga 2024 →.
+// 2. Läpimurrot: 450 kumulatiivista Veikkausliiga-minuuttia (ECA).
+// 3. Debyytin jälkeen: mitä debytoineille tapahtui seuraavalla kaudella.
+//
+// Luvut tulevat /polku/:kausi- ja /lapimurrot-rajapinnoista sellaisinaan;
+// selain ei laske mitään.
 //
 // Sivu ei riipu yläpalkin sarjavalinnasta: siirtymä koskee aina kahta
 // sarjaa. Siirtymä valitaan sivun omilla painikkeilla.
@@ -11,8 +15,10 @@
 import { useEffect, useState } from 'react';
 import { Info } from 'lucide-react';
 import { useApi } from '@/hooks/useApi';
-import { getKaudet, getPolku, type PolkuTulos } from '@/services/api';
+import { getKaudet, getLapimurrot, getPolku, type PolkuTulos } from '@/services/api';
 import { PolkuVeikkausliigaan } from '@/components/PolkuVeikkausliigaan';
+import { DebyytinJalkeen, Lapimurrot } from '@/components/Lapimurrot';
+import { sarjanLyhytNimi } from '@/constants/sarjat';
 import { NUORET_LABEL_PITKA } from '@/constants/ika';
 
 async function haeSiirtymat(): Promise<PolkuTulos[]> {
@@ -33,6 +39,15 @@ async function haeSiirtymat(): Promise<PolkuTulos[]> {
 
 export default function NousijatPage() {
   const { data: siirtymat, loading, error } = useApi(haeSiirtymat, []);
+  // Oma haku: siirtymät näkyvät, vaikka tämä ei latautuisi.
+  const { data: lapimurrot } = useApi(async () => {
+    try {
+      return await getLapimurrot();
+    } catch (e) {
+      console.error('[nousijat] läpimurtojen haku epäonnistui:', e);
+      return null;
+    }
+  }, []);
   const [valittu, setValittu] = useState<number | null>(null);
 
   // Oletuksena uusin siirtymä.
@@ -48,12 +63,13 @@ export default function NousijatPage() {
     <div className="px-6 py-10 md:py-14 max-w-5xl mx-auto space-y-8">
       <section className="space-y-2">
         <p className="text-xs uppercase tracking-[0.12em] text-white/50 font-mono">
-          Ykkösliiga → Veikkausliiga
+          Toiselta tasolta Veikkausliigaan
         </p>
         <h1 className="text-3xl md:text-4xl font-medium tracking-tight text-white">Nousijat</h1>
         <p className="text-base text-white/70 max-w-2xl">
-          {NUORET_LABEL_PITKA} pelaajat, jotka saivat peliaikaa Ykkösliigassa ja seuraavalla
-          kaudella Veikkausliigassa, sekä minuutit molemmilta kausilta.
+          {NUORET_LABEL_PITKA} pelaajat, jotka saivat peliaikaa toisella sarjatasolla ja
+          seuraavalla kaudella Veikkausliigassa, ketkä tekivät läpimurron ja mitä debyytin
+          jälkeen tapahtui.
         </p>
       </section>
 
@@ -69,7 +85,7 @@ export default function NousijatPage() {
 
       {siirtymat && siirtymat.length === 0 && (
         <p className="text-sm text-white/60">
-          Siirtymiä ei ole vielä: tarvitaan Ykkösliigan kausi ja sitä seuraava
+          Siirtymiä ei ole vielä: tarvitaan toisen tason kausi ja sitä seuraava
           Veikkausliigan kausi.
         </p>
       )}
@@ -92,7 +108,7 @@ export default function NousijatPage() {
                       : 'border-navy-600 text-white/60 hover:text-white hover:border-ice/40')
                   }
                 >
-                  {p.kausiN} → {p.kausiN1}
+                  {sarjanLyhytNimi(p.alempiSarja || 'Ykkösliiga')} {p.kausiN} → {p.kausiN1}
                   <span className="ml-2 text-white/40">{p.nousseet}</span>
                 </button>
               );
@@ -101,6 +117,9 @@ export default function NousijatPage() {
           {polku && <PolkuVeikkausliigaan polku={polku} />}
         </>
       )}
+
+      {lapimurrot && <Lapimurrot tulos={lapimurrot} />}
+      {lapimurrot && <DebyytinJalkeen tulos={lapimurrot} />}
     </div>
   );
 }

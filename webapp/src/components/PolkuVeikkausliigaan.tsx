@@ -16,6 +16,8 @@ import type { PolkuTulos } from '@/services/api';
 import { luku } from '@/utils/luvut';
 import { naytaNimi } from '@/utils/nimet';
 import { SisainenLinkki } from '@/components/SisainenLinkki';
+import { sarjaInessiivi } from '@/constants/lahde';
+import { sarjanLyhytNimi } from '@/constants/sarjat';
 
 /** Sama merkki kuin joukkuekaaviossa. */
 const AKATEMIA_MERKKI = '*';
@@ -51,6 +53,9 @@ export function PolkuVeikkausliigaan({ polku }: { polku: PolkuTulos }) {
   if (!polku.saatavilla) return null;
 
   const { kausiN, kausiN1 } = polku;
+  // Toinen taso vaihtui kaudeksi 2024: Ykkönen 2021–2023, sitten Ykkösliiga.
+  const alempi = polku.alempiSarja || 'Ykkösliiga';
+  const alempiN1 = polku.alempiSarjaN1 || 'Ykkösliiga';
   // Alle 17-vuotiaita ei nayteta nimella. Lahde kattaa 17–21-vuotiaat,
   // joten lista on kaytannossa aina taysi — mutta sääntö on koodissa,
   // ei oletuksessa lahteen sisallosta.
@@ -64,7 +69,7 @@ export function PolkuVeikkausliigaan({ polku }: { polku: PolkuTulos }) {
       </h2>
 
       <p className="text-sm text-white/80 leading-relaxed">
-        Kaudella {kausiN} Ykkösliigassa pelanneista{' '}
+        Kaudella {kausiN} {sarjaInessiivi(alempi)} pelanneista{' '}
         <span className="tabular text-white">{luku(polku.nousseet)}</span>{' '}
         pelasi kaudella {kausiN1} Veikkausliigassa. Heistä{' '}
         <span className="tabular text-white">{luku(polku.debytoi)}</span> teki
@@ -102,21 +107,21 @@ export function PolkuVeikkausliigaan({ polku }: { polku: PolkuTulos }) {
           {luku(polku.toiseenSuuntaan)}
         </span>{' '}
         kaudella {kausiN} Veikkausliigassa pelannutta pelasi kaudella {kausiN1}{' '}
-        Ykkösliigassa.
+        {sarjaInessiivi(alempiN1)}.
       </p>
 
       {listattavat.length > 0 && (
         <div className="overflow-x-auto border-t border-navy-600 pt-3">
           <table className="w-full text-sm">
             <caption className="sr-only">
-              Pelaajat, jotka pelasivat kaudella {kausiN} Ykkösliigassa ja
+              Pelaajat, jotka pelasivat kaudella {kausiN} {sarjaInessiivi(alempi)} ja
               kaudella {kausiN1} Veikkausliigassa
             </caption>
             <thead>
               <tr className="text-[11px] uppercase tracking-wider text-white/40">
                 <th className="text-left font-normal py-2 pr-3">Pelaaja</th>
                 <th className="text-left font-normal py-2 px-3">
-                  Ykkösliiga {kausiN}
+                  {sarjanLyhytNimi(alempi)} {kausiN}
                 </th>
                 <th className="text-right font-normal py-2 px-3">min</th>
                 <th className="text-left font-normal py-2 px-3">
@@ -177,10 +182,12 @@ export function PolkuVeikkausliigaan({ polku }: { polku: PolkuTulos }) {
             pelaaja näy enää täytettyään 22.
           </li>
           <li>
-            Ykkösliiga alkoi 2024, joten siirtymiä on toistaiseksi kaksi.
+            Sarjajärjestelmä muuttui kaudeksi 2024: toinen taso oli Ykkönen kausina
+            2021–2023 ja on Ykkösliiga siitä lähtien. Siirtymä lasketaan aina toiselta
+            tasolta Veikkausliigaan.
           </li>
           <li>
-            Mukana on vain siirtymä Ykkösliigasta Veikkausliigaan. Ykkönen, muut
+            Mukana on vain siirtymä toiselta tasolta Veikkausliigaan. Kolmas taso, muut
             sarjat ja ulkomaat eivät ole tässä laskelmassa, joten &quot;mistä pelaaja
             tuli&quot; ei ole koko kuva.
           </li>

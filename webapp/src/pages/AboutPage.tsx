@@ -341,7 +341,8 @@ export default function AboutPage() {
         </p>
         <p>
           <strong className="text-white/80">Akatemiajoukkueet.</strong>{' '}
-          Ykkösliigassa pelaa kaksi seuran omaa kasvattajajoukkuetta:
+          Ykkösliigassa ja Miesten Ykkösessä pelaa seurojen omia
+          kasvattajajoukkueita:
         </p>
         <ul className="list-disc list-inside space-y-1">
           {AKATEMIAJOUKKUEET.map((x) => (
@@ -352,7 +353,7 @@ export default function AboutPage() {
         </ul>
         <p>
           Niiden koko tehtävä on peluuttaa nuoria, joten lähes kaikki niiden
-          peliaika menee 17–21-vuotiaille. Kaksi joukkuetta riittää nostamaan
+          peliaika menee 17–21-vuotiaille. Muutama joukkue riittää nostamaan
           koko sarjan lukua
           {luvut?.ykkosliiga &&
           luvut.ykkosliiga.osuus !== null &&

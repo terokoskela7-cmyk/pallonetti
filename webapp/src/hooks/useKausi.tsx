@@ -164,7 +164,7 @@ export function KausiPortti({ children }: { children: ReactNode }) {
 
   if (loading) {
     return (
-      <div className="px-6 py-20 text-center text-sm text-white/50">
+      <div className="px-6 py-20 text-center text-sm text-vaimea">
         Haetaan kausia…
       </div>
     );
@@ -173,8 +173,8 @@ export function KausiPortti({ children }: { children: ReactNode }) {
   if (kausi === null) {
     return (
       <div className="px-6 py-20 text-center">
-        <p className="text-white/70">Kausilistaa ei saatu haettua.</p>
-        <p className="text-sm text-white/40 mt-2">
+        <p className="text-toissijainen">Kausilistaa ei saatu haettua.</p>
+        <p className="text-sm text-vaimea mt-2">
           Yhtään kautta ei ole tuotu, tai taustapalvelu ei vastaa.
         </p>
       </div>

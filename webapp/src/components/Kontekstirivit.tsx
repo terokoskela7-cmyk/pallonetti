@@ -98,12 +98,12 @@ export function Kontekstirivit({
 
   return (
     <section className="bg-navy-700/40 border border-navy-600 rounded-xl p-5 space-y-2">
-      <h2 className="text-xs uppercase tracking-wider text-white/40">
+      <h2 className="text-xs uppercase tracking-wider text-vaimea">
         Konteksti
       </h2>
       {lista}
       {nuoliaNakyvissa && (
-        <p className="text-[11px] text-white/40 leading-relaxed">
+        <p className="text-[11px] text-vaimea leading-relaxed">
           Nuoli vertaa ikäryhmän mediaaniin: ↑ yli, → tasolla, ↓ alle.
           Mediaani lasketaan peliaikaa saaneista.
         </p>

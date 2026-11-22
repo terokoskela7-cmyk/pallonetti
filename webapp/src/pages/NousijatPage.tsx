@@ -61,13 +61,13 @@ export default function NousijatPage() {
   const polku = siirtymat?.find((p) => p.kausiN1 === valittu) ?? null;
 
   return (
-    <div className="px-6 py-10 md:py-14 max-w-5xl mx-auto space-y-8">
+    <div className="px-6 py-10 md:py-14 space-y-8">
       <section className="space-y-2">
-        <p className="text-xs uppercase tracking-[0.12em] text-white/50 font-mono">
+        <p className="text-xs uppercase tracking-[0.12em] text-vaimea font-mono">
           Toiselta tasolta Veikkausliigaan
         </p>
         <h1 className="text-3xl md:text-4xl font-medium tracking-tight text-white">Nousijat</h1>
-        <p className="text-base text-white/70 max-w-2xl">
+        <p className="text-base text-toissijainen max-w-2xl">
           {NUORET_LABEL_PITKA} pelaajat, jotka saivat peliaikaa toisella sarjatasolla ja
           seuraavalla kaudella Veikkausliigassa, ketkä tekivät läpimurron ja mitä debyytin
           jälkeen tapahtui.
@@ -80,12 +80,12 @@ export default function NousijatPage() {
         <div className="text-center py-10 space-y-2">
           <Info className="w-8 h-8 text-red-400/80 mx-auto" />
           <div className="text-white/80">Siirtymien haku epäonnistui</div>
-          <div className="text-sm text-white/50">{error}</div>
+          <div className="text-sm text-vaimea">{error}</div>
         </div>
       )}
 
       {siirtymat && siirtymat.length === 0 && (
-        <p className="text-sm text-white/60">
+        <p className="text-sm text-toissijainen">
           Siirtymiä ei ole vielä: tarvitaan toisen tason kausi ja sitä seuraava
           Veikkausliigan kausi.
         </p>
@@ -106,11 +106,11 @@ export default function NousijatPage() {
                     'px-3 py-1.5 rounded-md border text-sm font-mono transition-colors ' +
                     (valittuNyt
                       ? 'border-ice bg-ice/10 text-white'
-                      : 'border-navy-600 text-white/60 hover:text-white hover:border-ice/40')
+                      : 'border-navy-600 text-toissijainen hover:text-white hover:border-ice/40')
                   }
                 >
                   {sarjanLyhytNimi(p.alempiSarja || 'Ykkösliiga')} {p.kausiN} → {p.kausiN1}
-                  <span className="ml-2 text-white/40">{p.nousseet}</span>
+                  <span className="ml-2 text-vaimea">{p.nousseet}</span>
                 </button>
               );
             })}

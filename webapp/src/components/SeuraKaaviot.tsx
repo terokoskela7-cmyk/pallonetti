@@ -45,12 +45,12 @@ function KaavionVihje({ active, payload }: TooltipProps<ValueType, NameType>) {
     <div className="bg-navy-800 border border-navy-600 rounded-md shadow-xl px-3 py-2 text-xs">
       <div className="text-white/90 font-medium">{d.kausi}</div>
       {d.osuus === null ? (
-        <div className="text-white/50">ei tässä sarjassa</div>
+        <div className="text-vaimea">ei tässä sarjassa</div>
       ) : (
         <div className="text-ice tabular">{desimaali(d.osuus)} %</div>
       )}
       {d.liukuva !== null && (
-        <div className="text-white/50 tabular">
+        <div className="text-vaimea tabular">
           liukuva {desimaali(d.liukuva)} %
         </div>
       )}
@@ -94,7 +94,7 @@ function PieniKaavio({
 
       {seura.akatemia && (
         <span
-          className="inline-block rounded border border-navy-500 bg-navy-700/60 px-1.5 text-[10px] text-white/50 mb-1"
+          className="inline-block rounded border border-navy-500 bg-navy-700/60 px-1.5 text-[10px] text-vaimea mb-1"
           title={AKATEMIA_SELITE}
         >
           akatemiajoukkue
@@ -199,7 +199,7 @@ export function SeuraKaaviot({
 
   return (
     <div className="space-y-3">
-      <p className="text-[11px] text-white/40 leading-relaxed max-w-3xl">
+      <p className="text-[11px] text-vaimea leading-relaxed max-w-3xl">
         Kaikilla kaavioilla on sama pystyakseli (0–{ylaraja} %), joten ne ovat
         vertailukelpoisia keskenään.
         {/* Toinen katkoviiva piirretään vain, jos sarjassa on

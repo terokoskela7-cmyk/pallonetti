@@ -1,6 +1,6 @@
 import { useParams } from 'react-router-dom';
 import { SisainenLinkki } from '@/components/SisainenLinkki';
-import { ArrowLeft, ExternalLink, Info, TrendingUp } from 'lucide-react';
+import { ArrowLeft, ExternalLink, Info } from 'lucide-react';
 import {
   BarChart,
   Bar,
@@ -53,7 +53,7 @@ function getInitials(name: string): string {
 
 function LoadingState() {
   return (
-    <div className="px-6 py-16 max-w-4xl mx-auto animate-pulse space-y-6">
+    <div className="px-6 py-16 animate-pulse space-y-6">
       <div className="h-8 bg-navy-700/30 rounded w-32" />
       <div className="h-32 bg-navy-700/30 rounded-xl" />
       <div className="h-24 bg-navy-700/30 rounded-xl" />
@@ -75,15 +75,15 @@ function NotFoundState({ slug, kausi }: { slug: string; kausi: number }) {
     .join(' ');
   return (
     <div className="px-6 py-16 max-w-md mx-auto text-center space-y-4">
-      <Info className="w-10 h-10 text-white/40 mx-auto" />
+      <Info className="w-10 h-10 text-vaimea mx-auto" />
       <div className="text-white/90 font-medium">
         {nimi || 'Pelaaja'} ei pelannut kaudella {kausi}
       </div>
-      <div className="text-sm text-white/60">
+      <div className="text-sm text-toissijainen">
         Valitse toinen kausi yläpalkista, tai palaa listaukseen.
       </div>
-      <div className="text-xs text-white/40">
-        Slug: <span className="font-mono text-white/60">{slug}</span>
+      <div className="text-xs text-vaimea">
+        Slug: <span className="font-mono text-toissijainen">{slug}</span>
       </div>
       <div className="flex items-center justify-center gap-3 pt-2">
         <SisainenLinkki
@@ -121,7 +121,7 @@ function StatBlock({ label, value, sub, accent = 'white' }: StatBlockProps) {
         : 'text-white/90';
   return (
     <div className="text-center py-3">
-      <div className="text-[10px] uppercase tracking-wider text-white/40 mb-1.5">
+      <div className="text-[10px] uppercase tracking-wider text-vaimea mb-1.5">
         {label}
       </div>
       <div
@@ -129,7 +129,7 @@ function StatBlock({ label, value, sub, accent = 'white' }: StatBlockProps) {
       >
         {value}
       </div>
-      {sub && <div className="mt-1.5 text-[11px] text-white/40">{sub}</div>}
+      {sub && <div className="mt-1.5 text-[11px] text-vaimea">{sub}</div>}
     </div>
   );
 }
@@ -174,8 +174,8 @@ function MinuutitKausittain({ kaudet }: { kaudet: PolkuKausi[] }) {
             tick={{ fontSize: 11, fill: '#A5B4C8' }}
             tickLine={false}
             axisLine={false}
-            unit=" min"
-            width={64}
+            width={48}
+            tickFormatter={(v) => Number(v).toLocaleString('fi-FI')}
           />
           <Tooltip
             cursor={{ fill: '#00C8FF', fillOpacity: 0.06 }}
@@ -226,17 +226,17 @@ function Polku({
         const nykyinen = k.kausi === kausi && k.sarja === sarja;
         const sisalto = (
           <>
-            <div className="text-[11px] uppercase tracking-wider text-white/40 font-mono">
+            <div className="text-[11px] uppercase tracking-wider text-vaimea font-mono">
               {k.kausi}
               {k.ika > 0 && ` · ${k.ika} v`}
             </div>
             <div className="mt-1 text-white/90 font-medium">
               {sarjanLyhytNimi(k.sarja)}
             </div>
-            <div className="text-sm text-white/60">
+            <div className="text-sm text-toissijainen">
               {(k.joukkueet.length > 0 ? k.joukkueet : [k.joukkue]).join(', ')}
             </div>
-            <div className="mt-2 text-xs text-white/50 font-mono tabular">
+            <div className="mt-2 text-xs text-vaimea font-mono tabular">
               {luku(k.minTotal)} min · {k.ottelutTotal} ott · aloitti {k.aloituksetTotal}
               {k.maaliTotal > 0 && ` · ${k.maaliTotal} maalia`}
             </div>
@@ -297,7 +297,7 @@ function DeltaTooltip({ active, payload }: TooltipProps<ValueType, NameType>) {
     <div className="bg-navy-800 border border-navy-600 rounded-md shadow-xl px-3 py-2 text-sm">
       <div className="text-white/90 font-medium">{d.round}</div>
       <div className="text-ice tabular">{d.min} min</div>
-      <div className="text-white/50 text-xs tabular">kum. {d.cumMin}</div>
+      <div className="text-vaimea text-xs tabular">kum. {d.cumMin}</div>
     </div>
   );
 }
@@ -374,7 +374,7 @@ function SiirtoMerkinta({ siirto, kausi }: { siirto: Siirto; kausi: number }) {
       <span className="text-white/90">
         {otsikko}: {siirto.uusi_seura}, {siirto.maa}
       </span>
-      <span className="text-white/40"> · {paiva}</span>
+      <span className="text-vaimea"> · {paiva}</span>
       <a
         href={siirto.lahde_url}
         target="_blank"
@@ -450,7 +450,7 @@ export default function PelaajaPage() {
         <div className="text-white/90 font-medium mb-2">
           Datan lataus epäonnistui
         </div>
-        <div className="text-sm text-white/60">{error}</div>
+        <div className="text-sm text-toissijainen">{error}</div>
       </div>
     );
   }
@@ -465,7 +465,7 @@ export default function PelaajaPage() {
   const minOttelu = ott > 0 ? Math.round(player.minTotal / ott) : null;
 
   return (
-    <div className="px-6 py-10 md:py-14 max-w-4xl mx-auto space-y-6">
+    <div className="px-6 py-10 md:py-14 space-y-6">
       <div className="flex items-center gap-4 text-sm">
         <SisainenLinkki
           to="/nuoret"
@@ -493,7 +493,7 @@ export default function PelaajaPage() {
           <h1 className="text-2xl md:text-3xl font-light tracking-tight leading-tight">
             {name}
           </h1>
-          <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-white/60">
+          <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-toissijainen">
             <span>{player.joukkue}</span>
             {player.ika > 0 && (
               <>
@@ -513,7 +513,7 @@ export default function PelaajaPage() {
 
       {/* Päätilastot */}
       <section className="bg-navy-700/40 border border-navy-600 rounded-xl">
-        <div className="text-xs uppercase tracking-wider text-white/40 px-5 pt-4">
+        <div className="text-xs uppercase tracking-wider text-vaimea px-5 pt-4">
           Kauden tilastot
         </div>
         <div className="grid grid-cols-2 md:grid-cols-5 divide-x divide-y md:divide-y-0 divide-navy-600">
@@ -540,44 +540,37 @@ export default function PelaajaPage() {
 
       {/* Polku — kaudet ja sarjat, joissa sama pelaaja esiintyy */}
       <section className="bg-navy-700/40 border border-navy-600 rounded-xl p-5 space-y-3">
-        <h2 className="text-xs uppercase tracking-wider text-white/40">Polku</h2>
+        <h2 className="text-xs uppercase tracking-wider text-vaimea">Polku</h2>
         {(polku?.length ?? 0) > 1 ? (
           <>
             <MinuutitKausittain kaudet={polku!} />
             <Polku slug={slug} kaudet={polku!} kausi={kausi} sarja={sarja} />
           </>
         ) : (
-          <p className="text-sm text-white/50">
+          <p className="text-sm text-vaimea">
             Polku näytetään, kun pelaaja löytyy useamman kauden tai sarjan datasta.
           </p>
         )}
       </section>
 
-      {/* Kehityskäyrä — minuutit per kierros (delta kierrosdatasta) */}
-      <section className="bg-navy-700/40 border border-navy-600 rounded-xl p-5">
-        <div className="flex items-baseline justify-between gap-3 mb-2">
-          <h2 className="text-xs uppercase tracking-wider text-white/40">
-            Kehityskäyrä — minuutit per kierros
-          </h2>
-          <span className="text-[10px] text-white/30 uppercase tracking-wider">
-            {hasRounds
-              ? `${rounds!.length} kierrosta`
-              : 'Kierrosdata tulossa'}
-          </span>
-        </div>
-        {hasRounds ? (
-          <ProgressionChart rounds={rounds!} />
-        ) : (
-          <div className="flex flex-col items-center justify-center text-center py-10">
-            <TrendingUp className="w-7 h-7 text-white/30 mb-2" />
-            <div className="text-sm text-white/60">
-              Kierroskohtaista dataa ei vielä saatavilla tälle pelaajalle.
-            </div>
+      {/* Kehityskäyrä — minuutit per kierros (delta kierrosdatasta).
+          Näytetään vain, kun kierrosdataa on: kausituonti ei tuota
+          kierroksia, joten tyhjä "tulossa"-laatikko ei kertonut mitään. */}
+      {hasRounds && (
+        <section className="bg-navy-700/40 border border-navy-600 rounded-xl p-5">
+          <div className="flex items-baseline justify-between gap-3 mb-2">
+            <h2 className="text-xs uppercase tracking-wider text-vaimea">
+              Kehityskäyrä — minuutit per kierros
+            </h2>
+            <span className="text-[10px] text-vaimea uppercase tracking-wider">
+              {rounds!.length} kierrosta
+            </span>
           </div>
-        )}
-      </section>
+          <ProgressionChart rounds={rounds!} />
+        </section>
+      )}
 
-      <div className="text-xs text-white/40 pt-1">
+      <div className="text-xs text-vaimea pt-1">
         {lahdeRivi(sarja)}
       </div>
     </div>

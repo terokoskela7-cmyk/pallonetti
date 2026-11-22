@@ -19,7 +19,7 @@ function KausiValitsin({ mobiili = false }: { mobiili?: boolean }) {
   if (loading || kaudet.length === 0) {
     return (
       <span
-        className={`text-sm text-white/40 tabular ${mobiili ? '' : 'hidden md:inline-flex px-3 py-1.5'}`}
+        className={`text-sm text-vaimea tabular ${mobiili ? '' : 'hidden md:inline-flex px-3 py-1.5'}`}
       >
         {loading ? 'Kausi …' : 'ei kausia'}
       </span>
@@ -85,7 +85,7 @@ function SarjaValitsin({ mobiili = false }: { mobiili?: boolean }) {
                 : 'px-3 py-1.5 text-sm ') +
               (valittu
                 ? 'bg-ice text-navy-900 border-ice font-medium'
-                : 'text-white/70 border-navy-600 hover:text-white hover:bg-navy-700/50')
+                : 'text-toissijainen border-navy-600 hover:text-white hover:bg-navy-700/50')
             }
           >
             {mobiili ? x : sarjanLyhytNimi(x)}
@@ -112,14 +112,14 @@ const desktopLinkClass = ({ isActive }: { isActive: boolean }): string =>
   `px-3 py-2 rounded-md transition-colors ${
     isActive
       ? 'bg-navy-700 text-white'
-      : 'text-white/70 hover:text-white hover:bg-navy-700/40'
+      : 'text-toissijainen hover:text-white hover:bg-navy-700/40'
   }`;
 
 const mobileLinkClass = ({ isActive }: { isActive: boolean }): string =>
   `px-4 py-3 rounded-md text-base transition-colors ${
     isActive
       ? 'bg-ice/10 text-ice border-l-2 border-ice'
-      : 'text-white/70 hover:bg-navy-700/40 hover:text-white border-l-2 border-transparent'
+      : 'text-toissijainen hover:bg-navy-700/40 hover:text-white border-l-2 border-transparent'
   }`;
 
 export function Layout({ children }: LayoutProps) {
@@ -143,7 +143,7 @@ export function Layout({ children }: LayoutProps) {
   return (
     <div className="min-h-screen flex flex-col">
       <header className="border-b border-navy-700 relative z-30">
-        <div className="max-w-6xl mx-auto px-6 py-3 flex items-center justify-between gap-4">
+        <div className="max-w-7xl mx-auto px-6 py-3 flex items-center justify-between gap-4">
           {/* Logo + tagline */}
           <SisainenLinkki
             to="/"
@@ -153,7 +153,7 @@ export function Layout({ children }: LayoutProps) {
             <div className="text-2xl font-medium tracking-tight leading-none">
               pallo<span className="text-aurora">.</span>netti
             </div>
-            <div className="text-[11px] text-white/40 mt-1 tracking-wide">
+            <div className="text-[11px] text-vaimea mt-1 tracking-wide">
               Suomen jalkapallo analytiikalla
             </div>
           </SisainenLinkki>
@@ -210,13 +210,13 @@ export function Layout({ children }: LayoutProps) {
         aria-hidden={!mobileOpen}
       >
         <div className="flex items-center justify-between px-5 py-4 border-b border-navy-700">
-          <span className="text-sm uppercase tracking-wider text-white/50 font-medium">
+          <span className="text-sm uppercase tracking-wider text-vaimea font-medium">
             Valikko
           </span>
           <button
             type="button"
             onClick={closeMobile}
-            className="p-1 text-white/70 hover:text-white"
+            className="p-1 text-toissijainen hover:text-white"
             aria-label="Sulje valikko"
           >
             <X className="w-5 h-5" />
@@ -241,10 +241,10 @@ export function Layout({ children }: LayoutProps) {
         </div>
       </aside>
 
-      <main className="flex-1 max-w-6xl mx-auto w-full">{children}</main>
+      <main className="flex-1 max-w-7xl mx-auto w-full">{children}</main>
 
       <footer className="border-t border-navy-700 mt-16">
-        <div className="max-w-6xl mx-auto px-6 py-6 text-sm text-white/50">
+        <div className="max-w-7xl mx-auto px-6 py-6 text-sm text-vaimea">
           pallonetti.fi
         </div>
       </footer>

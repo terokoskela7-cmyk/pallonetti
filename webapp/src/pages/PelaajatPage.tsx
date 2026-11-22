@@ -49,7 +49,7 @@ export default function PelaajatPage() {
   if (loading) {
     return (
       <div className="px-6 py-20">
-        <div className="text-white/40 text-sm">Ladataan pelaajia…</div>
+        <div className="text-vaimea text-sm">Ladataan pelaajia…</div>
       </div>
     );
   }
@@ -61,7 +61,7 @@ export default function PelaajatPage() {
         <div className="text-white/90 font-medium mb-2">
           Datan lataus epäonnistui
         </div>
-        <div className="text-sm text-white/60">{error ?? 'Tuntematon virhe'}</div>
+        <div className="text-sm text-toissijainen">{error ?? 'Tuntematon virhe'}</div>
       </div>
     );
   }
@@ -88,7 +88,7 @@ export default function PelaajatPage() {
       {/* Suodattimet */}
       <div className="flex flex-col sm:flex-row gap-3">
         <div className="relative flex-1">
-          <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-white/40" />
+          <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-vaimea" />
           <input
             type="search"
             value={search}
@@ -115,7 +115,7 @@ export default function PelaajatPage() {
       {filtered.length === 0 ? (
         <div className="rounded-r-md bg-navy-600 border-l-2 border-ice px-5 py-4 flex items-start gap-3">
           <Info className="w-4 h-4 text-ice shrink-0 mt-0.5" />
-          <p className="text-sm text-white/60">
+          <p className="text-sm text-toissijainen">
             {data.data.length > 0 ? (
               'Yhtään pelaajaa ei vastaa suodattimia.'
             ) : (
@@ -141,7 +141,7 @@ export default function PelaajatPage() {
         <div className="overflow-x-auto -mx-6 px-6">
           <table className="min-w-full text-sm">
             <thead>
-              <tr className="text-left text-[11px] uppercase tracking-wider text-white/40 border-b border-navy-600">
+              <tr className="text-left text-[11px] uppercase tracking-wider text-vaimea border-b border-navy-600">
                 <th className="py-2 pr-3 w-10 text-right">#</th>
                 <th className="py-2 pr-3">Pelaaja</th>
                 <th className="py-2 pr-3">Joukkue</th>
@@ -161,13 +161,13 @@ export default function PelaajatPage() {
                     onClick={() => navigate(`/pelaaja/${slugify(p.name)}`)}
                     className="border-b border-navy-700 hover:bg-navy-700/50 cursor-pointer transition-colors"
                   >
-                    <td className="py-2 pr-3 text-right text-white/40 font-mono tabular">
+                    <td className="py-2 pr-3 text-right text-vaimea font-mono tabular">
                       {p.rank}
                     </td>
                     <td className="py-2 pr-3 font-medium text-white/95">
                       {naytaNimi(p.name)}
                     </td>
-                    <td className="py-2 pr-3 text-white/60">{p.team}</td>
+                    <td className="py-2 pr-3 text-toissijainen">{p.team}</td>
                     <td className="py-2 pr-3 text-right text-ice font-mono tabular">
                       {p.minutes}
                     </td>
@@ -180,7 +180,7 @@ export default function PelaajatPage() {
                     <td className="py-2 pr-3 text-right text-aurora font-mono tabular">
                       {tp}
                     </td>
-                    <td className="py-2 pl-3 text-right text-white/60 font-mono tabular">
+                    <td className="py-2 pl-3 text-right text-toissijainen font-mono tabular">
                       {p.yellowCards}
                     </td>
                   </tr>

@@ -788,9 +788,15 @@ export type JalkeenLuokka =
   | 'ei datassa'
   | 'ei vielä';
 
+export type Kansalaisuus = 'suomi' | 'muu' | 'ei tietoa';
+
 export interface DebytoijanPolku {
   slug: string;
   nimi: string;
+  /** Veikkausliigan rekisterin mukaan; vain VL:n kausilta, joilta tieto on. */
+  kansalaisuus: Kansalaisuus;
+  /** Pelasi emoseuran akatemiajoukkueessa ennen debyyttiä (väliaikainen määritelmä). */
+  akatemianKasvatti: boolean;
   debyyttiKausi: number;
   debyyttiTiedossa: boolean;
   debyyttiIka: number;
@@ -807,6 +813,9 @@ export interface DebytoijanPolku {
 export interface DebyyttikausiYhteenveto {
   kausi: number;
   debytoineet: number;
+  debyyttiMinuutit: number;
+  vlMinuutit: number;
+  eiKansalaisuustietoa: number;
   lapimurto: number;
   vakiintunut: number;
   alemmaltaTasolta: number;
@@ -816,7 +825,10 @@ export interface DebyyttikausiYhteenveto {
 export interface LapimurtoTulos {
   maaritelmat: { lapimurtoMin: number; vakiintunutOsuus: number };
   vlKaudet: number[];
+  kansalaisuusKaudet: number[];
   yhteenveto: DebyyttikausiYhteenveto[];
+  yhteenvetoSuomi: DebyyttikausiYhteenveto[];
+  yhteenvetoKasvatit: DebyyttikausiYhteenveto[];
   pelaajat: DebytoijanPolku[];
 }
 

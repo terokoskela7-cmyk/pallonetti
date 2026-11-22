@@ -60,11 +60,22 @@ const rivit: LapimurtoRivi[] = [
   r('eki', VL, 2023, 19, 'HJK', 90, '555'),
   // Debyytti viimeisellä kaudella: kausi kesken
   r('fred', VL, 2025, 18, 'HJK', 45, '666'),
+  // Akatemian kasvatti: HJK Klubi 04 (Ykkönen 2022) → debyytti HJK 2023
+  r('kasvatti', YK, 2022, 17, 'HJK Klubi 04', 800, '999'),
+  r('kasvatti', VL, 2023, 18, 'HJK', 120, '999'),
+  // Akatemiasta muualle: ei oman seuran kasvatti
+  r('muualle', YK, 2022, 17, 'SJK Akatemia', 800, '1000'),
+  r('muualle', VL, 2023, 18, 'HJK', 120, '1000'),
   // Kaima: sama slug, eri palloid → eri pelaajat
   r('kaima', VL, 2023, 18, 'HJK', 100, '777'),
   r('kaima', VL, 2024, 25, 'HJK', 900, '888'),
 ];
-const t = laskeLapimurrot(rivit, ott);
+const kans = new Map<string, 'FIN' | 'muu'>([
+  ['aku', 'FIN'],
+  ['beni', 'muu'],
+  ['kasvatti', 'FIN'],
+]);
+const t = laskeLapimurrot(rivit, ott, kans, [2023]);
 const hae = (slug: string) => t.pelaajat.filter((p) => p.slug === slug);
 
 console.log('LÄPIMURROT');
@@ -86,13 +97,27 @@ vertaa('eki ei datassa', hae('eki')[0].jalkeen.luokka, 'ei datassa');
 vertaa('fred ei vielä', hae('fred')[0].jalkeen.luokka, 'ei vielä');
 vertaa('kaimat erillään', hae('kaima').length, 2);
 
+console.log('KOTIMAISET JA KASVATIT');
+vertaa('aku suomi', hae('aku')[0].kansalaisuus, 'suomi');
+vertaa('beni muu', hae('beni')[0].kansalaisuus, 'muu');
+vertaa('cale ei tietoa', hae('cale')[0].kansalaisuus, 'ei tietoa');
+vertaa('kasvatti tunnistuu', hae('kasvatti')[0].akatemianKasvatti, true);
+vertaa('akatemiasta muualle ei kasvatti', hae('muualle')[0].akatemianKasvatti, false);
+vertaa('aku ei akatemiasta', hae('aku')[0].akatemianKasvatti, false);
+const s2023 = t.yhteenvetoSuomi.find((y) => y.kausi === 2023)!;
+vertaa('Suomi 2023 debytoineet (aku, kasvatti)', s2023.debytoineet, 2);
+vertaa('Suomi 2023 debyyttiminuutit', s2023.debyyttiMinuutit, 420);
+vertaa('Kasvatit 2023', t.yhteenvetoKasvatit.find((y) => y.kausi === 2023)!.debytoineet, 1);
+vertaa('kansalaisuuskaudet', t.kansalaisuusKaudet, [2023]);
+
 console.log('YHTEENVETO');
 const y2023 = t.yhteenveto.find((y) => y.kausi === 2023)!;
 vertaa('2022 ei yhteenvedossa', t.yhteenveto.some((y) => y.kausi === 2022), false);
-vertaa('2023 debytoineet', y2023.debytoineet, 6);
-vertaa('2023 alemmalta tasolta', y2023.alemmaltaTasolta, 1);
+vertaa('2023 debytoineet', y2023.debytoineet, 8);
+vertaa('2023 alemmalta tasolta', y2023.alemmaltaTasolta, 3);
+vertaa('2023 ei kansalaisuustietoa', y2023.eiKansalaisuustietoa, 5);
 vertaa('2023 läpimurto', y2023.lapimurto, 2);
-vertaa('2023 jälkeen', [y2023.jalkeen.kasvoi, y2023.jalkeen['alempi sarja'], y2023.jalkeen['täytti 22'], y2023.jalkeen['ei peliaikaa'], y2023.jalkeen['ei datassa']], [1, 1, 1, 1, 2]);
+vertaa('2023 jälkeen', [y2023.jalkeen.kasvoi, y2023.jalkeen['alempi sarja'], y2023.jalkeen['täytti 22'], y2023.jalkeen['ei peliaikaa'], y2023.jalkeen['ei datassa']], [1, 1, 1, 1, 4]);
 
 if (virheita > 0) {
   console.log('\n' + virheita + ' väitettä ei pitänyt.');

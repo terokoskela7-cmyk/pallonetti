@@ -707,6 +707,11 @@ export interface TrendiKausi {
   osuusAlle21: number | null;
   /** null, kun kaudelta ei ole kansalaisuustietoa. */
   alle21Jako: Kolmijako | null;
+  /**
+   * 17–21-vuotiaiden kolmijako (Suomen kansalaiset / muu / ei tietoa).
+   * null, jos sarjalta ei ole kansalaisuustietoa. Puuttuu vanhasta vastauksesta.
+   */
+  jako1721?: Kolmijako | null;
   kesken: boolean;
   otteluitaPelattu: number | null;
   pelaajia: number | null;

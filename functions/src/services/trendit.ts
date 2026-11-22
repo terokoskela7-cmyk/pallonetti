@@ -39,6 +39,13 @@ export interface TrendiKausi {
   osuusAlle21: number | null;
   /** Alle 21 -osuuden kolmijako, tai null jos kansalaisuusdataa ei ole. */
   alle21Jako: Kolmijako | null;
+  /**
+   * Päämittarin (17–21) kolmijako: Suomen kansalaiset, muu maakoodi, ei
+   * tietoa. null jos kansalaisuusdataa ei ole (toistaiseksi muut kuin
+   * Veikkausliiga). Suomen kansalaisten osuus on alaraja: "ei tietoa"
+   * voi sisältää myös suomalaisia.
+   */
+  jako1721: Kolmijako | null;
   /** Kesken oleva kausi merkitaan erikseen; lukua ei piiloteta. */
   kesken: boolean;
   /** Seurojen suurin pelattu ottelumaara, kesken olevan kauden merkintaan. */
@@ -296,6 +303,7 @@ export async function laskeKaudenTrendi(
     osuus1721: osuus(minuutit(suoritukset, NUORET_MAX, null), kapasiteetti),
     osuusAlle21: osuus(minuutit(suoritukset, ALLE_21_MAX, null), kapasiteetti),
     alle21Jako: laskeKolmijako(suoritukset, kapasiteetti, luokat, ALLE_21_MAX),
+    jako1721: laskeKolmijako(suoritukset, kapasiteetti, luokat, NUORET_MAX),
     kesken: onKesken(kausi, kausiDoc, nytVuosi),
     otteluitaPelattu: otteluitaPelattu(kausiDoc, nimittajat),
     pelaajia:

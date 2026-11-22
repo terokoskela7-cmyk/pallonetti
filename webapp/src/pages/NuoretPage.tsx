@@ -3,8 +3,9 @@
 //
 //   1. Valokeilassa  kolme korttia, joiden luku poikkeaa eniten oman
 //                    ikaryhman mediaanista (valinta rajapinnasta)
-//   2. Tilastokarki  suodatettava lista, kymmenen kerrallaan
-//   3. Kaikki        taulukko hakukentalla ja seurasuodattimella
+//   2. Penkilla      kokoonpanossa mutta ei kentalla — eniten kertoja
+//   3. Tilastokarki  suodatettava lista, kymmenen kerrallaan
+//   4. Kaikki        taulukko hakukentalla ja seurasuodattimella
 //
 // Kaikki lauseet ja luvut tulevat rajapinnasta. Selain suodattaa,
 // jarjestaa ja piirtaa — se ei laske osuuksia eika sanoita mitaan.
@@ -20,12 +21,14 @@ import { naytaKokoNimi } from '@/utils/nimet';
 import { getKaudenKonteksti, type Konteksti } from '@/services/api';
 import { useValittuKausi, useValittuSarja } from '@/hooks/useKausi';
 import { IKAKAISTAT, kaistalla, NUORET_LABEL_PITKA } from '@/constants/ika';
-import { Hero } from '@/components/Hero';
 import { Kontekstirivit } from '@/components/Kontekstirivit';
 import { ValokeilaKortit, Tilannerivi } from '@/components/Valokeila';
 
 /** Listanakymassa ei ole ohitettuja — ne ovat katselmointitietoa. */
 type Pelaaja = Omit<Konteksti, 'ohitetut'>;
+
+/** Montako pelaajaa "kokoonpanossa, mutta ei kentällä" -listassa. */
+const PENKKI_KOKO = 5;
 
 /** Montako riviä tilastokärki näyttää kerrallaan. */
 const SIVUN_KOKO = 10;
@@ -142,6 +145,22 @@ export default function NuoretPage() {
     );
   }, [peliaikaa, kaista, jarjestys]);
 
+  // Eniten kertoja kokoonpanossa ilman peliaikaa. Vain pelaajat, joilta
+  // kokoonpanotieto on (penkilla ei ole null), ja joilla kertoja on.
+  const penkilla = useMemo(
+    () =>
+      kaikki
+        .filter((p) => typeof p.faktat.penkilla === 'number' && (p.faktat.penkilla as number) > 0)
+        .sort(
+          (a, b) =>
+            (b.faktat.penkilla as number) - (a.faktat.penkilla as number) ||
+            a.faktat.minuutit - b.faktat.minuutit,
+        ),
+    [kaikki],
+  );
+  const penkkiYhteensa = penkilla.reduce((s, p) => s + (p.faktat.penkilla as number), 0);
+  const penkkiYla = penkilla.length > 0 ? (penkilla[0].faktat.penkilla as number) : 1;
+
   const seurat = useMemo(
     () => Array.from(new Set(kaikki.map((p) => p.joukkue))).sort(),
     [kaikki],
@@ -173,19 +192,16 @@ export default function NuoretPage() {
 
   return (
     <div className="px-6 py-10 md:py-16 space-y-10 max-w-6xl mx-auto">
-      <Hero
-        eyebrow={`${sarja} · Kausi ${kausi}`}
-        title={
-          <>
-            Nuoret pelaajat —{' '}
-            <span className="text-aurora font-medium">
-              {sarja} {kausi}
-            </span>
-          </>
-        }
-        subtitle={`${peliaikaa.length} pelaajaa peliajassa · ${NUORET_LABEL_PITKA}`}
-        height="sm"
-      />
+      <section className="space-y-2">
+        <p className="text-xs uppercase tracking-[0.12em] text-white/50 font-mono">
+          {sarja} · kausi {kausi}
+        </p>
+        <h1 className="text-3xl md:text-4xl font-medium tracking-tight text-white">Nuoret pelaajat</h1>
+        <p className="text-base text-white/70">
+          Mukana {kaikki.length} pelaajaa ({NUORET_LABEL_PITKA}), joista {peliaikaa.length} sai
+          peliaikaa.
+        </p>
+      </section>
 
       {/* 1. VALOKEILASSA */}
       <section className="space-y-3">
@@ -206,7 +222,75 @@ export default function NuoretPage() {
         )}
       </section>
 
-      {/* 2. TILASTOKÄRKI */}
+      {/* 2. PENKILLÄ */}
+      {penkilla.length > 0 && (
+        <section aria-labelledby="penkilla-otsikko" className="space-y-3">
+          <div className="flex flex-wrap items-baseline justify-between gap-2">
+            <h2 id="penkilla-otsikko" className="text-lg font-medium text-white">
+              Kokoonpanossa, mutta ei kentällä
+            </h2>
+            <span className="text-xs text-white/50">
+              Eniten otteluita kokoonpanossa ilman peliaikaa · koko sarjassa {penkkiYhteensa} kertaa
+            </span>
+          </div>
+          <div className="overflow-x-auto border border-navy-600 rounded-xl bg-navy-700/30">
+            <table className="w-full text-sm">
+              <caption className="sr-only">
+                Pelaajat, jotka olivat eniten kertoja kokoonpanossa pelaamatta
+              </caption>
+              <thead>
+                <tr className="text-[11px] uppercase tracking-wider text-white/50 border-b border-navy-600">
+                  <th scope="col" className="text-left font-medium px-4 py-2.5">Pelaaja</th>
+                  <th scope="col" className="text-left font-medium px-3 py-2.5">Seura</th>
+                  <th scope="col" className="text-right font-medium px-3 py-2.5">Ikä</th>
+                  <th scope="col" className="text-right font-medium px-3 py-2.5">Kokoonpanossa</th>
+                  <th scope="col" className="text-right font-medium px-3 py-2.5">Pelasi</th>
+                  <th scope="col" className="text-left font-medium px-4 py-2.5 min-w-[12rem]">
+                    Penkillä ilman peliaikaa
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-navy-700">
+                {penkilla.slice(0, PENKKI_KOKO).map((p) => (
+                  <tr key={p.slug} className="hover:bg-navy-700/40 transition-colors">
+                    <td className="px-4 py-2.5">
+                      <SisainenLinkki
+                        to={`/pelaaja/${p.slug}`}
+                        className="text-white font-medium hover:text-ice transition-colors"
+                      >
+                        {nimi(p)}
+                      </SisainenLinkki>
+                    </td>
+                    <td className="px-3 py-2.5 text-white/60">{p.joukkue}</td>
+                    <td className="px-3 py-2.5 text-right font-mono tabular text-white/70">{p.ika}</td>
+                    <td className="px-3 py-2.5 text-right font-mono tabular text-white/70">
+                      {p.faktat.kokoonpanossa ?? '–'}
+                    </td>
+                    <td className="px-3 py-2.5 text-right font-mono tabular text-white/70">
+                      {p.faktat.ottelut}
+                    </td>
+                    <td className="px-4 py-2.5">
+                      <span className="flex items-center gap-3">
+                        <span className="h-2 rounded-sm bg-navy-900/60 flex-1" aria-hidden="true">
+                          <span
+                            className="block h-full rounded-sm bg-amber-400"
+                            style={{ width: ((p.faktat.penkilla as number) / penkkiYla) * 100 + '%' }}
+                          />
+                        </span>
+                        <span className="font-mono tabular text-white w-8 text-right">
+                          {p.faktat.penkilla}
+                        </span>
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      )}
+
+      {/* 3. TILASTOKÄRKI */}
       <section className="space-y-3">
         <h2 className="text-xs uppercase tracking-wider text-white/40">
           Tilastokärki
@@ -276,7 +360,7 @@ export default function NuoretPage() {
         )}
       </section>
 
-      {/* 3. KAIKKI PELAAJAT */}
+      {/* 4. KAIKKI PELAAJAT */}
       <section className="space-y-3">
         <div className="flex items-baseline justify-between gap-3">
           <h2 className="text-xs uppercase tracking-wider text-white/40">
@@ -326,7 +410,8 @@ export default function NuoretPage() {
                   <th className="text-right font-medium px-3 py-2">Ikä</th>
                   <th className="text-right font-medium px-3 py-2">Min</th>
                   <th className="text-right font-medium px-3 py-2">Ott</th>
-                  <th className="text-right font-medium px-3 py-2">Al</th>
+                  <th className="text-right font-medium px-3 py-2">Aloitukset</th>
+                  <th className="text-right font-medium px-3 py-2">Penkillä</th>
                   <th className="text-right font-medium px-4 py-2">Maalit</th>
                 </tr>
               </thead>
@@ -353,6 +438,9 @@ export default function NuoretPage() {
                     </td>
                     <td className="px-3 py-2 text-right tabular text-white/70">
                       {p.faktat.aloitukset}
+                    </td>
+                    <td className="px-3 py-2 text-right tabular text-white/70">
+                      {typeof p.faktat.penkilla === 'number' ? p.faktat.penkilla : '–'}
                     </td>
                     <td className="px-4 py-2 text-right tabular text-white/90">
                       {p.faktat.maalit}

@@ -568,8 +568,21 @@ export const getSeuratKausi = (
   sarja?: string,
 ): Promise<SeuratKausi> => fetchApi(`/seurat/${season}` + sarjaParam(sarja));
 
-export const getSeuratTrendit = (sarja?: string): Promise<SeuratTrendit> =>
-  fetchApi('/seurat/trendit' + sarjaParam(sarja));
+/**
+ * Yksi uudelleenyritys, kuten getTrenditissä: kylmä funktio ehti
+ * deployn jälkeen kaatua ensimmäiseen kutsuun, ja Seurat-sivun
+ * kausikehitys näytti "ei saatu haettua" vaikka rajapinta toimi.
+ */
+export async function getSeuratTrendit(sarja?: string): Promise<SeuratTrendit> {
+  const polku = '/seurat/trendit' + sarjaParam(sarja);
+  try {
+    return await fetchApi<SeuratTrendit>(polku);
+  } catch (e) {
+    console.warn('[seurat/trendit] ensimmäinen yritys epäonnistui, yritetään uudelleen:', e);
+    await new Promise((r) => setTimeout(r, 1200));
+    return fetchApi<SeuratTrendit>(polku);
+  }
+}
 
 /** Valokeilan pelaaja: rivi, joka poikkeaa eniten ikäryhmän mediaanista. */
 export interface Nosto {

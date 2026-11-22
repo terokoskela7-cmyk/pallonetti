@@ -2,6 +2,9 @@ import { useParams } from 'react-router-dom';
 import { SisainenLinkki } from '@/components/SisainenLinkki';
 import { ArrowLeft, ExternalLink, Info, TrendingUp } from 'lucide-react';
 import {
+  BarChart,
+  Bar,
+  Legend,
   LineChart,
   Line,
   XAxis,
@@ -127,6 +130,74 @@ function StatBlock({ label, value, sub, accent = 'white' }: StatBlockProps) {
         {value}
       </div>
       {sub && <div className="mt-1.5 text-[11px] text-white/40">{sub}</div>}
+    </div>
+  );
+}
+
+/** Sarjan väri minuuttikaaviossa: ylin taso kirkkain. */
+const SARJAN_VARI: Record<string, string> = {
+  Veikkausliiga: '#00C8FF',
+  Ykkösliiga: '#7FDFFF',
+  'Miesten Ykkönen': '#8899AA',
+};
+
+/**
+ * Minuutit kausittain, pinottuna sarjan mukaan (sama kausi voi olla
+ * kahdessa sarjassa siirron takia). Luvut tulevat polusta sellaisinaan.
+ */
+function MinuutitKausittain({ kaudet }: { kaudet: PolkuKausi[] }) {
+  const sarjat = Array.from(new Set(kaudet.map((k) => k.sarja))).sort(
+    (a, b) => Object.keys(SARJAN_VARI).indexOf(a) - Object.keys(SARJAN_VARI).indexOf(b),
+  );
+  const vuodet = Array.from(new Set(kaudet.map((k) => k.kausi))).sort((a, b) => a - b);
+  const data = vuodet.map((v) => {
+    const rivi: Record<string, number | string> = { kausi: String(v) };
+    for (const k of kaudet.filter((x) => x.kausi === v)) {
+      rivi[sarjanLyhytNimi(k.sarja)] = k.minTotal;
+    }
+    return rivi;
+  });
+  return (
+    <div style={{ width: '100%', height: 200 }}>
+      <ResponsiveContainer width="100%" height="100%">
+        <BarChart data={data} margin={{ top: 8, right: 16, bottom: 0, left: 0 }}>
+          <CartesianGrid stroke="#1a2640" strokeDasharray="2 4" vertical={false} />
+          <XAxis
+            dataKey="kausi"
+            stroke="#8899AA"
+            tick={{ fontSize: 11, fill: '#A5B4C8' }}
+            tickLine={false}
+            axisLine={{ stroke: '#243350' }}
+          />
+          <YAxis
+            stroke="#8899AA"
+            tick={{ fontSize: 11, fill: '#A5B4C8' }}
+            tickLine={false}
+            axisLine={false}
+            unit=" min"
+            width={64}
+          />
+          <Tooltip
+            cursor={{ fill: '#00C8FF', fillOpacity: 0.06 }}
+            contentStyle={{ background: '#0B1120', border: '1px solid #1a2640', borderRadius: 6 }}
+            labelStyle={{ color: '#FFFFFF' }}
+            formatter={(arvo) => Number(arvo).toLocaleString('fi-FI') + ' min'}
+          />
+          {sarjat.length > 1 && (
+            <Legend wrapperStyle={{ fontSize: 11, color: '#A5B4C8' }} iconType="square" />
+          )}
+          {sarjat.map((s) => (
+            <Bar
+              key={s}
+              dataKey={sarjanLyhytNimi(s)}
+              stackId="min"
+              fill={SARJAN_VARI[s] ?? '#8899AA'}
+              isAnimationActive={false}
+              maxBarSize={48}
+            />
+          ))}
+        </BarChart>
+      </ResponsiveContainer>
     </div>
   );
 }
@@ -471,7 +542,10 @@ export default function PelaajaPage() {
       <section className="bg-navy-700/40 border border-navy-600 rounded-xl p-5 space-y-3">
         <h2 className="text-xs uppercase tracking-wider text-white/40">Polku</h2>
         {(polku?.length ?? 0) > 1 ? (
-          <Polku slug={slug} kaudet={polku!} kausi={kausi} sarja={sarja} />
+          <>
+            <MinuutitKausittain kaudet={polku!} />
+            <Polku slug={slug} kaudet={polku!} kausi={kausi} sarja={sarja} />
+          </>
         ) : (
           <p className="text-sm text-white/50">
             Polku näytetään, kun pelaaja löytyy useamman kauden tai sarjan datasta.

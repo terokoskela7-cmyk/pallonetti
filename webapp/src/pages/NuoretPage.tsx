@@ -122,8 +122,9 @@ export default function NuoretPage() {
   const [naytetaan, setNaytetaan] = useState(SIVUN_KOKO);
   const [haku, setHaku] = useState('');
   const [seura, setSeura] = useState('all');
-  // Oletuksena vain Suomen kansalaiset, kun sarjalta on kansalaisuustieto:
-  // sivun kysymys on suomalaisten nuorten peliaika. Kaikki saa näkyviin.
+  // Oletuksena vain Suomessa koulutetut (UEFA association-trained), kun
+  // koulutustieto on; varalla Suomen kansalaiset. Sivun kysymys on
+  // suomalaisen pelaajakehityksen peliaika. Kaikki saa näkyviin.
   const [vainSuomi, setVainSuomi] = useState(true);
 
   const { data, loading, error } = useApi(
@@ -131,15 +132,19 @@ export default function NuoretPage() {
     [kausi, sarja],
   );
 
-  const kansalaisuusSaatavilla = data?.kansalaisuusSaatavilla === true;
+  const koulutusSaatavilla = data?.koulutusSaatavilla === true;
+  const kansalaisuusSaatavilla = koulutusSaatavilla || data?.kansalaisuusSaatavilla === true;
   const suodataSuomi = kansalaisuusSaatavilla && vainSuomi;
+  const rajausNimi = koulutusSaatavilla ? 'Suomessa koulutetut' : 'Suomen kansalaiset';
   const kaikkiRivit = useMemo<Pelaaja[]>(() => data?.kontekstit ?? [], [data]);
   const kaikki = useMemo<Pelaaja[]>(
     () =>
       suodataSuomi
-        ? (data?.kontekstit ?? []).filter((p) => p.kansalaisuus === 'suomi')
+        ? (data?.kontekstit ?? []).filter((p) =>
+            koulutusSaatavilla ? p.koulutettu === true : p.kansalaisuus === 'suomi',
+          )
         : kaikkiRivit,
-    [data, kaikkiRivit, suodataSuomi],
+    [data, kaikkiRivit, suodataSuomi, koulutusSaatavilla],
   );
   // Valokeila valitaan palvelimella kaikista; suodatetaan samalla
   // rajauksella (voi jäädä alle kolmen).
@@ -219,14 +224,15 @@ export default function NuoretPage() {
         <p className="text-base text-toissijainen">
           {suodataSuomi ? (
             <>
-              Mukana {kaikki.length} Suomen kansalaista ({NUORET_LABEL_PITKA}), joista{' '}
-              {peliaikaa.length} sai peliaikaa. Kaikkiaan kokoonpanoissa oli {kaikkiRivit.length} pelaajaa kansalaisuudesta
-              riippumatta.
+              Mukana {kaikki.length}{' '}
+              {koulutusSaatavilla ? 'Suomessa koulutettua pelaajaa' : 'Suomen kansalaista'} (
+              {NUORET_LABEL_PITKA}), joista {peliaikaa.length} sai peliaikaa. Kaikkiaan kokoonpanoissa
+              oli {kaikkiRivit.length} pelaajaa taustasta riippumatta.
             </>
           ) : (
             <>
               Mukana {kaikki.length} pelaajaa ({NUORET_LABEL_PITKA}), joista {peliaikaa.length} sai
-              peliaikaa{kansalaisuusSaatavilla ? ', kaikki kansalaisuudet' : ''}.
+              peliaikaa{kansalaisuusSaatavilla ? ', taustasta riippumatta' : ''}.
             </>
           )}
         </p>
@@ -242,7 +248,7 @@ export default function NuoretPage() {
                   (vainSuomi ? 'bg-ice text-navy-900 font-medium' : 'text-toissijainen hover:text-white')
                 }
               >
-                Suomen kansalaiset
+                {rajausNimi}
               </button>
               <button
                 type="button"
@@ -257,8 +263,9 @@ export default function NuoretPage() {
               </button>
             </div>
             <span className="text-xs text-vaimea">
-              Kansalaisuus pelaajarekisterin mukaan; pelaaja, jota rekisteristä ei löydy, näkyy vain
-              kohdassa Kaikki.
+              {koulutusSaatavilla
+                ? 'Suomessa koulutettu = vähintään kolme kautta suomalaisessa seurassa 15–21-vuotiaana (UEFA:n määritelmä). Seurahistoria vuodesta 2020.'
+                : 'Kansalaisuus pelaajarekisterin mukaan; pelaaja, jota rekisteristä ei löydy, näkyy vain kohdassa Kaikki.'}
             </span>
           </div>
         )}

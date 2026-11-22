@@ -384,6 +384,17 @@ export default function SeuraPage() {
   // kaavio eivät voi kertoa eri asiaa.
   const kaudenPiste = data.aikasarja.pisteet.find((p) => p.kausi === data.kausi) ?? null;
   const suhde = kaudenPiste?.suhdeluku ?? null;
+  // Päämittari: Suomessa koulutetut, varalla Suomen kansalaiset.
+  const koulutettuOn = k !== null && k.koulutettuOsuus !== null && k.koulutettuOsuus !== undefined;
+  const suomiOn = k !== null && k.suomiOsuus !== null && k.suomiOsuus !== undefined;
+  const rajattu: { nimi: string; arvo: number } | null =
+    k === null
+      ? null
+      : koulutettuOn
+        ? { nimi: 'Suomessa koulutetut', arvo: k.koulutettuOsuus as number }
+        : suomiOn
+          ? { nimi: 'Suomalaisten osuus', arvo: k.suomiOsuus as number }
+          : null;
 
   return (
     <div className="px-6 py-10 md:py-14 space-y-6">
@@ -428,18 +439,18 @@ export default function SeuraPage() {
           <div
             className={
               'grid grid-cols-2 sm:grid-cols-3 gap-px bg-navy-600 ' +
-              (k.suomiOsuus !== null && k.suomiOsuus !== undefined ? 'lg:grid-cols-7' : 'lg:grid-cols-6')
+              (rajattu !== null ? 'lg:grid-cols-7' : 'lg:grid-cols-6')
             }
           >
             {[
-              // Suomen kansalaisten osuus päämittarina, kun tieto on.
-              ...(k.suomiOsuus !== null && k.suomiOsuus !== undefined
-                ? [['Suomalaisten osuus', desimaali(k.suomiOsuus) + ' %', 'ice'] as const]
+              // Päämittari (Suomessa koulutetut tai kansalaiset), kun tieto on.
+              ...(rajattu !== null
+                ? [[rajattu.nimi, desimaali(rajattu.arvo) + ' %', 'ice'] as const]
                 : []),
               [
-                k.suomiOsuus !== null && k.suomiOsuus !== undefined ? 'Kaikki 17–21' : 'Nuorten osuus',
+                rajattu !== null ? 'Kaikki 17–21' : 'Nuorten osuus',
                 desimaali(k.osuus) + ' %',
-                k.suomiOsuus !== null && k.suomiOsuus !== undefined ? 'white' : 'ice',
+                rajattu !== null ? 'white' : 'ice',
               ],
               ['Suhde sarjaan', suhde === null ? '–' : desimaali(suhde) + '×', suhde !== null && suhde >= 1 ? 'aurora' : 'white'],
               [
@@ -473,7 +484,17 @@ export default function SeuraPage() {
           <p className="text-[11px] text-vaimea px-5 pb-4 pt-2">
             Osuus = nuorten minuutit jaettuna joukkueen {k.ottelut} ottelun
             kokonaisminuuteilla.
-            {k.suomiOsuus !== null && k.suomiOsuus !== undefined && (
+            {koulutettuOn && (
+              <>
+                {' '}Suomessa koulutetut = pelaajat, joilla on vähintään kolme kautta suomalaisessa
+                seurassa 15–21-vuotiaina (UEFA:n määritelmä), samalla nimittäjällä
+                {data.koulutettuTaso !== null && data.koulutettuTaso !== undefined
+                  ? '; sarjan taso ' + desimaali(data.koulutettuTaso) + ' %'
+                  : ''}
+                .
+              </>
+            )}
+            {!koulutettuOn && suomiOn && (
               <>
                 {' '}Suomalaisten osuus = Suomen kansalaisten (pelaajarekisteri) minuutit samalla
                 nimittäjällä

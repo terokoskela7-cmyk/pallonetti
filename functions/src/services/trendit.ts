@@ -21,6 +21,7 @@ import { lueKausi, type SuoritusDoc } from './kausiData';
 import { ALLE_21_MAX, NUORET_MAX } from './ikarajat';
 import { OLETUSSARJA } from './kausiImport';
 import { onAkatemia } from './akatemiat';
+import { haeKoulutetut } from './koulutus';
 
 export interface Kolmijako {
   /** % liigan minuuttikapasiteetista. */
@@ -46,6 +47,13 @@ export interface TrendiKausi {
    * voi sisältää myös suomalaisia.
    */
   jako1721: Kolmijako | null;
+  /**
+   * PÄÄMITTARI: Suomessa koulutettujen (UEFA association-trained: ≥3 kautta
+   * 15–21-v. suomalaisessa seurassa) 17–21-vuotiaiden osuus kapasiteetista.
+   * Kaikissa sarjoissa. null = koulutustietoa ei ole tuotu. Alaraja:
+   * aineisto alkaa 2020, ja rivi ilman palloidia ei ole mukana.
+   */
+  koulutettu1721: number | null;
   /** Kesken oleva kausi merkitaan erikseen; lukua ei piiloteta. */
   kesken: boolean;
   /** Seurojen suurin pelattu ottelumaara, kesken olevan kauden merkintaan. */
@@ -279,6 +287,8 @@ export async function laskeKaudenTrendi(
   kausiDoc: firestore.DocumentData | undefined,
   nytVuosi: number,
   sarja: string = OLETUSSARJA,
+  /** Suomessa koulutettujen palloidit; null = tietoa ei ole. */
+  koulutetut: Set<string> | null = null,
 ): Promise<TrendiKausi> {
   const [{ suoritukset, nimittajat }, kansSnap] = await Promise.all([
     lueKausi(db, kausi, sarja),
@@ -321,6 +331,15 @@ export async function laskeKaudenTrendi(
     osuusAlle21: osuus(minuutit(suoritukset, ALLE_21_MAX, null), kapasiteetti),
     alle21Jako: laskeKolmijako(suoritukset, kapasiteetti, luokat, ALLE_21_MAX),
     jako1721: laskeKolmijako(suoritukset, kapasiteetti, luokat, NUORET_MAX),
+    koulutettu1721:
+      koulutetut === null
+        ? null
+        : osuus(
+            suoritukset
+              .filter((s) => s.ika <= NUORET_MAX && !!s.palloid && koulutetut.has(s.palloid))
+              .reduce((a, s) => a + s.minuutit, 0),
+            kapasiteetti,
+          ),
     kesken: onKesken(kausi, kausiDoc, nytVuosi),
     otteluitaPelattu: otteluitaPelattu(kausiDoc, nimittajat),
     pelaajia:
@@ -359,7 +378,8 @@ export async function laskeTrendit(
     .filter((k) => sarja === null || k.sarja === sarja)
     .sort((a, b) => a.kausi - b.kausi || a.sarja.localeCompare(b.sarja));
 
+  const koulutetut = await haeKoulutetut(db);
   return Promise.all(
-    kaudet.map((k) => laskeKaudenTrendi(db, k.kausi, k.doc, nytVuosi, k.sarja)),
+    kaudet.map((k) => laskeKaudenTrendi(db, k.kausi, k.doc, nytVuosi, k.sarja, koulutetut)),
   );
 }

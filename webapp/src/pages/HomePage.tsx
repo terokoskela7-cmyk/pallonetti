@@ -73,7 +73,11 @@ function MiniTrendi({ pisteet, mittari }: { pisteet: TrendiKausi[]; mittari: Mit
   const viiva = arvot.map((p, i) => `${x(i)},${y(p.osuus1721)}`).join(' ');
   const viim = arvot[arvot.length - 1];
   const kuvaus =
-    (mittari === 'suomi' ? 'Suomen kansalaisten 17–21-vuotiaiden' : '17–21-vuotiaiden') +
+    (mittari === 'koulutettu'
+      ? 'Suomessa koulutettujen 17–21-vuotiaiden'
+      : mittari === 'suomi'
+        ? 'Suomen kansalaisten 17–21-vuotiaiden'
+        : '17–21-vuotiaiden') +
     ' osuus kausittain: ' +
     arvot.map((p) => p.kausi + ' ' + pros(p.osuus1721)).join(', ');
   return (
@@ -90,7 +94,7 @@ function MiniTrendi({ pisteet, mittari }: { pisteet: TrendiKausi[]; mittari: Mit
         </text>
       </svg>
       <figcaption className="text-xs text-vaimea">
-        {mittari === 'suomi' ? 'Suomen kansalaiset · ' : ''}Osuus sarjan minuuttikapasiteetista, %
+        {mittari === 'koulutettu' ? 'Suomessa koulutetut · ' : mittari === 'suomi' ? 'Suomen kansalaiset · ' : ''}Osuus sarjan minuuttikapasiteetista, %
         {viim.kesken ? ' · viimeisin kausi kesken' : ''}
       </figcaption>
     </figure>
@@ -116,9 +120,9 @@ function Kpi({ otsikko, arvo, lisa }: { otsikko: string; arvo: string; lisa?: st
 interface PalkkiRivi {
   id: string;
   nimi: string;
-  /** Päämittari: Suomen kansalaisten osuus tai kaikki 17–21. */
+  /** Päämittari: Suomessa koulutettujen (tai kansalaisten) osuus tai kaikki 17–21. */
   osuus: number;
-  /** Kaikki 17–21, kun päämittari on suomalaiset; muuten null. */
+  /** Kaikki 17–21, kun päämittari on rajattu joukko; muuten null. */
   kaikki: number | null;
 }
 
@@ -221,12 +225,17 @@ export default function HomePage() {
     }
   }, []);
 
-  // Päämittari on Suomen kansalaisten osuus aina, kun sarjalta on
-  // kansalaisuustieto: kaikkien 17–21-vuotiaiden luku sisältää ulkomaiset
-  // nuoret eikä kerro suomalaisten pelaajien kehittymisestä. Ilman tietoa
-  // (toistaiseksi muut sarjat) näytetään kaikki, ja se sanotaan auki.
+  // Päämittari on Suomessa koulutettujen (UEFA association-trained) osuus
+  // aina, kun koulutustieto on: kaikkien 17–21-vuotiaiden luku sisältää
+  // ulkomailla kasvaneet nuoret eikä kerro suomalaisesta pelaajakehityksestä.
+  // Varalla kansalaisuus, sitten kaikki — ja se sanotaan auki.
   const valittuPiste = (trendit ?? []).find((t) => t.kausi === kausi && t.sarja === sarja) ?? null;
-  const mittari: Mittari = valittuPiste?.jako1721 ? 'suomi' : 'kaikki';
+  const mittari: Mittari =
+    valittuPiste?.koulutettu1721 !== null && valittuPiste?.koulutettu1721 !== undefined
+      ? 'koulutettu'
+      : valittuPiste?.jako1721
+        ? 'suomi'
+        : 'kaikki';
   const otsikko = useMemo(
     () => muodostaOtsikkolause(trendit ?? null, sarja, kausi, mittari),
     [trendit, sarja, kausi, mittari],
@@ -255,10 +264,11 @@ export default function HomePage() {
   const seurat = filterReliableTeams(sarjanRivit(data.stats, sarja));
   const agg = data.agg;
   const taso = laskeNuortenOsuus(seurat);
-  // Suomi-mittarissa ei koskaan pudota kaikkien kansalaisuuksien lukuun:
-  // otsikko sanoo "suomalaiset nuoret".
+  // Rajatussa mittarissa ei koskaan pudota kaikkien lukuun: otsikko
+  // sanoo "Suomessa koulutetut nuoret".
   const paaluku =
-    otsikko?.osuus ?? (valittuPiste?.jako1721 ? valittuPiste.jako1721.fin : taso);
+    otsikko?.osuus ??
+    (valittuPiste ? (mittari === 'kaikki' ? taso : mittarinArvo(valittuPiste, mittari)) : taso);
   const valittuTrendi = valittuPiste;
   const jako = valittuTrendi?.jako1721 ?? null;
 
@@ -273,15 +283,22 @@ export default function HomePage() {
   const valokeila = (konteksti?.valokeilassa ?? []).slice(0, 3);
   const tilanne = paiva(konteksti?.tuotuPvm ?? agg.updatedAt);
 
-  // Seurapalkit: Suomen kansalaiset, kun Seurat-rajapinta antaa tiedon.
+  // Seurapalkit samalla mittarilla kuin otsikko, kun Seurat-rajapinta
+  // antaa tiedon: Suomessa koulutetut, varalla kansalaisuus.
+  const seuraKoulutettuTaso = seuraKausi?.koulutettuTaso ?? null;
   const seuraSuomiTaso = seuraKausi?.suomiTaso ?? null;
+  const seuraMittari: 'koulutettu' | 'suomi' | null =
+    seuraKoulutettuTaso !== null ? 'koulutettu' : seuraSuomiTaso !== null ? 'suomi' : null;
+  const seuranArvo = (s: { koulutettuOsuus?: number | null; suomiOsuus?: number | null }) =>
+    seuraMittari === 'koulutettu' ? s.koulutettuOsuus ?? null : s.suomiOsuus ?? null;
   const palkkiRivit: PalkkiRivi[] =
-    seuraSuomiTaso !== null && seuraKausi
+    seuraMittari !== null && seuraKausi
       ? seuraKausi.seurat
-          .filter((s) => s.suomiOsuus !== null && s.suomiOsuus !== undefined)
-          .map((s) => ({ id: s.tunniste, nimi: s.nimi, osuus: s.suomiOsuus as number, kaikki: s.osuus }))
+          .filter((s) => seuranArvo(s) !== null)
+          .map((s) => ({ id: s.tunniste, nimi: s.nimi, osuus: seuranArvo(s) as number, kaikki: s.osuus }))
       : seurat.map((s) => ({ id: s.teamId, nimi: s.teamName, osuus: s.osuusNuoret, kaikki: null }));
-  const palkkiTaso = seuraSuomiTaso ?? taso;
+  const palkkiTaso =
+    seuraMittari === 'koulutettu' ? seuraKoulutettuTaso : seuraMittari === 'suomi' ? seuraSuomiTaso : taso;
   // Kärkiseurat lauseeseen samalla mittarilla kuin palkit, ilman
   // akatemiajoukkueita.
   const karkiRivit = [...palkkiRivit]
@@ -302,12 +319,24 @@ export default function HomePage() {
             {tilanne ? ` · tilanne ${tilanne}` : ''}
           </p>
           <h1 id="paaotsikko" className="text-3xl md:text-[2.75rem] leading-tight font-medium tracking-tight text-white">
-            {mittari === 'suomi' ? 'Suomalaiset nuoret' : 'Nuoret'} saivat{' '}
+            {mittari === 'koulutettu'
+              ? 'Suomessa koulutetut nuoret'
+              : mittari === 'suomi'
+                ? 'Suomalaiset nuoret'
+                : 'Nuoret'}{' '}
+            saivat{' '}
             <span className="font-mono text-ice">{pros(paaluku)}</span> peliajasta
             {otsikko?.jatko ? <> — {otsikko.jatko}</> : null}.
           </h1>
           <p className="text-base md:text-lg text-toissijainen leading-relaxed">
-            {mittari === 'suomi' && jako ? (
+            {mittari === 'koulutettu' ? (
+              <>
+                17–21-vuotiaat, jotka ovat pelanneet suomalaisessa seurassa vähintään kolme kautta
+                15–21-vuotiaina (UEFA:n määritelmä), osuus {sarjaGenetiivi(sarja)} minuuteista. Kaikki
+                17–21-vuotiaat taustasta riippumatta: {pros(valittuTrendi?.osuus1721 ?? null)}
+                {jako ? `, Suomen kansalaiset ${pros(jako.fin)}` : ''}.
+              </>
+            ) : mittari === 'suomi' && jako ? (
               <>
                 Suomen kansalaisten 17–21-vuotiaiden osuus {sarjaGenetiivi(sarja)} minuuteista
                 pelaajarekisterin mukaan. Kaikki 17–21-vuotiaat kansalaisuudesta riippumatta:{' '}
@@ -324,7 +353,7 @@ export default function HomePage() {
             {otsikko?.kesken ? ' Kausi on kesken.' : ''}
             {karkiRivit.length === 2
               ? ` Seuroista kärjessä ${karkiRivit[0].nimi} (${pros(karkiRivit[0].osuus)}) ja ${karkiRivit[1].nimi} (${pros(karkiRivit[1].osuus)})${
-                  seuraSuomiTaso === null && mittari === 'suomi' ? ', kaikki kansalaisuudet' : ''
+                  seuraMittari === null && mittari !== 'kaikki' ? ', kaikki 17–21' : ''
                 }.`
               : ''}
           </p>
@@ -368,14 +397,20 @@ export default function HomePage() {
         >
           <div className="flex flex-wrap items-baseline justify-between gap-2">
             <h2 id="seurat-otsikko" className="text-lg font-medium text-white">
-              {seuraSuomiTaso !== null ? 'Seurat suomalaisten nuorten osuuden mukaan' : 'Seurat nuorten osuuden mukaan'}
+              {seuraMittari === 'koulutettu'
+                ? 'Seurat Suomessa koulutettujen nuorten osuuden mukaan'
+                : seuraMittari === 'suomi'
+                  ? 'Seurat suomalaisten nuorten osuuden mukaan'
+                  : 'Seurat nuorten osuuden mukaan'}
             </h2>
             <SisainenLinkki to="/seurat" className="text-sm text-ice hover:text-white">
               Kaikki seuraluvut →
             </SisainenLinkki>
           </div>
           <p className="text-xs text-vaimea">
-            {seuraSuomiTaso !== null
+            {seuraMittari === 'koulutettu'
+              ? 'Suomessa koulutettujen osuus seuran otteluiden minuuteista · vaalea = kaikki 17–21 · '
+              : seuraMittari === 'suomi'
               ? 'Suomen kansalaisten osuus seuran otteluiden minuuteista · vaalea = kaikki 17–21 · '
               : 'Osuus seuran otteluiden minuuteista · '}
             valkoinen viiva = sarjan taso {pros(palkkiTaso)}

@@ -152,7 +152,7 @@ console.log('AIKASARJAT JA KATKOT');
       tunniste: seuraTunniste(nimi), nimi, kausi, sarja: 'Veikkausliiga',
       akatemia: false, ottelut: 22, kapasiteettiMin: 21780,
       nuortenMinuutit: Math.round((osuus / 100) * 21780),
-      osuus, pelaajia: 3, keskiIka: 19, nuortenAloitukset: 0, aloitusosuus: null, penkkikerrat: null, suomiMinuutit: null, suomiOsuus: null,
+      osuus, pelaajia: 3, keskiIka: 19, nuortenAloitukset: 0, aloitusosuus: null, penkkikerrat: null, suomiMinuutit: null, suomiOsuus: null, koulutettuMinuutit: null, koulutettuOsuus: null,
     }));
 
   const kausittain = new Map<number, Seurakausi[]>([
@@ -191,7 +191,7 @@ console.log('VERTAILUVIIVAT');
   const rivi = (nimi: string, min: number, akatemia: boolean): Seurakausi => ({
     tunniste: seuraTunniste(nimi), nimi, kausi: 2026, sarja: 'Ykkösliiga',
     akatemia, ottelut: 22, kapasiteettiMin: 21780, nuortenMinuutit: min,
-    osuus: Math.round((min / 21780) * 1000) / 10, pelaajia: 3, keskiIka: 19, nuortenAloitukset: 0, aloitusosuus: null, penkkikerrat: null, suomiMinuutit: null, suomiOsuus: null,
+    osuus: Math.round((min / 21780) * 1000) / 10, pelaajia: 3, keskiIka: 19, nuortenAloitukset: 0, aloitusosuus: null, penkkikerrat: null, suomiMinuutit: null, suomiOsuus: null, koulutettuMinuutit: null, koulutettuOsuus: null,
   });
   const kausittain = new Map<number, Seurakausi[]>([
     [2026, [
@@ -299,7 +299,7 @@ console.log('SEURAN AIKASARJA YLI SARJOJEN');
     tunniste: seuraTunniste(nimi), nimi, kausi, sarja, akatemia: false,
     ottelut, kapasiteettiMin: ottelut * 90 * 11,
     nuortenMinuutit: Math.round((osuus / 100) * ottelut * 90 * 11),
-    osuus, pelaajia: 3, keskiIka: 19, nuortenAloitukset: 0, aloitusosuus: null, penkkikerrat: null, suomiMinuutit: null, suomiOsuus: null,
+    osuus, pelaajia: 3, keskiIka: 19, nuortenAloitukset: 0, aloitusosuus: null, penkkikerrat: null, suomiMinuutit: null, suomiOsuus: null, koulutettuMinuutit: null, koulutettuOsuus: null,
   });
 
   const kaudet = [2022, 2023, 2024, 2025, 2026];
@@ -425,7 +425,7 @@ console.log('SUHDELUKU JA LIUKUVA SARJOJEN YLI');
     tunniste: seuraTunniste(nimi), nimi, kausi, sarja, akatemia: false,
     ottelut: 22, kapasiteettiMin: 21780,
     nuortenMinuutit: Math.round((osuus / 100) * 21780),
-    osuus, pelaajia: 3, keskiIka: 19, nuortenAloitukset: 0, aloitusosuus: null, penkkikerrat: null, suomiMinuutit: null, suomiOsuus: null,
+    osuus, pelaajia: 3, keskiIka: 19, nuortenAloitukset: 0, aloitusosuus: null, penkkikerrat: null, suomiMinuutit: null, suomiOsuus: null, koulutettuMinuutit: null, koulutettuOsuus: null,
   });
 
   const kaudet = [2022, 2023, 2024, 2025, 2026];
@@ -575,6 +575,22 @@ console.log('SUOMEN KANSALAISET SEUROITTAIN');
   vertaa('suomiMinuutit', kanssa.suomiMinuutit, 900);
   vertaa('suomiOsuus = 900 / 9900', kanssa.suomiOsuus, 9.1);
   vertaa('kaikkien osuus ennallaan', kanssa.osuus, 12.1);
+}
+
+console.log('SUOMESSA KOULUTETUT SEUROITTAIN');
+{
+  const r = [
+    suoritus({ slug: 'aku', minuutit: 900 }),
+    suoritus({ slug: 'beni', minuutit: 300 }),
+  ];
+  const [ilman] = laskeSeurakausi(2026, 'Veikkausliiga', r, [nimittaja('KuPS', 10)]);
+  vertaa('ilman tietoa koulutettuOsuus null', ilman.koulutettuOsuus, null);
+  const [k] = laskeSeurakausi(
+    2026, 'Veikkausliiga', r, [nimittaja('KuPS', 10)], null, new Set(['beni']),
+  );
+  vertaa('koulutettuMinuutit', k.koulutettuMinuutit, 300);
+  vertaa('koulutettuOsuus = 300 / 9900', k.koulutettuOsuus, 3);
+  vertaa('kansalaisuus ilman tietoa null', k.suomiOsuus, null);
 }
 
 console.log('');

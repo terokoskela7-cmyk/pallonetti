@@ -479,6 +479,24 @@ export default function AboutPage() {
           nimittäjiä ei sekoiteta keskenään.
         </p>
         <p>
+          <strong className="text-white/80">Suomessa koulutettu.</strong>{' '}
+          Sivuston päämittari on Suomessa koulutettujen 17–21-vuotiaiden osuus
+          peliajasta. Suomessa koulutettu on pelaaja, joka on pelannut
+          suomalaisen seuran joukkueessa vähintään kolmella kaudella ollessaan
+          15–21-vuotias. Määritelmä on UEFA:n kotimaisen kasvatin
+          (association-trained) sääntö. Kausi lasketaan, jos pelaajalla on sillä
+          kaudella ottelu sarjassa; maa- ja aluejoukkueita, futsalia ja
+          harjoitusotteluita ei lasketa. Mittari kertoo suomalaisesta
+          pelaajakehityksestä paremmin kuin kansalaisuus, koska se ei riipu
+          passista vaan siitä, missä pelaaja on kasvanut.
+        </p>
+        <p>
+          Seurahistoria on mukana kaudesta 2020 alkaen. Pelaaja, jonka
+          nuoruusvuodet ovat osin ennen sitä, voi jäädä luvun ulkopuolelle,
+          joten varhaisempien kausien luku on alaraja. Siksi Suomessa
+          koulutettujen osuudesta ei tehdä ennätysvertailuja.
+        </p>
+        <p>
           Kansalaisuus esitetään kolmijakona: Suomen kansalaisuus rekisterissä,
           muu maakoodi, ja ei tietoa. Luvut on laskettu olemassa olevasta
           datasta, ja niissä voi olla pieniä heittoja. Kansalaisuus on

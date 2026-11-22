@@ -499,6 +499,10 @@ export interface Seurakausi {
   suomiMinuutit?: number | null;
   /** Suomen kansalaisten osuus seuran kapasiteetista, %. */
   suomiOsuus?: number | null;
+  /** Suomessa koulutettujen 17–21-minuutit; null = ei koulutustietoa. */
+  koulutettuMinuutit?: number | null;
+  /** Päämittari: Suomessa koulutettujen osuus seuran kapasiteetista, %. */
+  koulutettuOsuus?: number | null;
 }
 
 export interface Vertailuviiva {
@@ -525,6 +529,8 @@ export interface SeuratKausi {
   vertailuviivat: Vertailuviiva[];
   /** Suomen kansalaisten osuus koko sarjan kapasiteetista; null/puuttuu = ei tietoa. */
   suomiTaso?: number | null;
+  /** Päämittari: Suomessa koulutettujen osuus koko sarjasta; null/puuttuu = ei tietoa. */
+  koulutettuTaso?: number | null;
 }
 
 export interface SeuratTrendit {
@@ -560,6 +566,8 @@ export interface SeuranSivu {
   seurakausi: Seurakausi | null;
   /** Suomen kansalaisten osuus koko sarjasta valittuna kautena; puuttuu/null = ei tietoa. */
   suomiTaso?: number | null;
+  /** Suomessa koulutettujen osuus koko sarjasta valittuna kautena; puuttuu/null = ei tietoa. */
+  koulutettuTaso?: number | null;
   pelaajat: Array<Omit<Konteksti, 'ohitetut'> & { siirto: Siirto | null }>;
   aikasarja: {
     kaudet: number[];
@@ -643,9 +651,17 @@ export interface KaudenKonteksti {
   sarja: string;
   /** Listanäkymissä ei ole `ohitetut`-kenttää — se on katselmointitietoa. */
   /** kansalaisuus: null = sarjalta ei ole tietoa; puuttuu vanhasta vastauksesta. */
-  kontekstit: Array<Omit<Konteksti, 'ohitetut'> & { kansalaisuus?: 'suomi' | 'muu' | 'ei tietoa' | null }>;
+  /** koulutettu: Suomessa koulutettu (UEFA association-trained); null = ei tietoa. */
+  kontekstit: Array<
+    Omit<Konteksti, 'ohitetut'> & {
+      kansalaisuus?: 'suomi' | 'muu' | 'ei tietoa' | null;
+      koulutettu?: boolean | null;
+    }
+  >;
   /** true = kontekstien kansalaisuus on käytettävissä (Veikkausliiga). */
   kansalaisuusSaatavilla?: boolean;
+  /** true = koulutustieto on käytettävissä (kaikki sarjat). */
+  koulutusSaatavilla?: boolean;
   valokeilassa: Nosto[];
   /**
    * Kauden tuontipäivä ISO-muodossa. Tilanne kerrotaan päivänä eikä
@@ -723,6 +739,11 @@ export interface TrendiKausi {
    * null, jos sarjalta ei ole kansalaisuustietoa. Puuttuu vanhasta vastauksesta.
    */
   jako1721?: Kolmijako | null;
+  /**
+   * Päämittari: Suomessa koulutettujen (≥3 kautta 15–21-v. suomalaisessa
+   * seurassa) 17–21-vuotiaiden osuus. null/puuttuu = ei koulutustietoa.
+   */
+  koulutettu1721?: number | null;
   kesken: boolean;
   otteluitaPelattu: number | null;
   pelaajia: number | null;

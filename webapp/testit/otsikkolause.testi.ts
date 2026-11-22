@@ -114,6 +114,20 @@ console.log('SUOMEN KANSALAISET');
   vertaa('ei tietoa → null', muodostaOtsikkolause(suomi, 'Veikkausliiga', 2023, 'suomi'), null);
 }
 
+console.log('Koulutettu-mittari');
+{
+  const kp = (kausi: number, kaikki: number, k: number | null): TrendiKausi => ({
+    ...piste('Veikkausliiga', kausi, kaikki),
+    koulutettu1721: k,
+  });
+  const k = [kp(2023, 17.1, 9.0), kp(2024, 15.3, 10.3), kp(2025, 15.9, 11.8), kp(2026, 20.3, 14.6)];
+  const o = muodostaOtsikkolause(k, 'Veikkausliiga', 2026, 'koulutettu')!;
+  vertaa('koulutettu-osuus', o.osuus, 14.6);
+  vertaa('koulutettu: ei ennätysväitettä vaikka korkein', o.jatko, null);
+  vertaa('koulutettu: edellinen', o.edellinen, { kausi: 2025, osuus: 11.8 });
+  vertaa('ilman tietoa → null', muodostaOtsikkolause([piste('Veikkausliiga', 2026, 20.3)], 'Veikkausliiga', 2026, 'koulutettu'), null);
+}
+
 console.log('');
 console.log(virheita === 0 ? 'Kaikki väitteet pitivät.' : virheita + ' väitettä petti.');
 process.exit(virheita === 0 ? 0 : 1);

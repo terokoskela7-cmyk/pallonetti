@@ -105,6 +105,7 @@ const navLinks: Array<{ to: string; label: string; end?: boolean }> = [
   { to: '/nuoret', label: 'Nuoret' },
   { to: '/seurat', label: 'Seurat' },
   { to: '/pelaajat', label: 'Pelaajat' },
+  { to: '/nousijat', label: 'Nousijat' },
   { to: '/about', label: 'Tietoa' },
 ];
 

@@ -9,6 +9,7 @@ import SeuraPage from '@/pages/SeuraPage';
 import PelaajatPage from '@/pages/PelaajatPage';
 import PelaajaPage from '@/pages/PelaajaPage';
 import AboutPage from '@/pages/AboutPage';
+import NousijatPage from '@/pages/NousijatPage';
 import AdminPage from '@/pages/AdminPage';
 
 export default function App() {
@@ -24,6 +25,7 @@ export default function App() {
           <Route path="/pelaajat" element={<PelaajatPage />} />
           <Route path="/peliaika" element={<PelaikaPage />} />
           <Route path="/pelaaja/:slug" element={<PelaajaPage />} />
+          <Route path="/nousijat" element={<NousijatPage />} />
           <Route path="/about" element={<AboutPage />} />
           <Route path="/admin" element={<AdminPage />} />
           </Routes>

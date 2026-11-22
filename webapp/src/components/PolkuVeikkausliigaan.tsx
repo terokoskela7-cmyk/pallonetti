@@ -15,6 +15,7 @@
 import type { PolkuTulos } from '@/services/api';
 import { luku } from '@/utils/luvut';
 import { naytaNimi } from '@/utils/nimet';
+import { SisainenLinkki } from '@/components/SisainenLinkki';
 
 /** Sama merkki kuin joukkuekaaviossa. */
 const AKATEMIA_MERKKI = '*';
@@ -128,7 +129,13 @@ export function PolkuVeikkausliigaan({ polku }: { polku: PolkuTulos }) {
               {listattavat.map((p) => (
                 <tr key={p.slug} className="border-t border-navy-700">
                   <td className="py-2 pr-3 text-white/80">
-                    {naytaNimi(p.nimi)}
+                    {/* Pelaajasivulle nousukaudelle: siellä näkyy myös polku kausittain. */}
+                    <SisainenLinkki
+                      to={`/pelaaja/${p.slug}?sarja=veikkausliiga&kausi=${kausiN1}`}
+                      className="hover:text-ice transition-colors"
+                    >
+                      {naytaNimi(p.nimi)}
+                    </SisainenLinkki>
                     {p.debytoi && (
                       <span className="text-[10px] text-ice ml-2 uppercase tracking-wider">
                         debyytti
@@ -173,8 +180,9 @@ export function PolkuVeikkausliigaan({ polku }: { polku: PolkuTulos }) {
             Ykkösliiga alkoi 2024, joten siirtymiä on toistaiseksi kaksi.
           </li>
           <li>
-            Ykkönen, muut sarjat ja ulkomaat eivät ole datassa, joten &quot;mistä
-            pelaaja tuli&quot; ei ole koko kuva.
+            Mukana on vain siirtymä Ykkösliigasta Veikkausliigaan. Ykkönen, muut
+            sarjat ja ulkomaat eivät ole tässä laskelmassa, joten &quot;mistä pelaaja
+            tuli&quot; ei ole koko kuva.
           </li>
           <li>
             Kesken kauden tapahtuneet siirrot näkyvät saman kauden kahtena

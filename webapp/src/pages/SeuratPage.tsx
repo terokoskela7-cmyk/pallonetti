@@ -24,7 +24,6 @@ import { NUORET_LABEL_PITKA } from '@/constants/ika';
 import { AKATEMIA_SELITE } from '@/constants/akatemiat';
 import { lahdeRivi } from '@/constants/lahde';
 import { desimaali, luku } from '@/utils/luvut';
-import { Hero } from '@/components/Hero';
 import { SeuraKaaviot } from '@/components/SeuraKaaviot';
 
 function LoadingSkeleton() {
@@ -41,16 +40,27 @@ function LoadingSkeleton() {
   );
 }
 
-function Rivi({ s, ylaraja }: { s: Seurakausi; ylaraja: number }) {
+function Rivi({
+  s,
+  ylaraja,
+  taso,
+}: {
+  s: Seurakausi;
+  ylaraja: number;
+  taso: number | null;
+}) {
   const leveys = s.osuus === null ? 0 : Math.min(100, (s.osuus / ylaraja) * 100);
+  const tasoKohta = taso === null ? null : Math.min(100, (taso / ylaraja) * 100);
+  const yli = s.osuus !== null && taso !== null && s.osuus >= taso;
+  const suhde = s.osuus !== null && taso ? s.osuus / taso : null;
   return (
     <tr className="hover:bg-navy-700/40 transition-colors">
-      <td className="px-4 py-2">
+      <td className="px-4 py-2.5">
         {/* Seuran nimi vie seuran omalle sivulle. Tunniste on sama kuin
             siellä, joten linkki ei voi osoittaa eri seuraan. */}
         <SisainenLinkki
           to={`/seurat/${s.tunniste}`}
-          className="text-white/90 whitespace-nowrap hover:text-ice transition-colors"
+          className="text-white font-medium whitespace-nowrap hover:text-ice transition-colors"
         >
           {s.nimi}
         </SisainenLinkki>
@@ -63,31 +73,55 @@ function Rivi({ s, ylaraja }: { s: Seurakausi; ylaraja: number }) {
           </span>
         )}
       </td>
-      <td className="px-3 py-2 w-40">
+      <td className="px-3 py-2.5 min-w-[14rem]">
         {s.osuus === null ? (
           <span className="text-white/40 text-xs">ei dataa</span>
         ) : (
-          <span className="flex items-center gap-2">
-            <span className="h-1.5 rounded-full bg-navy-600 flex-1 overflow-hidden">
+          <span className="flex items-center gap-3">
+            <span className="relative h-3 rounded-sm bg-navy-900/60 flex-1" aria-hidden="true">
               <span
-                className="block h-full bg-ice/70"
+                className={'block h-full rounded-sm ' + (yli ? 'bg-ice' : 'bg-ice/40')}
                 style={{ width: leveys + '%' }}
               />
+              {tasoKohta !== null && (
+                <span
+                  className="absolute -top-1 -bottom-1 border-l-2 border-white"
+                  style={{ left: tasoKohta + '%' }}
+                />
+              )}
             </span>
-            <span className="text-ice tabular text-sm w-14 text-right">
+            <span className="text-white font-mono tabular w-16 text-right">
               {desimaali(s.osuus)} %
             </span>
           </span>
         )}
       </td>
-      <td className="px-3 py-2 text-right tabular text-white/70">{s.ottelut}</td>
-      <td className="hidden sm:table-cell px-3 py-2 text-right tabular text-white/70">
+      <td
+        className={
+          'px-3 py-2.5 text-right font-mono tabular ' +
+          (suhde !== null && suhde >= 1 ? 'text-aurora' : 'text-white/70')
+        }
+      >
+        {suhde === null ? '–' : desimaali(suhde) + '×'}
+      </td>
+      <td className="px-3 py-2.5 text-right font-mono tabular text-white/80">
+        {s.aloitusosuus === null || s.aloitusosuus === undefined
+          ? '–'
+          : desimaali(s.aloitusosuus) + ' %'}
+      </td>
+      <td className="px-3 py-2.5 text-right font-mono tabular text-white/80">
+        {s.penkkikerrat === null || s.penkkikerrat === undefined ? '–' : luku(s.penkkikerrat)}
+      </td>
+      <td className="hidden sm:table-cell px-3 py-2.5 text-right font-mono tabular text-white/70">
+        {s.ottelut}
+      </td>
+      <td className="hidden md:table-cell px-3 py-2.5 text-right font-mono tabular text-white/70">
         {luku(s.nuortenMinuutit)}
       </td>
-      <td className="hidden sm:table-cell px-3 py-2 text-right tabular text-white/70">
+      <td className="hidden md:table-cell px-3 py-2.5 text-right font-mono tabular text-white/70">
         {s.pelaajia}
       </td>
-      <td className="hidden md:table-cell px-4 py-2 text-right tabular text-white/70">
+      <td className="hidden lg:table-cell px-4 py-2.5 text-right font-mono tabular text-white/70">
         {s.keskiIka === null ? 'ei dataa' : desimaali(s.keskiIka)}
       </td>
     </tr>
@@ -155,6 +189,9 @@ export default function SeuratPage() {
   }, [seurat, trendit]);
 
   const viiva = kausiData?.vertailuviivat[0] ?? null;
+  const taso = viiva?.kaikki ?? null;
+  const yliTason =
+    taso === null ? 0 : seurat.filter((x) => x.osuus !== null && x.osuus >= taso).length;
 
   if (loading) return <LoadingSkeleton />;
 
@@ -172,49 +209,40 @@ export default function SeuratPage() {
 
   return (
     <div className="px-6 py-10 md:py-16 space-y-10 max-w-6xl mx-auto">
-      <Hero
-        eyebrow={`${sarja} · Kausi ${kausi}`}
-        title={
-          <>
-            Seurat —{' '}
-            <span className="text-aurora font-medium">
-              {sarja} {kausi}
-            </span>
-          </>
-        }
-        subtitle={`${seurat.length} seuraa · ${NUORET_LABEL_PITKA} osuus joukkueen otteluiden minuuteista`}
-        height="sm"
-      />
-
-      {/* Sarjan taso kahtena lukuna */}
-      {viiva && (
-        <section className="bg-navy-700/40 border border-navy-600 rounded-xl p-5 space-y-1.5">
-          <h2 className="text-xs uppercase tracking-wider text-white/40">
-            Sarjan taso
-          </h2>
-          <p className="text-sm text-white/85 tabular">
-            {viiva.ilmanAkatemioita === null ? (
-              <>Kaikki joukkueet {desimaali(viiva.kaikki)} %</>
-            ) : (
-              <>
-                Kaikki joukkueet {desimaali(viiva.kaikki)} %
-                <span className="text-white/30"> · </span>
-                ilman akatemiajoukkueita {desimaali(viiva.ilmanAkatemioita)} %
-              </>
-            )}
+      <section className="flex flex-wrap items-end justify-between gap-6">
+        <div className="space-y-2 max-w-2xl">
+          <p className="text-xs uppercase tracking-[0.12em] text-white/50 font-mono">
+            {sarja} · kausi {kausi}
           </p>
-          {/* Toinen luku vain jos sarjassa on akatemiajoukkueita. Kaksi
-              identtistä lukua vierekkäin väittäisi vertailua, jota ei ole
-              tehty — ehto tulee datasta, ei sarjan nimestä. */}
-          {viiva.ilmanAkatemioita !== null && (
-            <p className="text-[11px] text-white/40 leading-relaxed max-w-3xl">
-              Kaksi lukua, koska akatemiajoukkueen koko idea on peluuttaa
-              nuoria. Yksi keskiarvo nostaisi sarjan tason sellaiseksi, joka ei
-              kerro muiden seurojen käytännöstä.
-            </p>
-          )}
-        </section>
-      )}
+          <h1 className="text-3xl md:text-4xl font-medium tracking-tight text-white">Seurat</h1>
+          <p className="text-base text-white/70 leading-relaxed">
+            Kuinka suuren osan seuran otteluminuuteista {NUORET_LABEL_PITKA} pelasivat.
+            Suhde kertoo, montako kertaa sarjan tason seura on.
+          </p>
+        </div>
+        {viiva && (
+          <dl className="flex flex-wrap gap-8">
+            <div>
+              <dt className="text-sm text-white/60">Sarjan taso</dt>
+              <dd className="text-3xl font-mono tabular text-white">{desimaali(viiva.kaikki)} %</dd>
+            </div>
+            {viiva.ilmanAkatemioita !== null && (
+              <div>
+                <dt className="text-sm text-white/60">Ilman akatemiajoukkueita</dt>
+                <dd className="text-3xl font-mono tabular text-white">
+                  {desimaali(viiva.ilmanAkatemioita)} %
+                </dd>
+              </div>
+            )}
+            <div>
+              <dt className="text-sm text-white/60">Yli sarjan tason</dt>
+              <dd className="text-3xl font-mono tabular text-white">
+                {yliTason} / {seurat.length}
+              </dd>
+            </div>
+          </dl>
+        )}
+      </section>
 
       {/* Kauden taulukko */}
       <section className="space-y-3">
@@ -226,27 +254,35 @@ export default function SeuratPage() {
             Kaudelta {kausi} ei ole seuradataa tässä sarjassa.
           </p>
         ) : (
-          <div className="overflow-x-auto border border-navy-600 rounded-xl">
+          <div className="overflow-x-auto border border-navy-600 rounded-xl bg-navy-700/30">
             <table className="w-full text-sm">
+              <caption className="sr-only">
+                {sarja} {kausi}: seurat nuorten osuuden mukaan
+              </caption>
               <thead>
-                <tr className="text-[10px] uppercase tracking-wider text-white/40 border-b border-navy-600">
-                  <th className="text-left font-medium px-4 py-2">Seura</th>
-                  <th className="text-left font-medium px-3 py-2">Osuus</th>
-                  <th className="text-right font-medium px-3 py-2">Ott</th>
-                  <th className="hidden sm:table-cell text-right font-medium px-3 py-2">
-                    Min
+                <tr className="text-[11px] uppercase tracking-wider text-white/50 border-b border-navy-600">
+                  <th scope="col" className="text-left font-medium px-4 py-2.5">Seura</th>
+                  <th scope="col" className="text-left font-medium px-3 py-2.5">
+                    Osuus · viiva = sarjan taso
                   </th>
-                  <th className="hidden sm:table-cell text-right font-medium px-3 py-2">
+                  <th scope="col" className="text-right font-medium px-3 py-2.5">Suhde</th>
+                  <th scope="col" className="text-right font-medium px-3 py-2.5">Aloituksista</th>
+                  <th scope="col" className="text-right font-medium px-3 py-2.5">Penkillä*</th>
+                  <th scope="col" className="hidden sm:table-cell text-right font-medium px-3 py-2.5">Ott</th>
+                  <th scope="col" className="hidden md:table-cell text-right font-medium px-3 py-2.5">
+                    Nuorten min
+                  </th>
+                  <th scope="col" className="hidden md:table-cell text-right font-medium px-3 py-2.5">
                     Pelaajia
                   </th>
-                  <th className="hidden md:table-cell text-right font-medium px-4 py-2">
+                  <th scope="col" className="hidden lg:table-cell text-right font-medium px-4 py-2.5">
                     Keski-ikä
                   </th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-navy-700">
                 {seurat.map((s) => (
-                  <Rivi key={s.tunniste} s={s} ylaraja={ylaraja} />
+                  <Rivi key={s.tunniste} s={s} ylaraja={ylaraja} taso={taso} />
                 ))}
               </tbody>
             </table>
@@ -292,7 +328,9 @@ export default function SeuratPage() {
 
       <p className="text-xs text-white/40">
         {lahdeRivi(sarja)}. Osuus = nuorten minuutit jaettuna joukkueen
-        otteluiden kokonaisminuuteilla.
+        otteluiden kokonaisminuuteilla. Aloituksista = nuorten osuus seuran
+        aloituspaikoista (ottelut × 11). *Penkillä = kerrat, jolloin
+        17–21-vuotias oli kokoonpanossa mutta ei pelannut.
       </p>
     </div>
   );

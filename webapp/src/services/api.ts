@@ -347,6 +347,35 @@ export interface SeasonPlayer {
   siirto?: Siirto | null;
 }
 
+/** Yksi kausi pelaajan polussa (GET /pelaaja-polku/:slug). */
+export interface PolkuKausi {
+  kausi: number;
+  sarja: string;
+  joukkue: string;
+  joukkueet: string[];
+  ika: number;
+  minTotal: number;
+  ottelutTotal: number;
+  aloituksetTotal: number;
+  /** null = projektio tuotu ennen kentän lisäämistä. */
+  kokoonpanossaTotal: number | null;
+  maaliTotal: number;
+}
+
+/**
+ * Pelaajan kaudet kaikista tuoduista sarjoista, uusin ensin. Palvelin
+ * liittää polkuun vain rivit, joiden ikä sopii yhteen näytettävän kauden
+ * kanssa (slug on nimestä tehty, kaimat eivät saa sekoittua).
+ */
+export const getPelaajanPolku = (
+  slug: string,
+  kausi: number,
+  sarja: string,
+): Promise<PolkuKausi[]> =>
+  fetchApi(
+    `/pelaaja-polku/${encodeURIComponent(slug)}?kausi=${kausi}&sarja=${encodeURIComponent(sarja)}`,
+  );
+
 export interface PlayerRound {
   round: number;
   cumMin: number;

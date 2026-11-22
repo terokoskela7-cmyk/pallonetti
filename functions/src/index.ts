@@ -39,6 +39,7 @@ import {
   valitseNostot,
 } from './services/konteksti';
 import { laskePolku } from './services/polku';
+import { valitsePolku, type PolkuKausi } from './services/pelaajanPolku';
 import {
   laskeSeurakausi,
   laskeSeuratrendit,
@@ -794,6 +795,85 @@ app.get('/api/season-players/:season/:slug/rounds', async (req, res) => {
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Tuntematon virhe';
     console.error('[season-players/rounds] failed:', message);
+    res.status(500).json({ success: false, error: message });
+  }
+});
+
+/**
+ * GET /api/pelaaja-polku/:slug?kausi=VVVV&sarja=X — pelaajan kaudet ja
+ * sarjat kaikista tuoduista kausista. Pelkkä luku.
+ *
+ * kausi + sarja kertovat viiterivin (sivulla näkyvä pelaaja). Muut rivit
+ * hyväksytään vain, jos ikä sopii yhteen viiterivin kanssa (ks.
+ * pelaajanPolku.ts): slug on nimestä tehty, eikä kaimaa saa liittää polkuun.
+ */
+app.get('/api/pelaaja-polku/:slug', async (req, res) => {
+  const slug = req.params.slug;
+  const kausi = parseInt(String(req.query.kausi ?? ''), 10);
+  const sarja = pyydettySarja(req.query.sarja);
+  if (!slug || isNaN(kausi)) {
+    res.status(400).json({ success: false, error: 'slug tai kausi puuttuu/virheellinen' });
+    return;
+  }
+  if (sarja === null || sarja === KAIKKI_SARJAT) {
+    sarjaVirhe(res, req.query.sarja);
+    return;
+  }
+  try {
+    const db = admin.firestore();
+    const kaudetSnap = await db.collection('kaudet').get();
+    const parit = kaudetSnap.docs
+      .map((d) => d.data())
+      .filter((d) => d.vanhentunut !== true)
+      .map((d) => ({ kausi: Number(d.vuosi), sarja: (d.sarja as string) ?? OLETUSSARJA }))
+      .filter((p) => !isNaN(p.kausi));
+
+    // Sarjallinen tunniste ensin; Veikkausliigalle myös vanha pelkkä slug.
+    const refit: { kausi: number; sarja: string; ref: admin.firestore.DocumentReference }[] = [];
+    for (const p of parit) {
+      const pelaajat = db.collection('seasons').doc(String(p.kausi)).collection('players');
+      refit.push({ ...p, ref: pelaajat.doc(projektioId({ sarja: p.sarja, slug })) });
+      if (p.sarja === OLETUSSARJA) refit.push({ ...p, ref: pelaajat.doc(slug) });
+    }
+    const docit = refit.length > 0 ? await db.getAll(...refit.map((r) => r.ref)) : [];
+
+    const rivit = new Map<string, PolkuKausi>();
+    docit.forEach((doc, i) => {
+      const d = doc.data();
+      if (!doc.exists || !d || d.vanhentunut === true) return;
+      const { kausi: k, sarja: s } = refit[i];
+      const avain = k + '|' + s;
+      if (rivit.has(avain)) return; // sarjallinen voittaa vanhan
+      const sp = toSeasonPlayer(doc.id, d);
+      rivit.set(avain, {
+        kausi: k,
+        sarja: s,
+        joukkue: sp.joukkue,
+        joukkueet: (d.joukkueet as string[]) ?? (sp.joukkue ? [sp.joukkue] : []),
+        ika: sp.ika,
+        minTotal: sp.minTotal,
+        ottelutTotal: sp.ottelutTotal,
+        aloituksetTotal: sp.aloituksetTotal,
+        kokoonpanossaTotal: sp.kokoonpanossaTotal,
+        maaliTotal: sp.maaliTotal,
+      });
+    });
+
+    const viite = rivit.get(kausi + '|' + sarja);
+    if (!viite) {
+      res.status(404).json({ success: false, error: 'Pelaajaa ei löytynyt' });
+      return;
+    }
+    res.set('Cache-Control', 'public, max-age=3600');
+    res.json({
+      success: true,
+      data: valitsePolku(viite, [...rivit.values()]),
+      source: 'kausituonti',
+      timestamp: new Date().toISOString(),
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Tuntematon virhe';
+    console.error('[pelaaja-polku] failed:', message);
     res.status(500).json({ success: false, error: message });
   }
 });

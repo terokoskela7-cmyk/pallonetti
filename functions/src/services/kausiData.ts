@@ -20,7 +20,7 @@
 // literaaleja (käytetään +-ketjutusta).
 // ============================================
 import type { firestore } from 'firebase-admin';
-import { OLETUSSARJA } from './kausiImport';
+import { OLETUSSARJA, onRunkosarjaVaihe } from './kausiImport';
 
 export interface SuoritusDoc {
   /** Puuttuva kentta tarkoittaa oletussarjaa (vanha data). */
@@ -284,10 +284,10 @@ export function laskeLiigaYhteenveto(
   const kap = nimittajat.reduce((a, n) => a + n.kapasiteetti_min, 0);
   const min = suoritukset.reduce((a, s) => a + s.minuutit, 0);
   const rsKap = nimittajat
-    .filter((n) => n.vaihe === 'Runkosarja')
+    .filter((n) => onRunkosarjaVaihe(n.vaihe))
     .reduce((a, n) => a + n.kapasiteetti_min, 0);
   const rsMin = suoritukset
-    .filter((s) => s.vaihe === 'Runkosarja')
+    .filter((s) => onRunkosarjaVaihe(s.vaihe))
     .reduce((a, s) => a + s.minuutit, 0);
 
   return {

@@ -22,7 +22,7 @@ import { ResearchCard } from '@/components/ResearchCard';
 import { lahdeMaininta, sarjaGenetiivi } from '@/constants/lahde';
 import { sarjanRivit } from '@/constants/sarjat';
 import { onAkatemia } from '@/constants/akatemiat';
-import { muodostaOtsikkolause } from '@/utils/otsikkolause';
+import { mittarinArvo, muodostaOtsikkolause, type Mittari } from '@/utils/otsikkolause';
 
 // ============================================================
 // Etusivu — sivu-uudistus vaihe 3
@@ -56,10 +56,10 @@ function paiva(iso: string | null | undefined): string | null {
 // ------------------------------------------------------------
 // Pieni trendikaavio otsikon viereen. Iso kaavio on alempana.
 // ------------------------------------------------------------
-function MiniTrendi({ pisteet }: { pisteet: TrendiKausi[] }) {
-  const arvot = pisteet.filter((p) => p.osuus1721 !== null) as Array<
-    TrendiKausi & { osuus1721: number }
-  >;
+function MiniTrendi({ pisteet, mittari }: { pisteet: TrendiKausi[]; mittari: Mittari }) {
+  const arvot = pisteet
+    .filter((p) => mittarinArvo(p, mittari) !== null)
+    .map((p) => ({ ...p, osuus1721: mittarinArvo(p, mittari) as number }));
   if (arvot.length < 2) return null;
   const L = 400;
   const K = 130;
@@ -72,7 +72,8 @@ function MiniTrendi({ pisteet }: { pisteet: TrendiKausi[] }) {
   const viiva = arvot.map((p, i) => `${x(i)},${y(p.osuus1721)}`).join(' ');
   const viim = arvot[arvot.length - 1];
   const kuvaus =
-    '17–21-vuotiaiden osuus kausittain: ' +
+    (mittari === 'suomi' ? 'Suomen kansalaisten 17–21-vuotiaiden' : '17–21-vuotiaiden') +
+    ' osuus kausittain: ' +
     arvot.map((p) => p.kausi + ' ' + pros(p.osuus1721)).join(', ');
   return (
     <figure className="m-0 w-full max-w-[420px] space-y-1">
@@ -88,7 +89,8 @@ function MiniTrendi({ pisteet }: { pisteet: TrendiKausi[] }) {
         </text>
       </svg>
       <figcaption className="text-xs text-vaimea">
-        Osuus sarjan minuuttikapasiteetista, %{viim.kesken ? ' · viimeisin kausi kesken' : ''}
+        {mittari === 'suomi' ? 'Suomen kansalaiset · ' : ''}Osuus sarjan minuuttikapasiteetista, %
+        {viim.kesken ? ' · viimeisin kausi kesken' : ''}
       </figcaption>
     </figure>
   );
@@ -189,7 +191,16 @@ export default function HomePage() {
     }
   }, []);
 
-  const otsikko = useMemo(() => muodostaOtsikkolause(trendit ?? null, sarja, kausi), [trendit, sarja, kausi]);
+  // Päämittari on Suomen kansalaisten osuus aina, kun sarjalta on
+  // kansalaisuustieto: kaikkien 17–21-vuotiaiden luku sisältää ulkomaiset
+  // nuoret eikä kerro suomalaisten pelaajien kehittymisestä. Ilman tietoa
+  // (toistaiseksi muut sarjat) näytetään kaikki, ja se sanotaan auki.
+  const valittuPiste = (trendit ?? []).find((t) => t.kausi === kausi && t.sarja === sarja) ?? null;
+  const mittari: Mittari = valittuPiste?.jako1721 ? 'suomi' : 'kaikki';
+  const otsikko = useMemo(
+    () => muodostaOtsikkolause(trendit ?? null, sarja, kausi, mittari),
+    [trendit, sarja, kausi, mittari],
+  );
   const sarjanTrendi = useMemo(
     () => (trendit ?? []).filter((t) => t.sarja === sarja && t.kausi <= kausi).sort((a, b) => a.kausi - b.kausi),
     [trendit, sarja, kausi],
@@ -214,8 +225,12 @@ export default function HomePage() {
   const seurat = filterReliableTeams(sarjanRivit(data.stats, sarja));
   const agg = data.agg;
   const taso = laskeNuortenOsuus(seurat);
-  const paaluku = otsikko?.osuus ?? taso;
-  const valittuTrendi = (trendit ?? []).find((t) => t.kausi === kausi && t.sarja === sarja) ?? null;
+  // Suomi-mittarissa ei koskaan pudota kaikkien kansalaisuuksien lukuun:
+  // otsikko sanoo "suomalaiset nuoret".
+  const paaluku =
+    otsikko?.osuus ?? (valittuPiste?.jako1721 ? valittuPiste.jako1721.fin : taso);
+  const valittuTrendi = valittuPiste;
+  const jako = valittuTrendi?.jako1721 ?? null;
 
   // Kärkiseurat lauseeseen ilman akatemiajoukkueita: niiden koko tehtävä
   // on peluuttaa nuoria, joten "kärjessä HJK Klubi 04" ei kertoisi mitään.
@@ -245,19 +260,32 @@ export default function HomePage() {
             {tilanne ? ` · tilanne ${tilanne}` : ''}
           </p>
           <h1 id="paaotsikko" className="text-3xl md:text-[2.75rem] leading-tight font-medium tracking-tight text-white">
-            Nuoret saivat <span className="font-mono text-ice">{pros(paaluku)}</span> peliajasta
+            {mittari === 'suomi' ? 'Suomalaiset nuoret' : 'Nuoret'} saivat{' '}
+            <span className="font-mono text-ice">{pros(paaluku)}</span> peliajasta
             {otsikko?.jatko ? <> — {otsikko.jatko}</> : null}.
           </h1>
           <p className="text-base md:text-lg text-toissijainen leading-relaxed">
-            17–21-vuotiaiden osuus {sarjaGenetiivi(sarja)} minuuteista.
+            {mittari === 'suomi' && jako ? (
+              <>
+                Suomen kansalaisten 17–21-vuotiaiden osuus {sarjaGenetiivi(sarja)} minuuteista
+                pelaajarekisterin mukaan. Kaikki 17–21-vuotiaat kansalaisuudesta riippumatta:{' '}
+                {pros(valittuTrendi?.osuus1721 ?? null)}, josta muun maan pelaajat {pros(jako.muu)}
+                {jako.eiTietoa > 0 ? ` ja kansalaisuus tuntematon ${pros(jako.eiTietoa)}` : ''}.
+              </>
+            ) : (
+              <>
+                17–21-vuotiaiden osuus {sarjaGenetiivi(sarja)} minuuteista kaikista
+                kansalaisuuksista; sarjasta ei ole vielä kansalaisuustietoa.
+              </>
+            )}
             {otsikko?.edellinen ? ` Kausi ${otsikko.edellinen.kausi} oli ${pros(otsikko.edellinen.osuus)}.` : ''}
             {otsikko?.kesken ? ' Kausi on kesken.' : ''}
             {karki.length === 2
-              ? ` Kärjessä ${karki[0].teamName} (${pros(karki[0].osuusNuoret)}) ja ${karki[1].teamName} (${pros(karki[1].osuusNuoret)}).`
+              ? ` Seuroista kärjessä ${karki[0].teamName} (${pros(karki[0].osuusNuoret)}) ja ${karki[1].teamName} (${pros(karki[1].osuusNuoret)})${mittari === 'suomi' ? ', kaikki kansalaisuudet' : ''}.`
               : ''}
           </p>
         </div>
-        <MiniTrendi pisteet={sarjanTrendi} />
+        <MiniTrendi pisteet={sarjanTrendi} mittari={mittari} />
       </section>
 
       {/* ---------- 2. KPI-rivi ---------- */}

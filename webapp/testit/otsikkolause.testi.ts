@@ -22,9 +22,16 @@ function vertaa(nimi: string, saatu: unknown, odotettu: unknown) {
   }
 }
 
-function piste(sarja: string, kausi: number, osuus: number | null, kesken = false): TrendiKausi {
+function piste(
+  sarja: string,
+  kausi: number,
+  osuus: number | null,
+  kesken = false,
+  fin: number | null = null,
+): TrendiKausi {
   return {
     sarja, kausi, osuus1721: osuus, osuusAlle21: null, alle21Jako: null,
+    jako1721: fin === null ? null : { fin, muu: 0, eiTietoa: 0 },
     kesken, otteluitaPelattu: null, pelaajia: null,
     osuus1721IlmanAkatemioita: null, osuusAlle21IlmanAkatemioita: null,
     akatemiajoukkueet: [],
@@ -87,6 +94,24 @@ console.log('PUUTTUVA DATA');
     muodostaOtsikkolause(kaikki, 'Veikkausliiga', 2020)!.edellinen,
     null,
   );
+}
+
+console.log('SUOMEN KANSALAISET');
+{
+  // Kansalaisuustieto vain osalta kausista; 2023 puuttuu.
+  const suomi = [
+    piste('Veikkausliiga', 2021, 18.6, false, 12.0),
+    piste('Veikkausliiga', 2022, 17.7, false, 11.0),
+    piste('Veikkausliiga', 2023, 17.1, false, null),
+    piste('Veikkausliiga', 2024, 15.3, false, 10.5),
+    piste('Veikkausliiga', 2025, 15.9, false, 9.0),
+  ];
+  const o = muodostaOtsikkolause(suomi, 'Veikkausliiga', 2025, 'suomi')!;
+  vertaa('suomi-osuus', o.osuus, 9.0);
+  vertaa('suomi: matalin', o.jatko, 'vähemmän kuin kertaakaan vuodesta 2021');
+  vertaa('suomi: edellinen ohittaa tiedottoman kauden', o.edellinen, { kausi: 2024, osuus: 10.5 });
+  vertaa('kaikki-mittari samasta datasta', muodostaOtsikkolause(suomi, 'Veikkausliiga', 2025)!.osuus, 15.9);
+  vertaa('ei tietoa → null', muodostaOtsikkolause(suomi, 'Veikkausliiga', 2023, 'suomi'), null);
 }
 
 console.log('');

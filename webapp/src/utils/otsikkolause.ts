@@ -8,8 +8,20 @@
 // kun se pitää: verrataan valittua kautta EDELTÄVIIN kausiin, ja niitä
 // on oltava vähintään kaksi. Muuten otsikko on pelkkä luku — väärä
 // ennätys on pahempi kuin ei ennätystä.
+//
+// MITTARI: 'suomi' = Suomen kansalaisten 17–21-vuotiaiden osuus
+// (jako1721.fin), 'kaikki' = kaikki 17–21-vuotiaat. Suomi-mittarissa
+// ennätysvertailu tehdään vain kausiin, joilta kansalaisuustieto on.
 // ============================================
 import type { TrendiKausi } from '@/services/api';
+
+export type Mittari = 'kaikki' | 'suomi';
+
+/** Kauden arvo valitulla mittarilla, tai null jos sitä ei ole. */
+export function mittarinArvo(t: TrendiKausi, mittari: Mittari): number | null {
+  if (mittari === 'suomi') return t.jako1721 ? t.jako1721.fin : null;
+  return t.osuus1721;
+}
 
 /** Edeltäviä kausia vähintään, jotta ennätysväite tehdään. */
 const ENNATYS_MIN_KAUSIA = 2;
@@ -29,36 +41,34 @@ export function muodostaOtsikkolause(
   trendit: TrendiKausi[] | null,
   sarja: string,
   kausi: number,
+  mittari: Mittari = 'kaikki',
 ): Otsikkolause | null {
   if (!trendit) return null;
   const pisteet = trendit
-    .filter((t) => t.sarja === sarja && t.osuus1721 !== null)
+    .filter((t) => t.sarja === sarja && mittarinArvo(t, mittari) !== null)
+    .map((t) => ({ kausi: t.kausi, kesken: t.kesken, arvo: mittarinArvo(t, mittari) as number }))
     .sort((a, b) => a.kausi - b.kausi);
   const nyt = pisteet.find((t) => t.kausi === kausi);
-  if (!nyt || nyt.osuus1721 === null) return null;
+  if (!nyt) return null;
 
-  const aiemmat = pisteet.filter((t) => t.kausi < kausi) as Array<
-    TrendiKausi & { osuus1721: number }
-  >;
+  const aiemmat = pisteet.filter((t) => t.kausi < kausi);
   const edellinenPiste = aiemmat.length > 0 ? aiemmat[aiemmat.length - 1] : null;
 
   let jatko: string | null = null;
   if (aiemmat.length >= ENNATYS_MIN_KAUSIA) {
-    const arvot = aiemmat.map((t) => t.osuus1721);
+    const arvot = aiemmat.map((t) => t.arvo);
     const alku = aiemmat[0].kausi;
-    if (nyt.osuus1721 > Math.max(...arvot)) {
+    if (nyt.arvo > Math.max(...arvot)) {
       jatko = 'enemmän kuin kertaakaan vuodesta ' + alku;
-    } else if (nyt.osuus1721 < Math.min(...arvot)) {
+    } else if (nyt.arvo < Math.min(...arvot)) {
       jatko = 'vähemmän kuin kertaakaan vuodesta ' + alku;
     }
   }
 
   return {
-    osuus: nyt.osuus1721,
+    osuus: nyt.arvo,
     jatko,
-    edellinen: edellinenPiste
-      ? { kausi: edellinenPiste.kausi, osuus: edellinenPiste.osuus1721 }
-      : null,
+    edellinen: edellinenPiste ? { kausi: edellinenPiste.kausi, osuus: edellinenPiste.arvo } : null,
     kesken: nyt.kesken,
   };
 }

@@ -8,6 +8,7 @@ import express, { Request, Response, NextFunction } from 'express';
 import cors from 'cors';
 import Busboy from 'busboy';
 import { cacheService } from './services/cacheService';
+import { aloitusosuus, penkkikerrat } from './services/kokoonpanot';
 import { fbrefApi } from './api/fbrefApi';
 import {
   scrapeVeikkausliigaPlayers,
@@ -29,6 +30,7 @@ import {
   laskeLiigaYhteenveto,
   laskeTopPelaajat,
   paatteleIkahaarukka,
+  SuoritusDoc,
 } from './services/kausiData';
 import { haeSiirto } from './services/siirrot';
 import {
@@ -401,6 +403,14 @@ app.get('/api/youth-aggregation/:season', async (req, res) => {
         ).size,
         totalMinutesPlayed: yhteenveto.kapasiteettiMinuutit,
         minuutitNuoret: yhteenveto.nuortenMinuutit,
+        // Aloitukset ja kokoonpanot: ks. services/kokoonpanot.ts.
+        nuortenAloitukset: suoritukset.reduce((a, s) => a + s.aloitukset, 0),
+        aloitusosuus: aloitusosuus(
+          suoritukset.reduce((a, s) => a + s.aloitukset, 0),
+          nimittajat.reduce((a, n) => a + n.ottelut, 0),
+        ),
+        penkkikerrat: penkkikerrat(suoritukset),
+        pelaajatIlmanMinuutteja: pelaajatIlmanMinuutteja(suoritukset),
         osuusNuoret: yhteenveto.nuortenOsuus,
         osuusNuoretRunkosarja: yhteenveto.nuortenOsuusRunkosarja,
         teamBreakdown,
@@ -428,6 +438,23 @@ app.get('/api/youth-aggregation/:season', async (req, res) => {
 // ============================================
 
 /** Firestore-dokumentti → SeasonPlayer-muoto. doc.id on slug. */
+/**
+ * Kokoonpanossa olleet 17–21-vuotiaat, joilla ei ole kauden aikana yhtään
+ * minuuttia. Pelaaja lasketaan kerran, vaikka hän olisi ollut useammassa
+ * seurassa tai vaiheessa.
+ */
+function pelaajatIlmanMinuutteja(suoritukset: SuoritusDoc[]): number {
+  const min = new Map<string, number>();
+  const kokoonpanossa = new Set<string>();
+  for (const s of suoritukset) {
+    min.set(s.slug, (min.get(s.slug) || 0) + s.minuutit);
+    if ((s.kokoonpanossa ?? 0) > 0) kokoonpanossa.add(s.slug);
+  }
+  let n = 0;
+  for (const slug of kokoonpanossa) if ((min.get(slug) || 0) === 0) n++;
+  return n;
+}
+
 function toSeasonPlayer(id: string, data: admin.firestore.DocumentData | undefined) {
   const d = data ?? {};
   return {
@@ -442,6 +469,8 @@ function toSeasonPlayer(id: string, data: admin.firestore.DocumentData | undefin
     minTotal: (d.minTotal as number) ?? 0,
     ottelutTotal: (d.ottelutTotal as number) ?? 0,
     aloituksetTotal: (d.aloituksetTotal as number) ?? 0,
+    // null = projektio on tuotu ennen kentän lisäämistä (ei tiedetä), ei 0.
+    kokoonpanossaTotal: typeof d.kokoonpanossaTotal === 'number' ? d.kokoonpanossaTotal : null,
     maaliTotal: (d.maaliTotal as number) ?? 0,
     lastUpdatedRound: (d.lastUpdatedRound as number) ?? 0,
   };

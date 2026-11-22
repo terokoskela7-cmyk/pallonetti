@@ -152,7 +152,7 @@ console.log('AIKASARJAT JA KATKOT');
       tunniste: seuraTunniste(nimi), nimi, kausi, sarja: 'Veikkausliiga',
       akatemia: false, ottelut: 22, kapasiteettiMin: 21780,
       nuortenMinuutit: Math.round((osuus / 100) * 21780),
-      osuus, pelaajia: 3, keskiIka: 19,
+      osuus, pelaajia: 3, keskiIka: 19, nuortenAloitukset: 0, aloitusosuus: null, penkkikerrat: null,
     }));
 
   const kausittain = new Map<number, Seurakausi[]>([
@@ -191,7 +191,7 @@ console.log('VERTAILUVIIVAT');
   const rivi = (nimi: string, min: number, akatemia: boolean): Seurakausi => ({
     tunniste: seuraTunniste(nimi), nimi, kausi: 2026, sarja: 'Ykkösliiga',
     akatemia, ottelut: 22, kapasiteettiMin: 21780, nuortenMinuutit: min,
-    osuus: Math.round((min / 21780) * 1000) / 10, pelaajia: 3, keskiIka: 19,
+    osuus: Math.round((min / 21780) * 1000) / 10, pelaajia: 3, keskiIka: 19, nuortenAloitukset: 0, aloitusosuus: null, penkkikerrat: null,
   });
   const kausittain = new Map<number, Seurakausi[]>([
     [2026, [
@@ -299,7 +299,7 @@ console.log('SEURAN AIKASARJA YLI SARJOJEN');
     tunniste: seuraTunniste(nimi), nimi, kausi, sarja, akatemia: false,
     ottelut, kapasiteettiMin: ottelut * 90 * 11,
     nuortenMinuutit: Math.round((osuus / 100) * ottelut * 90 * 11),
-    osuus, pelaajia: 3, keskiIka: 19,
+    osuus, pelaajia: 3, keskiIka: 19, nuortenAloitukset: 0, aloitusosuus: null, penkkikerrat: null,
   });
 
   const kaudet = [2022, 2023, 2024, 2025, 2026];
@@ -425,7 +425,7 @@ console.log('SUHDELUKU JA LIUKUVA SARJOJEN YLI');
     tunniste: seuraTunniste(nimi), nimi, kausi, sarja, akatemia: false,
     ottelut: 22, kapasiteettiMin: 21780,
     nuortenMinuutit: Math.round((osuus / 100) * 21780),
-    osuus, pelaajia: 3, keskiIka: 19,
+    osuus, pelaajia: 3, keskiIka: 19, nuortenAloitukset: 0, aloitusosuus: null, penkkikerrat: null,
   });
 
   const kaudet = [2022, 2023, 2024, 2025, 2026];
@@ -533,6 +533,34 @@ console.log('SUHDELUVUN AKSELI');
       true,
     );
   }
+}
+
+// ============================================
+console.log('');
+console.log('ALOITUKSET JA PENKKIKERRAT');
+// ============================================
+{
+  const rivit = [
+    suoritus({ slug: 'a', minuutit: 900, ottelut: 10, aloitukset: 10, kokoonpanossa: 12 }),
+    suoritus({ slug: 'b', minuutit: 0, ottelut: 0, aloitukset: 0, kokoonpanossa: 5 }),
+  ];
+  const [k] = laskeSeurakausi(2026, 'Veikkausliiga', rivit, [nimittaja('KuPS', 10)]);
+  vertaa('nuorten aloitukset', k.nuortenAloitukset, 10);
+  // 10 aloitusta / (10 ottelua × 11 paikkaa) = 9,1 %
+  vertaa('aloitusosuus aloituspaikoista', k.aloitusosuus, 9.1);
+  // a: 12 − 10 = 2, b: 5 − 0 = 5
+  vertaa('penkkikerrat', k.penkkikerrat, 7);
+
+  const vanha = [suoritus({ slug: 'a', minuutit: 900, ottelut: 10, aloitukset: 10 })];
+  const [v] = laskeSeurakausi(2026, 'Veikkausliiga', vanha, [nimittaja('KuPS', 10)]);
+  vertaa('kokoonpano puuttuu → penkkikerrat null, ei 0', v.penkkikerrat, null);
+
+  const ristiriita = [suoritus({ slug: 'a', ottelut: 5, kokoonpanossa: 4 })];
+  const [r] = laskeSeurakausi(2026, 'Veikkausliiga', ristiriita, [nimittaja('KuPS', 10)]);
+  vertaa('negatiivinen erotus ei ole penkkikerta', r.penkkikerrat, 0);
+
+  const [tyhja] = laskeSeurakausi(2026, 'Veikkausliiga', [], [nimittaja('KuPS', 0)]);
+  vertaa('ei otteluita → aloitusosuus null', tyhja.aloitusosuus, null);
 }
 
 console.log('');

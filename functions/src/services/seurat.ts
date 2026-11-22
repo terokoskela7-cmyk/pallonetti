@@ -43,6 +43,8 @@ export function seuraTunniste(nimi: string): string {
   return joukkueTunniste(nykyinen);
 }
 
+import { aloitusosuus, penkkikerrat } from './kokoonpanot';
+
 export interface Seurakausi {
   tunniste: string;
   nimi: string;
@@ -57,6 +59,12 @@ export interface Seurakausi {
   pelaajia: number;
   /** Minuuteilla painotettu keski-ika, tai null jos minuutteja ei ole. */
   keskiIka: number | null;
+  /** 17–21-vuotiaiden aloitukset. */
+  nuortenAloitukset: number;
+  /** Nuorten osuus seuran aloituspaikoista (ottelut × 11), %. */
+  aloitusosuus: number | null;
+  /** Kerrat, jolloin nuori oli kokoonpanossa mutta ei pelannut. null = ei tiedetä. */
+  penkkikerrat: number | null;
 }
 
 function pyorista(x: number, desimaaleja: number): number {
@@ -92,6 +100,8 @@ export function laskeSeurakausi(
       const rivit = suoritukset.filter((s) => s.joukkue === joukkue);
       const kap = kapasiteetti.get(joukkue) || 0;
       const min = rivit.reduce((a, s) => a + s.minuutit, 0);
+      const aloitukset = rivit.reduce((a, s) => a + s.aloitukset, 0);
+      const seuranOttelut = ottelut.get(joukkue) || 0;
       const painotettu =
         min > 0
           ? pyorista(rivit.reduce((a, s) => a + s.ika * s.minuutit, 0) / min, 1)
@@ -103,12 +113,15 @@ export function laskeSeurakausi(
         kausi,
         sarja,
         akatemia: onAkatemia(joukkue),
-        ottelut: ottelut.get(joukkue) || 0,
+        ottelut: seuranOttelut,
         kapasiteettiMin: kap,
         nuortenMinuutit: min,
         osuus: kap > 0 ? pyorista((min / kap) * 100, 1) : null,
         pelaajia: new Set(rivit.map((s) => s.pelaajaAvain)).size,
         keskiIka: painotettu,
+        nuortenAloitukset: aloitukset,
+        aloitusosuus: aloitusosuus(aloitukset, seuranOttelut),
+        penkkikerrat: penkkikerrat(rivit),
       };
     });
 }

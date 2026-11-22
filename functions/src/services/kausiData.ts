@@ -36,6 +36,8 @@ export interface SuoritusDoc {
   minuutit: number;
   aloitukset: number;
   ottelut: number;
+  /** Ottelut kokoonpanossa. Voi puuttua vanhoista dokumenteista. */
+  kokoonpanossa?: number;
   maalit: number;
   vanhentunut?: boolean;
 }

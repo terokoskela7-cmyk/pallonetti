@@ -96,12 +96,11 @@ function SarjaValitsin({ mobiili = false }: { mobiili?: boolean }) {
   );
 }
 
-// "Analyysi" (/peliaika) poistuu valikosta, kun sen sisältö on siirretty
-// etusivulle ja Seurat-sivulle (sivu-uudistus, vaihe 3–4). Siihen asti se
-// pysyy, jotta joukkuekaavio ja kausitrendi eivät katoa.
+// "Analyysi" (/peliaika) poistettiin valikosta 22.11.2026: sen sisältö on
+// etusivulla (kausitrendi), Seurat-sivulla (joukkueet) ja Nousijat-sivulla
+// (polku Veikkausliigaan). Reitti säilyy, jotta vanhat linkit toimivat.
 const navLinks: Array<{ to: string; label: string; end?: boolean }> = [
   { to: '/', label: 'Etusivu', end: true },
-  { to: '/peliaika', label: 'Analyysi' },
   { to: '/nuoret', label: 'Nuoret' },
   { to: '/seurat', label: 'Seurat' },
   { to: '/pelaajat', label: 'Pelaajat' },

@@ -231,7 +231,7 @@ export default function AboutPage() {
             <>
               Veikkausliigan luku lasketaan tämän sivuston omasta aineistosta.
               Se ei juuri nyt latautunut, joten sitä ei näytetä tässä — luvut
-              näkyvät etusivulla ja Peliaika-sivulla.
+              näkyvät etusivulla ja Seurat-sivulla.
             </>
           )}
         </p>
@@ -294,8 +294,9 @@ export default function AboutPage() {
         </p>
         <p>
           <strong className="text-white/80">Mitä tämä sivusto mittaa.</strong>{' '}
-          Seuraamme Veikkausliigan {NUORET_MIN}–{NUORET_MAX}-vuotiaiden
-          peliaikaa: kuka pelaa, kuinka paljon ja missä seurassa. Ikähaarukka on
+          Seuraamme {NUORET_MIN}–{NUORET_MAX}-vuotiaiden peliaikaa kolmessa
+          sarjassa: kuka pelaa, kuinka paljon, missä seurassa ja mihin pelaaja
+          siitä etenee. Ikähaarukka on
           laajempi kuin CIES:n, joten kansainvälisissä vertailuissa näytämme
           erikseen alle 21-vuotiaiden osuuden.
         </p>
@@ -326,18 +327,27 @@ export default function AboutPage() {
         </p>
       </Section>
 
-      <Section title="Kaksi sarjaa">
+      <Section title="Kolme sarjaa">
         <p>
           Sivusto kattaa <strong className="text-white/80">Veikkausliigan</strong>{' '}
-          kaudesta 2020 ja <strong className="text-white/80">Ykkösliigan</strong>{' '}
-          kaudesta 2024. Sarja valitaan yläpalkista, ja se näkyy osoitteessa
+          kaudesta 2020, <strong className="text-white/80">Ykkösliigan</strong>{' '}
+          kaudesta 2024 ja <strong className="text-white/80">Miesten Ykkösen</strong>{' '}
+          kausilta 2021–2024. Sarja valitaan yläpalkista, ja se näkyy osoitteessa
           (<span className="font-mono text-[11px]">?sarja=ykkosliiga</span>),
           joten linkki on jaettavissa.
         </p>
         <p>
+          <strong className="text-white/80">Sarjajärjestelmä muuttui kaudeksi 2024.</strong>{' '}
+          Veikkausliigan ja Ykkösen väliin tuli Ykkösliiga. Kausina 2021–2023
+          toinen sarjataso oli Ykkönen, kaudesta 2024 se on Ykkösliiga, ja
+          Ykkönen on kolmas taso. Nousut ja putoamiset päätellään siksi tasosta
+          eikä sarjan nimestä: Ykkönen 2023 → Veikkausliiga 2024 on nousu
+          toiselta tasolta, mutta Ykkönen 2023 → Ykkösliiga 2024 ei ole nousu.
+        </p>
+        <p>
           Sarjojen luvut lasketaan erikseen: nimittäjä on sarjan oma
           minuuttikapasiteetti. Sarjoja ei lasketa yhteen, koska yhdistetty
-          luku ei vastaisi kumpaakaan sarjaa.
+          luku ei vastaisi mitään yksittäistä sarjaa.
         </p>
         <p>
           <strong className="text-white/80">Akatemiajoukkueet.</strong>{' '}
@@ -381,9 +391,56 @@ export default function AboutPage() {
         </p>
         <p>
           Kansalaisuuden kolmijako on toistaiseksi haettu vain Veikkausliigan
-          pelaajille. Ykkösliigan kohdalla sitä ei näytetä tyhjänä — puuttuva
-          tieto ei ole sama asia kuin nolla.
+          pelaajille. Ykkösliigan ja Ykkösen kohdalla sitä ei näytetä tyhjänä —
+          puuttuva tieto ei ole sama asia kuin nolla.
         </p>
+      </Section>
+
+      <Section title="Mittarit">
+        <ul className="list-disc list-inside space-y-2">
+          <li>
+            <strong className="text-white/80">Peliaikaosuus</strong> — ikäryhmän
+            minuutit jaettuna joukkueen tai sarjan minuuttikapasiteetilla
+            (ottelut × 90 × 11).
+          </li>
+          <li>
+            <strong className="text-white/80">Aloitusosuus</strong> — seuralle:
+            nuorten aloitukset jaettuna aloituspaikoilla (ottelut × 11);
+            pelaajalle: aloitukset jaettuna pelatuilla otteluilla.
+          </li>
+          <li>
+            <strong className="text-white/80">Penkillä ilman peliaikaa</strong>{' '}
+            — ottelut kokoonpanossa miinus pelatut ottelut. Kertoo, kuinka usein
+            nuori oli mukana, mutta ei päässyt kentälle.
+          </li>
+          <li>
+            <strong className="text-white/80">Minuutit per ottelu</strong> —
+            kauden minuutit jaettuna pelatuilla otteluilla.
+          </li>
+          <li>
+            <strong className="text-white/80">Debyytti</strong> — ensimmäinen
+            kausi, jolla pelaajalla on Veikkausliiga-minuutteja. Aineiston
+            ensimmäisellä kaudella (2020) debyyttiä ei voi erottaa aiemmin
+            pelanneesta, joten sitä ei lasketa.
+          </li>
+          <li>
+            <strong className="text-white/80">Läpimurto</strong> — 450
+            kumulatiivista Veikkausliiga-minuuttia. Raja on ECA:n ja Football
+            Benchmarkin määritelmä onnistuneelle siirtymälle edustusjoukkueeseen.
+          </li>
+          <li>
+            <strong className="text-white/80">Vakiintunut kausi</strong> —
+            vähintään 20 % pääseuran kauden minuuteista. Tämä on sivuston oma
+            raja, ei tutkimuksesta; 450 minuuttia on 27 ottelun kaudella noin
+            18,5 %.
+          </li>
+          <li>
+            <strong className="text-white/80">Oman akatemiajoukkueen kautta</strong>{' '}
+            — pelaaja pelasi seuransa akatemiajoukkueessa ennen debyyttiä
+            emoseurassa. Tämä ei ole sama kuin oma kasvatti, koska
+            akatemiajoukkueissa pelaa myös hankittuja nuoria.
+          </li>
+        </ul>
       </Section>
 
       <Section title="Datalähteet">
@@ -394,8 +451,13 @@ export default function AboutPage() {
             description="Minuutit, ottelut, aloitukset ja maalit. Kauden tilastovienti on sivuston päälähde, ja kaikki peliaikaluvut lasketaan siitä."
           />
           <SourceItem
-            name="Ykkösliiga — kauden tilastovienti"
-            description="Sama muoto ja samat kentät kuin Veikkausliigan viennissä: minuutit, ottelut, aloitukset ja maalit kaudesta 2024 alkaen. Luvut lasketaan sarjan omasta minuuttikapasiteetista."
+            name="Ykkösliiga ja Miesten Ykkönen — kauden tilastovienti"
+            description="Sama muoto ja samat kentät kuin Veikkausliigan viennissä: minuutit, ottelut, aloitukset, kokoonpanot ja maalit. Ykkösliiga kaudesta 2024, Miesten Ykkönen kausilta 2021–2024. Luvut lasketaan sarjan omasta minuuttikapasiteetista."
+          />
+          <SourceItem
+            name="ECA ja Football Benchmark — siirtymä edustusjoukkueeseen"
+            url="https://footballbenchmark.com/w/managing-talent-revolutionizing-talent-identification"
+            description="Läpimurron raja: 450 kumulatiivista edustusjoukkueen minuuttia kilpailullisissa seuraotteluissa."
           />
           <SourceItem
             name="Veikkausliiga.com — pelaajarekisteri"
@@ -442,8 +504,21 @@ export default function AboutPage() {
       <Section title="Rajoitukset">
         <ul className="list-disc list-inside space-y-1">
           <li>
-            Veikkausliiga ja Ykkösliiga. Ykkösliigan data alkaa kaudesta 2024,
-            eikä siitä ole kansalaisuustietoa.
+            Kolme sarjaa: Veikkausliiga 2020–, Ykkösliiga 2024– ja Miesten
+            Ykkönen 2021–2024. Ykkösen kaudet 2025–2026 puuttuvat vielä.
+          </li>
+          <li>
+            Kansalaisuustieto on vain Veikkausliigan pelaajista. Ykkösliigan ja
+            Ykkösen pelaajista sitä ei ole.
+          </li>
+          <li>
+            Data kattaa vain {NUORET_MIN}–{NUORET_MAX}-vuotiaat. Pelaaja putoaa
+            aineistosta täytettyään 22, joten &quot;ei datassa&quot; voi tarkoittaa
+            ikärajaa, ulkomaita, alempaa sarjaa tai lopettamista.
+          </li>
+          <li>
+            Omia kasvatteja ei vielä tunnisteta: siihen tarvitaan pelaajien
+            seurahistoria juniorivuosilta.
           </li>
           <li>Pelaajat ilman ikätietoa eivät näy ikäryhmätilastoissa</li>
           <li>

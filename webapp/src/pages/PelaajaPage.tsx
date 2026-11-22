@@ -94,10 +94,10 @@ function NotFoundState({ slug, kausi }: { slug: string; kausi: number }) {
         </SisainenLinkki>
         <span className="text-white/20">·</span>
         <SisainenLinkki
-          to="/peliaika"
+          to="/pelaajat"
           className="text-sm text-ice hover:text-white transition-colors"
         >
-          Peliaika
+          Pelaajat
         </SisainenLinkki>
       </div>
     </div>
@@ -476,10 +476,10 @@ export default function PelaajaPage() {
         </SisainenLinkki>
         <span className="text-white/20">·</span>
         <SisainenLinkki
-          to="/peliaika"
+          to="/pelaajat"
           className="text-ice hover:text-white transition-colors"
         >
-          Peliaika
+          Pelaajat
         </SisainenLinkki>
       </div>
 

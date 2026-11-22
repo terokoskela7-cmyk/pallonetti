@@ -395,10 +395,10 @@ export default function HomePage() {
           </>
         )}
         <SisainenLinkki
-          to="/peliaika"
+          to="/seurat"
           className="inline-flex items-center gap-1.5 text-sm text-ice hover:text-white font-medium group"
         >
-          Joukkueet ja pelaajat tarkemmin
+          Seurat tarkemmin
           <ArrowRight className="w-3.5 h-3.5 transition-transform group-hover:translate-x-0.5" />
         </SisainenLinkki>
       </section>

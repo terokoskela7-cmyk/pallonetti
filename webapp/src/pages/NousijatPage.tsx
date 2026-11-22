@@ -17,7 +17,7 @@ import { Info } from 'lucide-react';
 import { useApi } from '@/hooks/useApi';
 import { getKaudet, getLapimurrot, getPolku, type PolkuTulos } from '@/services/api';
 import { PolkuVeikkausliigaan } from '@/components/PolkuVeikkausliigaan';
-import { DebyytinJalkeen, Lapimurrot } from '@/components/Lapimurrot';
+import { DebyytinJalkeen, Lapimurrot, RyhmaValitsin, type Ryhma } from '@/components/Lapimurrot';
 import { sarjanLyhytNimi } from '@/constants/sarjat';
 import { NUORET_LABEL_PITKA } from '@/constants/ika';
 
@@ -49,6 +49,7 @@ export default function NousijatPage() {
     }
   }, []);
   const [valittu, setValittu] = useState<number | null>(null);
+  const [ryhma, setRyhma] = useState<Ryhma>('kaikki');
 
   // Oletuksena uusin siirtymä.
   useEffect(() => {
@@ -118,8 +119,13 @@ export default function NousijatPage() {
         </>
       )}
 
-      {lapimurrot && <Lapimurrot tulos={lapimurrot} />}
-      {lapimurrot && <DebyytinJalkeen tulos={lapimurrot} />}
+      {lapimurrot && (
+        <div className="space-y-6">
+          <RyhmaValitsin ryhma={ryhma} onChange={setRyhma} tulos={lapimurrot} />
+          <Lapimurrot tulos={lapimurrot} ryhma={ryhma} />
+          <DebyytinJalkeen tulos={lapimurrot} ryhma={ryhma} />
+        </div>
+      )}
     </div>
   );
 }

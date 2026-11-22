@@ -23,6 +23,19 @@
 //     ei datassa (ulkomaat, alemmat sarjat kuin Ykkönen, lopettanut —
 //     näitä ei voi erottaa toisistaan).
 //
+// KOTIMAINEN: Suomen kansalainen Veikkausliigan pelaajarekisterin mukaan
+// (seasons/{kausi}/kansalaisuudet, sama luokittelu kuin trendeissä:
+// koodi FIN ja seura vahvistettu). Rekisterissä on yksi koodi per pelaaja,
+// joten kaksoiskansalaisuus ei näy. Pelaaja on "suomi", jos hän on FIN
+// millä tahansa kaudella; "ei tietoa", jos rekisteristä ei löydy mitään.
+//
+// AKATEMIAN KAUTTA (22.11.2026): pelaaja pelasi seuran akatemiajoukkueessa
+// (HJK Klubi 04, SJK Akatemia, KuPS Akatemia I) viimeistään
+// debyyttikaudellaan ja debytoi emoseurassa. EI ole sama kuin oma
+// kasvatti: akatemiajoukkueissa pelaa myös hankittuja, ulkomaisia nuoria.
+// Oma kasvatti (seurahistoria 15–21-vuotiaana, UEFA/CIES "club-trained")
+// lasketaan, kun junioridata tuodaan.
+//
 // TUNNISTE: palloid. Vanhoilta riveiltä (Veikkausliiga ennen 22.11.2026
 // tuontia) palloid puuttuu; niille haetaan palloid saman slugin riveiltä,
 // kun slug vastaa täsmälleen yhtä palloidia. Muuten tunniste on slug.
@@ -33,6 +46,8 @@ import type { firestore } from 'firebase-admin';
 import { sarjanTaso, VEIKKAUSLIIGA } from './sarjatasot';
 import { lueKausi } from './kausiData';
 import { OLETUSSARJA } from './kausiImport';
+import { AKATEMIA_EMOSEURA } from './polku';
+import { luokitteleKansalaisuudet } from './trendit';
 
 export const LAPIMURTO_MIN = 450;
 export const VAKIINTUNUT_OSUUS = 0.2;
@@ -62,9 +77,14 @@ export type JalkeenLuokka =
   | 'ei datassa'
   | 'ei vielä';
 
+export type Kansalaisuus = 'suomi' | 'muu' | 'ei tietoa';
+
 export interface DebytoijanPolku {
   slug: string;
   nimi: string;
+  kansalaisuus: Kansalaisuus;
+  /** Pelasi emoseuran akatemiajoukkueessa ennen debyyttiä tai sen aikana. */
+  akatemianKasvatti: boolean;
   debyyttiKausi: number;
   /** false = aineiston ensimmäinen kausi, aiempaa ei tiedetä. */
   debyyttiTiedossa: boolean;
@@ -83,6 +103,12 @@ export interface DebytoijanPolku {
 export interface DebyyttikausiYhteenveto {
   kausi: number;
   debytoineet: number;
+  /** Debyyttikauden Veikkausliiga-minuutit yhteensä. */
+  debyyttiMinuutit: number;
+  /** Ryhmän pelaajien kaikki Veikkausliiga-minuutit (kaikki kaudet). */
+  vlMinuutit: number;
+  /** Debytoineet, joiden kansalaisuutta ei tiedetä. */
+  eiKansalaisuustietoa: number;
   lapimurto: number;
   vakiintunut: number;
   /** Vain alemmalta tasolta tulleet (ennen ≠ null). */
@@ -93,7 +119,13 @@ export interface DebyyttikausiYhteenveto {
 export interface LapimurtoTulos {
   maaritelmat: { lapimurtoMin: number; vakiintunutOsuus: number };
   vlKaudet: number[];
+  /** Kaudet, joilta Veikkausliigan kansalaisuustieto on. */
+  kansalaisuusKaudet: number[];
   yhteenveto: DebyyttikausiYhteenveto[];
+  /** Sama vain Suomen kansalaisille. */
+  yhteenvetoSuomi: DebyyttikausiYhteenveto[];
+  /** Sama vain akatemian kautta tulleille omille kasvateille. */
+  yhteenvetoKasvatit: DebyyttikausiYhteenveto[];
   pelaajat: DebytoijanPolku[];
 }
 
@@ -117,6 +149,9 @@ function paaseura(k: KausiKooste): string {
 export function laskeLapimurrot(
   rivit: LapimurtoRivi[],
   joukkueenOttelut: Map<string, number>,
+  /** slug → 'FIN' tai muu koodi; vain Veikkausliigan rekisteristä. */
+  kansalaisuudet: Map<string, 'FIN' | 'muu'> = new Map(),
+  kansalaisuusKaudet: number[] = [],
 ): LapimurtoTulos {
   // 1) Tunniste: palloid, vanhoille riveille slugin kautta.
   const slugPalloidit = new Map<string, Set<string>>();
@@ -135,13 +170,19 @@ export function laskeLapimurrot(
   // 2) Pelaaja → (sarja|kausi) → kooste.
   const pelaajat = new Map<
     string,
-    { slug: string; nimi: string; kaudet: Map<string, KausiKooste> }
+    { slug: string; nimi: string; slugit: Set<string>; kaudet: Map<string, KausiKooste> }
   >();
   const vlKaudetSet = new Set<number>();
   for (const r of rivit) {
     if (r.sarja === VEIKKAUSLIIGA) vlKaudetSet.add(r.kausi);
     const t = tunniste(r);
-    const p = pelaajat.get(t) ?? { slug: r.slug, nimi: r.nimi, kaudet: new Map() };
+    const p = pelaajat.get(t) ?? {
+      slug: r.slug,
+      nimi: r.nimi,
+      slugit: new Set<string>(),
+      kaudet: new Map(),
+    };
+    p.slugit.add(r.slug);
     // Uusin rivi määrää nimen ja slugin (linkki pelaajasivulle).
     const avain = r.sarja + '|' + r.kausi;
     const k = p.kaudet.get(avain) ?? {
@@ -231,13 +272,35 @@ export function laskeLapimurrot(
       }
     }
 
+    // Kansalaisuus: FIN millä tahansa slugilla voittaa.
+    const koodit = [...p.slugit].map((x) => kansalaisuudet.get(x)).filter(Boolean);
+    const kansalaisuus: Kansalaisuus = koodit.includes('FIN')
+      ? 'suomi'
+      : koodit.length > 0
+        ? 'muu'
+        : 'ei tietoa';
+
+    // Akatemian kasvatti: emoseuran akatemiajoukkue viimeistään debyyttikaudella.
+    const debyyttiSeura = paaseura(deb);
+    const akatemianKasvatti = [...p.kaudet.values()].some(
+      (k) =>
+        k.kausi <= deb.kausi &&
+        [...k.seurat.keys()].some(
+          (seura) =>
+            (AKATEMIA_EMOSEURA[seura.replace(/\s+/g, ' ').trim().toLowerCase()] ?? '')
+              .toLowerCase() === debyyttiSeura.toLowerCase(),
+        ),
+    );
+
     tulos.push({
       slug: p.slug,
       nimi: p.nimi,
+      kansalaisuus,
+      akatemianKasvatti,
       debyyttiKausi: deb.kausi,
       debyyttiTiedossa: deb.kausi > ensimmainenVl,
       debyyttiIka: deb.ika,
-      debyyttiSeura: paaseura(deb),
+      debyyttiSeura,
       debyyttiMin: deb.min,
       ennen,
       jalkeen,
@@ -262,27 +325,38 @@ export function laskeLapimurrot(
     'ei datassa': 0,
     'ei vielä': 0,
   });
-  const yhteenveto: DebyyttikausiYhteenveto[] = vlKaudet
-    .filter((k) => k > ensimmainenVl)
-    .map((kausi) => {
-      const ryhma = tulos.filter((t) => t.debyyttiTiedossa && t.debyyttiKausi === kausi);
-      const jalkeen = tyhjaJalkeen();
-      for (const t of ryhma) jalkeen[t.jalkeen.luokka] += 1;
-      return {
-        kausi,
-        debytoineet: ryhma.length,
-        lapimurto: ryhma.filter((t) => t.lapimurtoKausi !== null).length,
-        vakiintunut: ryhma.filter((t) => t.vakiintunutKausi !== null).length,
-        alemmaltaTasolta: ryhma.filter((t) => t.ennen !== null).length,
-        jalkeen,
-      };
-    })
-    .sort((a, b) => b.kausi - a.kausi);
+  const laskeYhteenveto = (
+    mukaan: (t: DebytoijanPolku) => boolean,
+  ): DebyyttikausiYhteenveto[] =>
+    vlKaudet
+      .filter((k) => k > ensimmainenVl)
+      .map((kausi) => {
+        const ryhma = tulos.filter(
+          (t) => t.debyyttiTiedossa && t.debyyttiKausi === kausi && mukaan(t),
+        );
+        const jalkeen = tyhjaJalkeen();
+        for (const t of ryhma) jalkeen[t.jalkeen.luokka] += 1;
+        return {
+          kausi,
+          debytoineet: ryhma.length,
+          debyyttiMinuutit: ryhma.reduce((s, t) => s + t.debyyttiMin, 0),
+          vlMinuutit: ryhma.reduce((s, t) => s + t.vlMinYhteensa, 0),
+          eiKansalaisuustietoa: ryhma.filter((t) => t.kansalaisuus === 'ei tietoa').length,
+          lapimurto: ryhma.filter((t) => t.lapimurtoKausi !== null).length,
+          vakiintunut: ryhma.filter((t) => t.vakiintunutKausi !== null).length,
+          alemmaltaTasolta: ryhma.filter((t) => t.ennen !== null).length,
+          jalkeen,
+        };
+      })
+      .sort((a, b) => b.kausi - a.kausi);
 
   return {
     maaritelmat: { lapimurtoMin: LAPIMURTO_MIN, vakiintunutOsuus: VAKIINTUNUT_OSUUS },
     vlKaudet,
-    yhteenveto,
+    kansalaisuusKaudet: [...kansalaisuusKaudet].sort((a, b) => a - b),
+    yhteenveto: laskeYhteenveto(() => true),
+    yhteenvetoSuomi: laskeYhteenveto((t) => t.kansalaisuus === 'suomi'),
+    yhteenvetoKasvatit: laskeYhteenveto((t) => t.akatemianKasvatti),
     // Uusin debyytti ensin, saman kauden sisällä eniten VL-minuutteja.
     pelaajat: tulos.sort(
       (a, b) => b.debyyttiKausi - a.debyyttiKausi || b.vlMinYhteensa - a.vlMinYhteensa,
@@ -330,5 +404,22 @@ export async function haeLapimurrot(db: firestore.Firestore): Promise<LapimurtoT
       joukkueenOttelut.set(avain, (joukkueenOttelut.get(avain) ?? 0) + n.ottelut);
     }
   }
-  return laskeLapimurrot(rivit, joukkueenOttelut);
+  // Kansalaisuudet Veikkausliigan kausilta (sama luokittelu kuin trendeissä).
+  const vlVuodet = [...new Set(luetut.filter((l) => l.sarja === VEIKKAUSLIIGA).map((l) => l.kausi))];
+  const kansalaisuudet = new Map<string, 'FIN' | 'muu'>();
+  const kansalaisuusKaudet: number[] = [];
+  const snapit = await Promise.all(
+    vlVuodet.map((k) =>
+      db.collection('seasons').doc(String(k)).collection('kansalaisuudet').get()
+        .then((snap) => ({ k, snap })),
+    ),
+  );
+  for (const { k, snap } of snapit) {
+    const luokat = luokitteleKansalaisuudet(snap.docs);
+    if (!luokat.saatavilla) continue;
+    kansalaisuusKaudet.push(k);
+    for (const slug of luokat.muu) if (!kansalaisuudet.has(slug)) kansalaisuudet.set(slug, 'muu');
+    for (const slug of luokat.fin) kansalaisuudet.set(slug, 'FIN');
+  }
+  return laskeLapimurrot(rivit, joukkueenOttelut, kansalaisuudet, kansalaisuusKaudet);
 }

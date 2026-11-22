@@ -9,7 +9,12 @@
 //   Vakiintunut ≥ 20 % pääseuran kauden minuuteista — pallonetin oma raja
 // ============================================
 import { useState } from 'react';
-import type { JalkeenLuokka, LapimurtoTulos } from '@/services/api';
+import type {
+  DebytoijanPolku,
+  DebyyttikausiYhteenveto,
+  JalkeenLuokka,
+  LapimurtoTulos,
+} from '@/services/api';
 import { SisainenLinkki } from '@/components/SisainenLinkki';
 import { sarjanLyhytNimi } from '@/constants/sarjat';
 import { naytaNimi } from '@/utils/nimet';
@@ -39,9 +44,89 @@ const LUOKAN_NIMI: Record<JalkeenLuokka, string> = {
   'ei vielä': 'ei vielä',
 };
 
-export function DebyytinJalkeen({ tulos }: { tulos: LapimurtoTulos }) {
-  const rivit = tulos.yhteenveto.filter((y) => y.debytoineet > 0);
-  if (rivit.length === 0) return null;
+// ---------- Ryhmä: kaikki / Suomen kansalaiset / omat kasvatit ----------
+
+export type Ryhma = 'kaikki' | 'suomi' | 'kasvatit';
+
+const RYHMAT: { arvo: Ryhma; nimi: string }[] = [
+  { arvo: 'kaikki', nimi: 'Kaikki' },
+  { arvo: 'suomi', nimi: 'Suomen kansalaiset' },
+  { arvo: 'kasvatit', nimi: 'Oman akatemiajoukkueen kautta' },
+];
+
+function ryhmanYhteenveto(tulos: LapimurtoTulos, ryhma: Ryhma): DebyyttikausiYhteenveto[] {
+  if (ryhma === 'suomi') return tulos.yhteenvetoSuomi ?? [];
+  if (ryhma === 'kasvatit') return tulos.yhteenvetoKasvatit ?? [];
+  return tulos.yhteenveto;
+}
+
+function ryhmassa(p: DebytoijanPolku, ryhma: Ryhma): boolean {
+  if (ryhma === 'suomi') return p.kansalaisuus === 'suomi';
+  if (ryhma === 'kasvatit') return p.akatemianKasvatti;
+  return true;
+}
+
+export function RyhmaValitsin({
+  ryhma,
+  onChange,
+  tulos,
+}: {
+  ryhma: Ryhma;
+  onChange: (r: Ryhma) => void;
+  tulos: LapimurtoTulos;
+}) {
+  const kk = tulos.kansalaisuusKaudet ?? [];
+  return (
+    <div className="space-y-2">
+      <div className="flex flex-wrap gap-2" role="group" aria-label="Pelaajaryhmä">
+        {RYHMAT.map((r) => (
+          <button
+            key={r.arvo}
+            type="button"
+            aria-pressed={ryhma === r.arvo}
+            onClick={() => onChange(r.arvo)}
+            className={
+              'px-3 py-1.5 rounded-md border text-sm transition-colors ' +
+              (ryhma === r.arvo
+                ? 'border-ice bg-ice/10 text-white'
+                : 'border-navy-600 text-white/60 hover:text-white hover:border-ice/40')
+            }
+          >
+            {r.nimi}
+          </button>
+        ))}
+      </div>
+      {ryhma === 'suomi' && (
+        <p className="text-[11px] text-white/40 max-w-3xl">
+          Kansalaisuus Veikkausliigan pelaajarekisteristä
+          {kk.length > 0 ? ' (kaudet ' + kk.join(', ') + ')' : ''}. Rekisterissä on yksi maakoodi
+          per pelaaja, joten kaksoiskansalaisuus ei näy, ja pelaaja, jota rekisteristä ei löydy,
+          puuttuu tästä ryhmästä. Luvut ovat siksi alarajoja.
+        </p>
+      )}
+      {ryhma === 'kasvatit' && (
+        <p className="text-[11px] text-white/40 max-w-3xl">
+          Pelaaja pelasi seuransa akatemiajoukkueessa (HJK Klubi 04, SJK Akatemia, KuPS Akatemia
+          I) viimeistään debyyttikaudellaan ja debytoi emoseurassa. Tämä ei ole sama kuin oma
+          kasvatti: akatemiajoukkueessa pelaa myös muualta, myös ulkomailta, hankittuja nuoria, ja
+          muiden seurojen kasvatit eivät näy tässä. Kasvattiluku tulee, kun juniorivuosien
+          seurahistoria tuodaan.
+        </p>
+      )}
+    </div>
+  );
+}
+
+export function DebyytinJalkeen({ tulos, ryhma = 'kaikki' }: { tulos: LapimurtoTulos; ryhma?: Ryhma }) {
+  const rivit = ryhmanYhteenveto(tulos, ryhma).filter((y) => y.debytoineet > 0);
+  if (rivit.length === 0) {
+    return (
+      <section className="bg-navy-700/40 border border-navy-600 rounded-lg p-5">
+        <h2 className="text-sm uppercase tracking-wider text-white/60">Debyytin jälkeen</h2>
+        <p className="text-sm text-white/50 mt-2">Tässä ryhmässä ei ole debyyttejä.</p>
+      </section>
+    );
+  }
   const pros = Math.round(tulos.maaritelmat.vakiintunutOsuus * 100);
 
   return (
@@ -62,6 +147,7 @@ export function DebyytinJalkeen({ tulos }: { tulos: LapimurtoTulos }) {
             <tr className="text-[11px] uppercase tracking-wider text-white/40">
               <th scope="col" className="text-left font-normal py-2 pr-3">Debyyttikausi</th>
               <th scope="col" className="text-right font-normal py-2 px-3">Debytoi</th>
+              <th scope="col" className="text-right font-normal py-2 px-3">Min debyyttikaudella</th>
               <th scope="col" className="text-right font-normal py-2 px-3">Alemmalta tasolta</th>
               <th scope="col" className="text-right font-normal py-2 px-3">Läpimurto</th>
               <th scope="col" className="text-right font-normal py-2 px-3">Vakiintui</th>
@@ -76,7 +162,12 @@ export function DebyytinJalkeen({ tulos }: { tulos: LapimurtoTulos }) {
               return (
                 <tr key={y.kausi} className="border-t border-navy-700">
                   <td className="py-2 pr-3 font-mono text-white/80">{y.kausi}</td>
-                  <td className="py-2 px-3 text-right tabular text-white/80">{y.debytoineet}</td>
+                  <td className="py-2 px-3 text-right tabular text-white/80">
+                    {y.debytoineet}
+                  </td>
+                  <td className="py-2 px-3 text-right tabular text-white/60">
+                    {luku(y.debyyttiMinuutit ?? 0)}
+                  </td>
                   <td className="py-2 px-3 text-right tabular text-white/60">{y.alemmaltaTasolta}</td>
                   <td className="py-2 px-3 text-right tabular text-white/80">{y.lapimurto}</td>
                   <td className="py-2 px-3 text-right tabular text-white/80">{y.vakiintunut}</td>
@@ -140,16 +231,26 @@ export function DebyytinJalkeen({ tulos }: { tulos: LapimurtoTulos }) {
   );
 }
 
-export function Lapimurrot({ tulos }: { tulos: LapimurtoTulos }) {
-  const kaudet = tulos.yhteenveto.filter((y) => y.lapimurto > 0).map((y) => y.kausi);
+export function Lapimurrot({ tulos, ryhma = 'kaikki' }: { tulos: LapimurtoTulos; ryhma?: Ryhma }) {
+  const kaudet = ryhmanYhteenveto(tulos, ryhma)
+    .filter((y) => y.lapimurto > 0)
+    .map((y) => y.kausi);
   const [valittu, setValittu] = useState<number | 'kaikki'>('kaikki');
   const lista = tulos.pelaajat.filter(
     (p) =>
       p.debyyttiTiedossa &&
       p.lapimurtoKausi !== null &&
+      ryhmassa(p, ryhma) &&
       (valittu === 'kaikki' || p.debyyttiKausi === valittu),
   );
-  if (kaudet.length === 0) return null;
+  if (kaudet.length === 0) {
+    return (
+      <section className="bg-navy-700/40 border border-navy-600 rounded-lg p-5">
+        <h2 className="text-sm uppercase tracking-wider text-white/60">Läpimurrot</h2>
+        <p className="text-sm text-white/50 mt-2">Tässä ryhmässä ei ole läpimurtoja.</p>
+      </section>
+    );
+  }
 
   const nappi = (arvo: number | 'kaikki', teksti: string) => (
     <button
@@ -204,6 +305,11 @@ export function Lapimurrot({ tulos }: { tulos: LapimurtoTulos }) {
                   >
                     {naytaNimi(p.nimi)}
                   </SisainenLinkki>
+                  {p.akatemianKasvatti && (
+                    <span className="ml-2 text-[10px] uppercase tracking-wider text-ice" title="Seuran akatemiajoukkueen kautta">
+                      akatemia
+                    </span>
+                  )}
                 </td>
                 <td className="py-2 px-3 text-white/60">
                   {p.ennen ? (

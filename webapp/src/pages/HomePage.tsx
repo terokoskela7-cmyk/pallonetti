@@ -433,8 +433,8 @@ export default function HomePage() {
                 icon={TrendingUp}
                 stat={luku(polkuKortti.debytoi)}
                 title={'nuorta debytoi Veikkausliigassa Ykkösliigan kautta kaudeksi ' + polkuKortti.kausiN1}
-                source="Polku Veikkausliigaan →"
-                to={'/peliaika?sarja=ykkosliiga&kausi=' + polkuKortti.kausiN1}
+                source="Nousijat →"
+                to="/nousijat"
               />
             )}
           </div>

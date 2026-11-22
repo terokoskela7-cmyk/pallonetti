@@ -495,6 +495,10 @@ export interface Seurakausi {
   nuortenAloitukset?: number;
   aloitusosuus?: number | null;
   penkkikerrat?: number | null;
+  /** Suomen kansalaisten 17–21-minuutit; null = ei kansalaisuustietoa. */
+  suomiMinuutit?: number | null;
+  /** Suomen kansalaisten osuus seuran kapasiteetista, %. */
+  suomiOsuus?: number | null;
 }
 
 export interface Vertailuviiva {
@@ -519,6 +523,8 @@ export interface SeuratKausi {
   sarja: string;
   seurat: Seurakausi[];
   vertailuviivat: Vertailuviiva[];
+  /** Suomen kansalaisten osuus koko sarjan kapasiteetista; null/puuttuu = ei tietoa. */
+  suomiTaso?: number | null;
 }
 
 export interface SeuratTrendit {

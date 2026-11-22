@@ -40,19 +40,35 @@ function LoadingSkeleton() {
   );
 }
 
+/**
+ * Seuran päämittari: Suomen kansalaisten osuus, kun sarjalta on
+ * kansalaisuustieto, muuten kaikki 17–21-vuotiaat.
+ */
+function paaosuus(s: Seurakausi, suomi: boolean): number | null {
+  return suomi ? s.suomiOsuus ?? null : s.osuus;
+}
+
 function Rivi({
   s,
   ylaraja,
   taso,
+  suomi,
 }: {
   s: Seurakausi;
   ylaraja: number;
   taso: number | null;
+  /** true = päämittari on Suomen kansalaisten osuus. */
+  suomi: boolean;
 }) {
-  const leveys = s.osuus === null ? 0 : Math.min(100, (s.osuus / ylaraja) * 100);
+  const arvo = paaosuus(s, suomi);
+  const leveys = arvo === null ? 0 : Math.min(100, (arvo / ylaraja) * 100);
+  // Suomi-mittarissa vaalea palkki on kaikkien 17–21-vuotiaiden osuus:
+  // ero kirkkaaseen palkkiin on muun maan ja tuntemattoman kansalaisuuden
+  // pelaajien peliaika.
+  const kaikkiLeveys = s.osuus === null ? 0 : Math.min(100, (s.osuus / ylaraja) * 100);
   const tasoKohta = taso === null ? null : Math.min(100, (taso / ylaraja) * 100);
-  const yli = s.osuus !== null && taso !== null && s.osuus >= taso;
-  const suhde = s.osuus !== null && taso ? s.osuus / taso : null;
+  const yli = arvo !== null && taso !== null && arvo >= taso;
+  const suhde = arvo !== null && taso ? arvo / taso : null;
   return (
     <tr className="hover:bg-navy-700/40 transition-colors">
       <td className="px-4 py-2.5">
@@ -74,13 +90,19 @@ function Rivi({
         )}
       </td>
       <td className="px-3 py-2.5 min-w-[14rem]">
-        {s.osuus === null ? (
+        {arvo === null ? (
           <span className="text-vaimea text-xs">ei dataa</span>
         ) : (
           <span className="flex items-center gap-3">
             <span className="relative h-3 rounded-sm bg-navy-900/60 flex-1" aria-hidden="true">
+              {suomi && (
+                <span
+                  className="absolute inset-y-0 left-0 rounded-sm bg-ice/25"
+                  style={{ width: kaikkiLeveys + '%' }}
+                />
+              )}
               <span
-                className={'block h-full rounded-sm ' + (yli ? 'bg-ice' : 'bg-ice/40')}
+                className={'relative block h-full rounded-sm ' + (yli ? 'bg-ice' : 'bg-ice/60')}
                 style={{ width: leveys + '%' }}
               />
               {tasoKohta !== null && (
@@ -91,8 +113,13 @@ function Rivi({
               )}
             </span>
             <span className="text-white font-mono tabular w-16 text-right">
-              {desimaali(s.osuus)} %
+              {desimaali(arvo)} %
             </span>
+            {suomi && (
+              <span className="text-vaimea font-mono tabular text-xs w-20 text-right" title="Kaikki 17–21-vuotiaat">
+                kaikki {s.osuus === null ? '–' : desimaali(s.osuus) + ' %'}
+              </span>
+            )}
           </span>
         )}
       </td>
@@ -148,12 +175,15 @@ export default function SeuratPage() {
     }
   }, [sarja]);
 
+  // Päämittari on Suomen kansalaisten osuus, kun sarjalta on tieto.
+  const suomiTaso = kausiData?.suomiTaso ?? null;
+  const suomi = suomiTaso !== null;
   const seurat = useMemo(
     () =>
       (kausiData?.seurat ?? [])
         .slice()
-        .sort((a, b) => (b.osuus ?? -1) - (a.osuus ?? -1)),
-    [kausiData],
+        .sort((a, b) => (paaosuus(b, suomi) ?? -1) - (paaosuus(a, suomi) ?? -1)),
+    [kausiData, suomi],
   );
 
   /**
@@ -189,9 +219,14 @@ export default function SeuratPage() {
   }, [seurat, trendit]);
 
   const viiva = kausiData?.vertailuviivat[0] ?? null;
-  const taso = viiva?.kaikki ?? null;
+  const taso = suomi ? suomiTaso : viiva?.kaikki ?? null;
   const yliTason =
-    taso === null ? 0 : seurat.filter((x) => x.osuus !== null && x.osuus >= taso).length;
+    taso === null
+      ? 0
+      : seurat.filter((x) => {
+          const a = paaosuus(x, suomi);
+          return a !== null && a >= taso;
+        }).length;
 
   if (loading) return <LoadingSkeleton />;
 
@@ -216,14 +251,31 @@ export default function SeuratPage() {
           </p>
           <h1 className="text-3xl md:text-4xl font-medium tracking-tight text-white">Seurat</h1>
           <p className="text-base text-toissijainen leading-relaxed">
-            Kuinka suuren osan seuran otteluminuuteista {NUORET_LABEL_PITKA} pelasivat.
-            Suhde kertoo, montako kertaa sarjan tason seura on.
+            {suomi ? (
+              <>
+                Kuinka suuren osan seuran otteluminuuteista suomalaiset {NUORET_LABEL_PITKA} pelasivat
+                (Suomen kansalaiset pelaajarekisterin mukaan). Vaalea palkki on kaikki 17–21-vuotiaat
+                kansalaisuudesta riippumatta. Suhde kertoo, montako kertaa sarjan tason seura on.
+              </>
+            ) : (
+              <>
+                Kuinka suuren osan seuran otteluminuuteista {NUORET_LABEL_PITKA} pelasivat, kaikki
+                kansalaisuudet; sarjasta ei ole vielä kansalaisuustietoa. Suhde kertoo, montako
+                kertaa sarjan tason seura on.
+              </>
+            )}
           </p>
         </div>
         {viiva && (
           <dl className="flex flex-wrap gap-8">
+            {suomi && (
+              <div>
+                <dt className="text-sm text-toissijainen">Sarjan taso, suomalaiset</dt>
+                <dd className="text-3xl font-mono tabular text-white">{desimaali(suomiTaso)} %</dd>
+              </div>
+            )}
             <div>
-              <dt className="text-sm text-toissijainen">Sarjan taso</dt>
+              <dt className="text-sm text-toissijainen">{suomi ? 'Kaikki 17–21' : 'Sarjan taso'}</dt>
               <dd className="text-3xl font-mono tabular text-white">{desimaali(viiva.kaikki)} %</dd>
             </div>
             {viiva.ilmanAkatemioita !== null && (
@@ -263,7 +315,7 @@ export default function SeuratPage() {
                 <tr className="text-[11px] uppercase tracking-wider text-vaimea border-b border-navy-600">
                   <th scope="col" className="text-left font-medium px-4 py-2.5">Seura</th>
                   <th scope="col" className="text-left font-medium px-3 py-2.5">
-                    Osuus · viiva = sarjan taso
+                    {suomi ? 'Suomalaiset · vaalea = kaikki · viiva = taso' : 'Osuus · viiva = sarjan taso'}
                   </th>
                   <th scope="col" className="text-right font-medium px-3 py-2.5">Suhde</th>
                   <th scope="col" className="text-right font-medium px-3 py-2.5">Aloituksista</th>
@@ -282,7 +334,7 @@ export default function SeuratPage() {
               </thead>
               <tbody className="divide-y divide-navy-700">
                 {seurat.map((s) => (
-                  <Rivi key={s.tunniste} s={s} ylaraja={ylaraja} taso={taso} />
+                  <Rivi key={s.tunniste} s={s} ylaraja={ylaraja} taso={taso} suomi={suomi} />
                 ))}
               </tbody>
             </table>

@@ -1076,8 +1076,24 @@ app.get('/api/seurat/:season', async (req, res) => {
   try {
     const db = admin.firestore();
     const { suoritukset, nimittajat } = await lueKausi(db, season, sarja);
-    const seurat = laskeSeurakausi(season, sarja, suoritukset, nimittajat);
+    // Suomen kansalaiset pelaajarekisteristä (sama luokittelu kuin
+    // trendeissä). Tieto on toistaiseksi vain Veikkausliigasta.
+    let suomalaiset: Set<string> | null = null;
+    if (sarja === OLETUSSARJA) {
+      const kansSnap = await db
+        .collection('seasons')
+        .doc(String(season))
+        .collection('kansalaisuudet')
+        .get();
+      const luokat = luokitteleKansalaisuudet(kansSnap.docs);
+      if (luokat.saatavilla) suomalaiset = luokat.fin;
+    }
+    const seurat = laskeSeurakausi(season, sarja, suoritukset, nimittajat, suomalaiset);
     const kausittain = new Map<number, Seurakausi[]>([[season, seurat]]);
+    const kapYht = seurat.reduce((a, s) => a + s.kapasiteettiMin, 0);
+    const suomiYht = seurat.reduce((a, s) => a + (s.suomiMinuutit ?? 0), 0);
+    const suomiTaso =
+      suomalaiset !== null && kapYht > 0 ? Math.round((suomiYht / kapYht) * 1000) / 10 : null;
 
     res.set('Cache-Control', 'public, max-age=3600');
     res.json({
@@ -1087,6 +1103,8 @@ app.get('/api/seurat/:season', async (req, res) => {
         sarja,
         seurat,
         vertailuviivat: laskeVertailuviivat([season], kausittain),
+        /** Suomen kansalaisten osuus koko sarjan kapasiteetista; null = ei tietoa. */
+        suomiTaso,
       },
       dataSaatavilla: seurat.length > 0,
       source: 'firestore',

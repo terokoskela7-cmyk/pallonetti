@@ -22,6 +22,7 @@
 // alaikäisten pelaajien seurahistoriaa ei tuoda.
 // ============================================
 import * as XLSX from 'xlsx';
+import type { firestore } from 'firebase-admin';
 
 export const KOULUTUS_MIN_IKA = 15;
 export const KOULUTUS_MAX_IKA = 21;
@@ -139,4 +140,47 @@ export function kokoaKoulutus(
     d.koulutettuSuomessa = d.kausiaSuomessa >= KOULUTUS_MIN_KAUSIA;
   }
   return tulos;
+}
+
+// ---------- Luku sivuston laskentaan ----------
+
+const KOULUTUS_VALIMUISTI_MS = 10 * 60 * 1000;
+let valimuisti: { aika: number; arvo: Set<string> | null } | null = null;
+
+/**
+ * Suomessa koulutettujen palloidit kokoelmasta `koulutus`. null = kokoelma
+ * on tyhjä (tuontia ei ole tehty) — eri asia kuin "ei yhtään koulutettua".
+ * Pieni muistivälimuisti: sama joukko kaikille kausille ja sarjoille.
+ */
+export async function haeKoulutetut(db: firestore.Firestore): Promise<Set<string> | null> {
+  if (valimuisti && Date.now() - valimuisti.aika < KOULUTUS_VALIMUISTI_MS) {
+    return valimuisti.arvo;
+  }
+  const snap = await db.collection('koulutus').get();
+  let arvo: Set<string> | null = null;
+  if (!snap.empty) {
+    arvo = new Set();
+    for (const d of snap.docs) {
+      if (d.get('koulutettuSuomessa') === true) arvo.add(d.id);
+    }
+  }
+  valimuisti = { aika: Date.now(), arvo };
+  return arvo;
+}
+
+/**
+ * Muuntaa palloid-joukon kauden slug-joukoksi, koska seurojen ja listojen
+ * laskenta käyttää slugia. Rivi ilman palloidia ei ole koulutettu: tieto
+ * puuttuu, joten luku on alaraja.
+ */
+export function koulutetutSlugit(
+  suoritukset: Array<{ slug: string; palloid?: string | null }>,
+  koulutetut: Set<string> | null,
+): Set<string> | null {
+  if (koulutetut === null) return null;
+  const s = new Set<string>();
+  for (const r of suoritukset) {
+    if (r.palloid && koulutetut.has(r.palloid)) s.add(r.slug);
+  }
+  return s;
 }

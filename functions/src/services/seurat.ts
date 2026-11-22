@@ -72,6 +72,13 @@ export interface Seurakausi {
    */
   suomiMinuutit: number | null;
   suomiOsuus: number | null;
+  /**
+   * Päämittari: Suomessa koulutettujen (UEFA association-trained, ≥3 kautta
+   * 15–21-v. suomalaisessa seurassa) 17–21-vuotiaiden minuutit ja osuus
+   * seuran kapasiteetista. null = koulutustietoa ei ole.
+   */
+  koulutettuMinuutit: number | null;
+  koulutettuOsuus: number | null;
 }
 
 function pyorista(x: number, desimaaleja: number): number {
@@ -91,6 +98,8 @@ export function laskeSeurakausi(
   nimittajat: NimittajaDoc[],
   /** Suomen kansalaisten slugit; null = kansalaisuustietoa ei ole. */
   suomalaiset: Set<string> | null = null,
+  /** Suomessa koulutettujen slugit; null = koulutustietoa ei ole. */
+  koulutetut: Set<string> | null = null,
 ): Seurakausi[] {
   const kapasiteetti = new Map<string, number>();
   const ottelut = new Map<string, number>();
@@ -139,6 +148,16 @@ export function laskeSeurakausi(
           return {
             suomiMinuutit: fin,
             suomiOsuus: kap > 0 ? pyorista((fin / kap) * 100, 1) : null,
+          };
+        })(),
+        ...(() => {
+          if (koulutetut === null) return { koulutettuMinuutit: null, koulutettuOsuus: null };
+          const k = rivit
+            .filter((s) => koulutetut.has(s.slug))
+            .reduce((a, s) => a + s.minuutit, 0);
+          return {
+            koulutettuMinuutit: k,
+            koulutettuOsuus: kap > 0 ? pyorista((k / kap) * 100, 1) : null,
           };
         })(),
       };

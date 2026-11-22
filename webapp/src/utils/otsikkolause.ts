@@ -12,14 +12,20 @@
 // MITTARI: 'suomi' = Suomen kansalaisten 17–21-vuotiaiden osuus
 // (jako1721.fin), 'kaikki' = kaikki 17–21-vuotiaat. Suomi-mittarissa
 // ennätysvertailu tehdään vain kausiin, joilta kansalaisuustieto on.
+//
+// 'koulutettu' = Suomessa koulutettujen (UEFA association-trained)
+// 17–21-vuotiaiden osuus, PÄÄMITTARI. Sillä ei tehdä ennätysväitettä:
+// koulutushistoria alkaa 2020, joten varhaisempien kausien pelaajilta
+// puuttuu nuoruusvuosia ja niiden luku on vertailussa alakanttiin.
 // ============================================
 import type { TrendiKausi } from '@/services/api';
 
-export type Mittari = 'kaikki' | 'suomi';
+export type Mittari = 'kaikki' | 'suomi' | 'koulutettu';
 
 /** Kauden arvo valitulla mittarilla, tai null jos sitä ei ole. */
 export function mittarinArvo(t: TrendiKausi, mittari: Mittari): number | null {
   if (mittari === 'suomi') return t.jako1721 ? t.jako1721.fin : null;
+  if (mittari === 'koulutettu') return t.koulutettu1721 ?? null;
   return t.osuus1721;
 }
 
@@ -55,7 +61,7 @@ export function muodostaOtsikkolause(
   const edellinenPiste = aiemmat.length > 0 ? aiemmat[aiemmat.length - 1] : null;
 
   let jatko: string | null = null;
-  if (aiemmat.length >= ENNATYS_MIN_KAUSIA) {
+  if (mittari !== 'koulutettu' && aiemmat.length >= ENNATYS_MIN_KAUSIA) {
     const arvot = aiemmat.map((t) => t.arvo);
     const alku = aiemmat[0].kausi;
     if (nyt.arvo > Math.max(...arvot)) {

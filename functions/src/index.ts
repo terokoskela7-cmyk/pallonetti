@@ -7,6 +7,7 @@ import * as admin from 'firebase-admin';
 import express, { Request, Response, NextFunction } from 'express';
 import cors from 'cors';
 import Busboy from 'busboy';
+import { haeKoulutetut, koulutetutSlugit } from './services/koulutus';
 import { cacheService } from './services/cacheService';
 import { aloitusosuus, penkkikerrat } from './services/kokoonpanot';
 import { fbrefApi } from './api/fbrefApi';
@@ -1081,12 +1082,19 @@ app.get('/api/seurat/:season', async (req, res) => {
     // trendeissä). Tieto on toistaiseksi vain Veikkausliigasta.
     const luokat = await haeKansalaisuusLuokat(db, season, sarja);
     const suomalaiset = luokat ? luokat.fin : null;
-    const seurat = laskeSeurakausi(season, sarja, suoritukset, nimittajat, suomalaiset);
+    // Päämittari: Suomessa koulutetut (kaikki sarjat).
+    const koulutetut = koulutetutSlugit(suoritukset, await haeKoulutetut(db));
+    const seurat = laskeSeurakausi(
+      season, sarja, suoritukset, nimittajat, suomalaiset, koulutetut,
+    );
     const kausittain = new Map<number, Seurakausi[]>([[season, seurat]]);
     const kapYht = seurat.reduce((a, s) => a + s.kapasiteettiMin, 0);
     const suomiYht = seurat.reduce((a, s) => a + (s.suomiMinuutit ?? 0), 0);
     const suomiTaso =
       suomalaiset !== null && kapYht > 0 ? Math.round((suomiYht / kapYht) * 1000) / 10 : null;
+    const koulutettuYht = seurat.reduce((a, s) => a + (s.koulutettuMinuutit ?? 0), 0);
+    const koulutettuTaso =
+      koulutetut !== null && kapYht > 0 ? Math.round((koulutettuYht / kapYht) * 1000) / 10 : null;
 
     res.set('Cache-Control', 'public, max-age=3600');
     res.json({
@@ -1098,6 +1106,8 @@ app.get('/api/seurat/:season', async (req, res) => {
         vertailuviivat: laskeVertailuviivat([season], kausittain),
         /** Suomen kansalaisten osuus koko sarjan kapasiteetista; null = ei tietoa. */
         suomiTaso,
+        /** Suomessa koulutettujen osuus koko sarjan kapasiteetista; null = ei tietoa. */
+        koulutettuTaso,
       },
       dataSaatavilla: seurat.length > 0,
       source: 'firestore',
@@ -1215,6 +1225,9 @@ app.get('/api/konteksti/:season', async (req, res) => {
             ? 'muu'
             : 'ei tietoa';
 
+    // Suomessa koulutettu (päämittari). null = koulutustietoa ei ole.
+    const koulutetut = koulutetutSlugit(suoritukset, await haeKoulutetut(db));
+
     // Siirtomerkinta taydennetaan valinnan jalkeen: valitseNostot on
     // puhdas funktio eika tunne siirtodataa. Siirtynyt pelaaja voi olla
     // valokeilassa, koska minuutit ovat taman kauden dataa.
@@ -1234,9 +1247,14 @@ app.get('/api/konteksti/:season', async (req, res) => {
         sarja,
         kontekstit: kaikki.map((k) => {
           const { ohitetut: _ohitetut, ...rest } = k;
-          return { ...rest, kansalaisuus: kansalaisuus(k.slug) };
+          return {
+            ...rest,
+            kansalaisuus: kansalaisuus(k.slug),
+            koulutettu: koulutetut === null ? null : koulutetut.has(k.slug),
+          };
         }),
         kansalaisuusSaatavilla: kansLuokat !== null,
+        koulutusSaatavilla: koulutetut !== null,
         valokeilassa,
         tuotuPvm: await kaudenTuontiPvm(db, season, sarja),
       },

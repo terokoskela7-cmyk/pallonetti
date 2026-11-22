@@ -25,6 +25,7 @@ import { laskeKaudenKontekstit, type Konteksti } from './konteksti';
 import { haeSiirto, type Siirto } from './siirrot';
 import { TUETUT_SARJAT, OLETUSSARJA } from './kausiImport';
 import { luokitteleKansalaisuudet } from './trendit';
+import { haeKoulutetut, koulutetutSlugit } from './koulutus';
 
 export interface SeuranSivu {
   tunniste: string;
@@ -36,6 +37,8 @@ export interface SeuranSivu {
   seurakausi: Seurakausi | null;
   /** Suomen kansalaisten osuus koko sarjan kapasiteetista valittuna kautena; null = ei tietoa. */
   suomiTaso: number | null;
+  /** Suomessa koulutettujen osuus koko sarjasta valittuna kautena; null = ei tietoa. */
+  koulutettuTaso: number | null;
   pelaajat: Array<Omit<Konteksti, 'ohitetut'> & { siirto: Siirto | null }>;
   aikasarja: {
     kaudet: number[];
@@ -173,10 +176,12 @@ export async function kokoaSeuranSivu(
   // muuten "ikaryhman mediaani" tarkoittaisi eri asiaa eri sivuilla.
   let pelaajat: SeuranSivu['pelaajat'] = [];
   let suomiTaso: number | null = null;
+  let koulutettuTaso: number | null = null;
   if (sarja !== null && seurakausi !== null) {
     const seuranNimi = seurakausi.nimi;
     const { suoritukset, nimittajat } = await lueKausi(db, season, sarja);
     const pelipaikat = new Map<string, string | null>();
+    let suomalaiset: Set<string> | null = null;
     if (sarja === OLETUSSARJA) {
       const kansSnap = await db
         .collection('seasons')
@@ -189,13 +194,25 @@ export async function kokoaSeuranSivu(
       }
       // Suomen kansalaisten osuus samalla laskennalla kuin Seurat-sivulla.
       const luokat = luokitteleKansalaisuudet(kansSnap.docs);
-      if (luokat.saatavilla) {
-        const kaikkiSeurat = laskeSeurakausi(season, sarja, suoritukset, nimittajat, luokat.fin);
-        const tama = kaikkiSeurat.find((s) => s.tunniste === tunniste);
-        if (tama) seurakausi = tama;
-        const kap = kaikkiSeurat.reduce((a, s) => a + s.kapasiteettiMin, 0);
-        const fin = kaikkiSeurat.reduce((a, s) => a + (s.suomiMinuutit ?? 0), 0);
-        suomiTaso = kap > 0 ? Math.round((fin / kap) * 1000) / 10 : null;
+      if (luokat.saatavilla) suomalaiset = luokat.fin;
+    }
+    // Päämittari (Suomessa koulutetut) kaikissa sarjoissa, samalla
+    // laskennalla kuin Seurat-sivulla.
+    const koulutetut = koulutetutSlugit(suoritukset, await haeKoulutetut(db));
+    if (suomalaiset !== null || koulutetut !== null) {
+      const kaikkiSeurat = laskeSeurakausi(
+        season, sarja, suoritukset, nimittajat, suomalaiset, koulutetut,
+      );
+      const tama = kaikkiSeurat.find((s) => s.tunniste === tunniste);
+      if (tama) seurakausi = tama;
+      const kap = kaikkiSeurat.reduce((a, s) => a + s.kapasiteettiMin, 0);
+      const taso = (osa: number): number | null =>
+        kap > 0 ? Math.round((osa / kap) * 1000) / 10 : null;
+      if (suomalaiset !== null) {
+        suomiTaso = taso(kaikkiSeurat.reduce((a, s) => a + (s.suomiMinuutit ?? 0), 0));
+      }
+      if (koulutetut !== null) {
+        koulutettuTaso = taso(kaikkiSeurat.reduce((a, s) => a + (s.koulutettuMinuutit ?? 0), 0));
       }
     }
     pelaajat = laskeKaudenKontekstit({
@@ -239,6 +256,7 @@ export async function kokoaSeuranSivu(
     sarja,
     seurakausi,
     suomiTaso,
+    koulutettuTaso,
     pelaajat,
     aikasarja: {
       kaudet: aikasarja.kaudet,

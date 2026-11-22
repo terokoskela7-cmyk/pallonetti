@@ -41,26 +41,31 @@ function LoadingSkeleton() {
 }
 
 /**
- * Seuran päämittari: Suomen kansalaisten osuus, kun sarjalta on
- * kansalaisuustieto, muuten kaikki 17–21-vuotiaat.
+ * Seuran päämittari: Suomessa koulutettujen osuus, kun koulutustieto on;
+ * varalla Suomen kansalaiset; muuten kaikki 17–21-vuotiaat.
  */
-function paaosuus(s: Seurakausi, suomi: boolean): number | null {
-  return suomi ? s.suomiOsuus ?? null : s.osuus;
+type SeuraMittari = 'koulutettu' | 'suomi' | null;
+
+function paaosuus(s: Seurakausi, mittari: SeuraMittari): number | null {
+  if (mittari === 'koulutettu') return s.koulutettuOsuus ?? null;
+  if (mittari === 'suomi') return s.suomiOsuus ?? null;
+  return s.osuus;
 }
 
 function Rivi({
   s,
   ylaraja,
   taso,
-  suomi,
+  mittari,
 }: {
   s: Seurakausi;
   ylaraja: number;
   taso: number | null;
-  /** true = päämittari on Suomen kansalaisten osuus. */
-  suomi: boolean;
+  /** Päämittari; null = kaikki 17–21. */
+  mittari: SeuraMittari;
 }) {
-  const arvo = paaosuus(s, suomi);
+  const suomi = mittari !== null;
+  const arvo = paaosuus(s, mittari);
   const leveys = arvo === null ? 0 : Math.min(100, (arvo / ylaraja) * 100);
   // Suomi-mittarissa vaalea palkki on kaikkien 17–21-vuotiaiden osuus:
   // ero kirkkaaseen palkkiin on muun maan ja tuntemattoman kansalaisuuden
@@ -175,15 +180,19 @@ export default function SeuratPage() {
     }
   }, [sarja]);
 
-  // Päämittari on Suomen kansalaisten osuus, kun sarjalta on tieto.
-  const suomiTaso = kausiData?.suomiTaso ?? null;
-  const suomi = suomiTaso !== null;
+  // Päämittari: Suomessa koulutetut, varalla Suomen kansalaiset.
+  const koulutettuTaso = kausiData?.koulutettuTaso ?? null;
+  const kansalaisTaso = kausiData?.suomiTaso ?? null;
+  const mittari: SeuraMittari =
+    koulutettuTaso !== null ? 'koulutettu' : kansalaisTaso !== null ? 'suomi' : null;
+  const suomi = mittari !== null;
+  const suomiTaso = mittari === 'koulutettu' ? koulutettuTaso : kansalaisTaso;
   const seurat = useMemo(
     () =>
       (kausiData?.seurat ?? [])
         .slice()
-        .sort((a, b) => (paaosuus(b, suomi) ?? -1) - (paaosuus(a, suomi) ?? -1)),
-    [kausiData, suomi],
+        .sort((a, b) => (paaosuus(b, mittari) ?? -1) - (paaosuus(a, mittari) ?? -1)),
+    [kausiData, mittari],
   );
 
   /**
@@ -224,7 +233,7 @@ export default function SeuratPage() {
     taso === null
       ? 0
       : seurat.filter((x) => {
-          const a = paaosuus(x, suomi);
+          const a = paaosuus(x, mittari);
           return a !== null && a >= taso;
         }).length;
 
@@ -251,7 +260,14 @@ export default function SeuratPage() {
           </p>
           <h1 className="text-3xl md:text-4xl font-medium tracking-tight text-white">Seurat</h1>
           <p className="text-base text-toissijainen leading-relaxed">
-            {suomi ? (
+            {mittari === 'koulutettu' ? (
+              <>
+                Kuinka suuren osan seuran otteluminuuteista Suomessa koulutetut {NUORET_LABEL_PITKA}{' '}
+                pelasivat: vähintään kolme kautta suomalaisessa seurassa 15–21-vuotiaina (UEFA:n
+                määritelmä). Vaalea palkki on kaikki 17–21-vuotiaat taustasta riippumatta. Suhde
+                kertoo, montako kertaa sarjan tason seura on.
+              </>
+            ) : suomi ? (
               <>
                 Kuinka suuren osan seuran otteluminuuteista suomalaiset {NUORET_LABEL_PITKA} pelasivat
                 (Suomen kansalaiset pelaajarekisterin mukaan). Vaalea palkki on kaikki 17–21-vuotiaat
@@ -270,7 +286,9 @@ export default function SeuratPage() {
           <dl className="flex flex-wrap gap-8">
             {suomi && (
               <div>
-                <dt className="text-sm text-toissijainen">Sarjan taso, suomalaiset</dt>
+                <dt className="text-sm text-toissijainen">
+                  {mittari === 'koulutettu' ? 'Sarjan taso, Suomessa koulutetut' : 'Sarjan taso, suomalaiset'}
+                </dt>
                 <dd className="text-3xl font-mono tabular text-white">{desimaali(suomiTaso)} %</dd>
               </div>
             )}
@@ -315,7 +333,11 @@ export default function SeuratPage() {
                 <tr className="text-[11px] uppercase tracking-wider text-vaimea border-b border-navy-600">
                   <th scope="col" className="text-left font-medium px-4 py-2.5">Seura</th>
                   <th scope="col" className="text-left font-medium px-3 py-2.5">
-                    {suomi ? 'Suomalaiset · vaalea = kaikki · viiva = taso' : 'Osuus · viiva = sarjan taso'}
+                    {mittari === 'koulutettu'
+                      ? 'Suomessa koulutetut · vaalea = kaikki · viiva = taso'
+                      : suomi
+                        ? 'Suomalaiset · vaalea = kaikki · viiva = taso'
+                        : 'Osuus · viiva = sarjan taso'}
                   </th>
                   <th scope="col" className="text-right font-medium px-3 py-2.5">Suhde</th>
                   <th scope="col" className="text-right font-medium px-3 py-2.5">Aloituksista</th>
@@ -334,7 +356,7 @@ export default function SeuratPage() {
               </thead>
               <tbody className="divide-y divide-navy-700">
                 {seurat.map((s) => (
-                  <Rivi key={s.tunniste} s={s} ylaraja={ylaraja} taso={taso} suomi={suomi} />
+                  <Rivi key={s.tunniste} s={s} ylaraja={ylaraja} taso={taso} mittari={mittari} />
                 ))}
               </tbody>
             </table>

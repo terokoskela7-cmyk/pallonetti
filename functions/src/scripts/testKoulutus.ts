@@ -12,7 +12,7 @@
 //
 // Ajo:  node lib/scripts/testKoulutus.js
 // ============================================
-import { kokoaKoulutus, suodataKoulutusRivit } from '../services/koulutus';
+import { kokoaKoulutus, koulutetutSlugit, suodataKoulutusRivit } from '../services/koulutus';
 
 let virheita = 0;
 
@@ -77,6 +77,21 @@ vertaa('B koulutettu', t.get('B')?.koulutettuSuomessa, false);
 vertaa('C kausia', t.get('C')?.kausiaSuomessa, 1);
 vertaa('C koulutettu', t.get('C')?.koulutettuSuomessa, false);
 vertaa('D ei mukana', t.has('D'), false);
+
+console.log('Slug-joukko');
+vertaa('ei tietoa → null', koulutetutSlugit([{ slug: 'a', palloid: 'A' }], null), null);
+vertaa(
+  'vain koulutetut, rivi ilman palloidia pois',
+  [...(koulutetutSlugit(
+    [
+      { slug: 'a', palloid: 'A' },
+      { slug: 'b', palloid: 'B' },
+      { slug: 'x', palloid: null },
+    ],
+    new Set(['A', 'X']),
+  ) ?? [])],
+  ['a'],
+);
 
 if (virheita > 0) {
   console.log(virheita + ' virhettä');

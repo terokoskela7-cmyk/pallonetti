@@ -380,6 +380,10 @@ export default function SeuraPage() {
   if (!data) return <EiLoytynyt teamId={teamId} />;
 
   const k = data.seurakausi;
+  // Suhde sarjan tasoon samasta aikasarjasta kuin kaavio, jotta luku ja
+  // kaavio eivät voi kertoa eri asiaa.
+  const kaudenPiste = data.aikasarja.pisteet.find((p) => p.kausi === data.kausi) ?? null;
+  const suhde = kaudenPiste?.suhdeluku ?? null;
 
   return (
     <div className="px-6 py-10 md:py-14 max-w-4xl mx-auto space-y-6">
@@ -421,21 +425,31 @@ export default function SeuraPage() {
           <div className="text-xs uppercase tracking-wider text-white/40 px-5 pt-4">
             Kauden {data.kausi} luvut
           </div>
-          <div className="grid grid-cols-2 md:grid-cols-4 divide-x divide-y md:divide-y-0 divide-navy-600">
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-px bg-navy-600">
             {[
-              ['Osuus', desimaali(k.osuus) + ' %', 'ice'],
-              ['Minuutit', luku(k.nuortenMinuutit), 'white'],
+              ['Nuorten osuus', desimaali(k.osuus) + ' %', 'ice'],
+              ['Suhde sarjaan', suhde === null ? '–' : desimaali(suhde) + '×', suhde !== null && suhde >= 1 ? 'aurora' : 'white'],
+              [
+                'Aloituksista',
+                k.aloitusosuus === null || k.aloitusosuus === undefined ? '–' : desimaali(k.aloitusosuus) + ' %',
+                'white',
+              ],
+              [
+                'Penkillä ilman peliaikaa',
+                k.penkkikerrat === null || k.penkkikerrat === undefined ? '–' : luku(k.penkkikerrat),
+                'white',
+              ],
               ['Pelaajia', String(k.pelaajia), 'white'],
               ['Keski-ikä', k.keskiIka === null ? 'ei dataa' : desimaali(k.keskiIka), 'white'],
             ].map(([label, arvo, vari]) => (
-              <div key={label} className="text-center py-3">
+              <div key={label} className="text-center py-4 px-2 bg-navy-800/90">
                 <div className="text-[10px] uppercase tracking-wider text-white/40 mb-1.5">
                   {label}
                 </div>
                 <div
                   className={
                     'text-xl md:text-2xl font-bold font-mono tabular leading-none ' +
-                    (vari === 'ice' ? 'text-ice' : 'text-white/90')
+                    (vari === 'ice' ? 'text-ice' : vari === 'aurora' ? 'text-aurora' : 'text-white/90')
                   }
                 >
                   {arvo}
@@ -445,7 +459,9 @@ export default function SeuraPage() {
           </div>
           <p className="text-[11px] text-white/40 px-5 pb-4 pt-2">
             Osuus = nuorten minuutit jaettuna joukkueen {k.ottelut} ottelun
-            kokonaisminuuteilla.
+            kokonaisminuuteilla. Aloituksista = nuorten osuus {k.ottelut * 11}{' '}
+            aloituspaikasta. Penkillä = kerrat, jolloin nuori oli kokoonpanossa
+            mutta ei pelannut.
           </p>
         </section>
       )}
@@ -481,6 +497,13 @@ export default function SeuraPage() {
                         {naytaKokoNimi(p.etunimi, p.sukunimi)}
                       </span>
                       <span className="text-xs text-white/40">{p.ika} v</span>
+                    </div>
+                    <div className="mt-1 text-xs text-white/50 tabular">
+                      {p.faktat.ottelut} ottelua · aloitti {p.faktat.aloitukset}
+                      {typeof p.faktat.penkilla === 'number' ? ` · penkillä ${p.faktat.penkilla}` : ''}
+                      {p.faktat.ottelut > 0
+                        ? ` · ${Math.round(p.faktat.minuutit / p.faktat.ottelut)} min/ottelu`
+                        : ''}
                     </div>
                     <div className="mt-1">
                       <Kontekstirivit konteksti={p} maxRiveja={TIIVIS_RIVEJA} tiivis />

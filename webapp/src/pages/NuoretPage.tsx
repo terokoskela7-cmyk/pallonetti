@@ -95,7 +95,7 @@ function TilastokarjenRivi({ p, sija }: { p: Pelaaja; sija: number }) {
       <span className="min-w-0 flex-1">
         <span className="flex flex-wrap items-baseline gap-x-2">
           <span className="text-white/95">{nimi(p)}</span>
-          <span className="text-xs text-white/40">
+          <span className="text-xs text-vaimea">
             {p.joukkue} · {p.ika} v
           </span>
         </span>
@@ -105,7 +105,7 @@ function TilastokarjenRivi({ p, sija }: { p: Pelaaja; sija: number }) {
       </span>
       <span className="text-right shrink-0 tabular">
         <span className="block text-ice font-mono">{p.faktat.minuutit}</span>
-        <span className="block text-[10px] uppercase tracking-wider text-white/40">
+        <span className="block text-[10px] uppercase tracking-wider text-vaimea">
           min
         </span>
       </span>
@@ -185,19 +185,19 @@ export default function NuoretPage() {
         <div className="text-white/90 font-medium mb-2">
           Datan lataus epäonnistui
         </div>
-        <div className="text-sm text-white/60">{error ?? 'Tuntematon virhe'}</div>
+        <div className="text-sm text-toissijainen">{error ?? 'Tuntematon virhe'}</div>
       </div>
     );
   }
 
   return (
-    <div className="px-6 py-10 md:py-16 space-y-10 max-w-6xl mx-auto">
+    <div className="px-6 py-10 md:py-16 space-y-10">
       <section className="space-y-2">
-        <p className="text-xs uppercase tracking-[0.12em] text-white/50 font-mono">
+        <p className="text-xs uppercase tracking-[0.12em] text-vaimea font-mono">
           {sarja} · kausi {kausi}
         </p>
         <h1 className="text-3xl md:text-4xl font-medium tracking-tight text-white">Nuoret pelaajat</h1>
-        <p className="text-base text-white/70">
+        <p className="text-base text-toissijainen">
           Mukana {kaikki.length} pelaajaa ({NUORET_LABEL_PITKA}), joista {peliaikaa.length} sai
           peliaikaa.
         </p>
@@ -206,15 +206,15 @@ export default function NuoretPage() {
       {/* 1. VALOKEILASSA */}
       <section className="space-y-3">
         <div className="flex items-baseline justify-between gap-3">
-          <h2 className="text-xs uppercase tracking-wider text-white/40">
+          <h2 className="text-xs uppercase tracking-wider text-vaimea">
             Valokeilassa
           </h2>
-          <span className="text-[11px] text-white/40">
+          <span className="text-[11px] text-vaimea">
             suurin poikkeama ikäryhmän mediaanista ylöspäin · yksi pelaaja per seura
           </span>
         </div>
         {data.valokeilassa.length === 0 ? (
-          <p className="text-sm text-white/60">
+          <p className="text-sm text-toissijainen">
             Kaudelta ei vielä löydy vertailukelpoista poikkeamaa.
           </p>
         ) : (
@@ -229,7 +229,7 @@ export default function NuoretPage() {
             <h2 id="penkilla-otsikko" className="text-lg font-medium text-white">
               Kokoonpanossa, mutta ei kentällä
             </h2>
-            <span className="text-xs text-white/50">
+            <span className="text-xs text-vaimea">
               Eniten otteluita kokoonpanossa ilman peliaikaa · koko sarjassa {penkkiYhteensa} kertaa
             </span>
           </div>
@@ -239,7 +239,7 @@ export default function NuoretPage() {
                 Pelaajat, jotka olivat eniten kertoja kokoonpanossa pelaamatta
               </caption>
               <thead>
-                <tr className="text-[11px] uppercase tracking-wider text-white/50 border-b border-navy-600">
+                <tr className="text-[11px] uppercase tracking-wider text-vaimea border-b border-navy-600">
                   <th scope="col" className="text-left font-medium px-4 py-2.5">Pelaaja</th>
                   <th scope="col" className="text-left font-medium px-3 py-2.5">Seura</th>
                   <th scope="col" className="text-right font-medium px-3 py-2.5">Ikä</th>
@@ -261,12 +261,12 @@ export default function NuoretPage() {
                         {nimi(p)}
                       </SisainenLinkki>
                     </td>
-                    <td className="px-3 py-2.5 text-white/60">{p.joukkue}</td>
-                    <td className="px-3 py-2.5 text-right font-mono tabular text-white/70">{p.ika}</td>
-                    <td className="px-3 py-2.5 text-right font-mono tabular text-white/70">
+                    <td className="px-3 py-2.5 text-toissijainen">{p.joukkue}</td>
+                    <td className="px-3 py-2.5 text-right font-mono tabular text-toissijainen">{p.ika}</td>
+                    <td className="px-3 py-2.5 text-right font-mono tabular text-toissijainen">
                       {p.faktat.kokoonpanossa ?? '–'}
                     </td>
-                    <td className="px-3 py-2.5 text-right font-mono tabular text-white/70">
+                    <td className="px-3 py-2.5 text-right font-mono tabular text-toissijainen">
                       {p.faktat.ottelut}
                     </td>
                     <td className="px-4 py-2.5">
@@ -292,7 +292,7 @@ export default function NuoretPage() {
 
       {/* 3. TILASTOKÄRKI */}
       <section className="space-y-3">
-        <h2 className="text-xs uppercase tracking-wider text-white/40">
+        <h2 className="text-xs uppercase tracking-wider text-vaimea">
           Tilastokärki
         </h2>
 
@@ -307,7 +307,7 @@ export default function NuoretPage() {
               className={`px-3 py-1.5 text-xs rounded-md border transition-colors ${
                 jarjestys === j.id
                   ? 'bg-ice/15 border-ice text-ice font-medium'
-                  : 'bg-navy-700/50 border-navy-600 text-white/70 hover:text-white hover:border-navy-500'
+                  : 'bg-navy-700/50 border-navy-600 text-toissijainen hover:text-white hover:border-navy-500'
               }`}
             >
               {j.label}
@@ -326,7 +326,7 @@ export default function NuoretPage() {
               className={`px-3 py-1.5 text-xs rounded-md border transition-colors ${
                 kaista === k.id
                   ? 'bg-ice/15 border-ice text-ice font-medium'
-                  : 'bg-navy-700/50 border-navy-600 text-white/70 hover:text-white hover:border-navy-500'
+                  : 'bg-navy-700/50 border-navy-600 text-toissijainen hover:text-white hover:border-navy-500'
               }`}
             >
               {k.label}
@@ -335,7 +335,7 @@ export default function NuoretPage() {
         </div>
 
         {tilastokarki.length === 0 ? (
-          <p className="text-sm text-white/60">
+          <p className="text-sm text-toissijainen">
             Suodattimella ei löytynyt pelaajia.
           </p>
         ) : (
@@ -352,7 +352,7 @@ export default function NuoretPage() {
             className="w-full py-2.5 text-sm text-ice border border-navy-600 rounded-lg hover:border-ice/40 transition-colors"
           >
             Näytä {Math.min(SIVUN_KOKO, tilastokarki.length - naytetaan)} lisää
-            <span className="text-white/40">
+            <span className="text-vaimea">
               {' '}
               ({naytetaan}/{tilastokarki.length})
             </span>
@@ -363,10 +363,10 @@ export default function NuoretPage() {
       {/* 4. KAIKKI PELAAJAT */}
       <section className="space-y-3">
         <div className="flex items-baseline justify-between gap-3">
-          <h2 className="text-xs uppercase tracking-wider text-white/40">
+          <h2 className="text-xs uppercase tracking-wider text-vaimea">
             Kaikki pelaajat
           </h2>
-          <span className="text-[11px] text-white/40 tabular">
+          <span className="text-[11px] text-vaimea tabular">
             {taulukko.length}/{kaikki.length}
           </span>
         </div>
@@ -399,12 +399,12 @@ export default function NuoretPage() {
         </div>
 
         {taulukko.length === 0 ? (
-          <p className="text-sm text-white/60">Haulla ei löytynyt pelaajia.</p>
+          <p className="text-sm text-toissijainen">Haulla ei löytynyt pelaajia.</p>
         ) : (
           <div className="overflow-x-auto border border-navy-600 rounded-xl">
             <table className="w-full text-sm">
               <thead>
-                <tr className="text-[10px] uppercase tracking-wider text-white/40 border-b border-navy-600">
+                <tr className="text-[10px] uppercase tracking-wider text-vaimea border-b border-navy-600">
                   <th className="text-left font-medium px-4 py-2">Pelaaja</th>
                   <th className="text-left font-medium px-3 py-2">Seura</th>
                   <th className="text-right font-medium px-3 py-2">Ikä</th>
@@ -426,20 +426,20 @@ export default function NuoretPage() {
                         {nimi(p)}
                       </SisainenLinkki>
                     </td>
-                    <td className="px-3 py-2 text-white/60">{p.joukkue}</td>
-                    <td className="px-3 py-2 text-right tabular text-white/70">
+                    <td className="px-3 py-2 text-toissijainen">{p.joukkue}</td>
+                    <td className="px-3 py-2 text-right tabular text-toissijainen">
                       {p.ika}
                     </td>
                     <td className="px-3 py-2 text-right tabular text-ice">
                       {p.faktat.minuutit}
                     </td>
-                    <td className="px-3 py-2 text-right tabular text-white/70">
+                    <td className="px-3 py-2 text-right tabular text-toissijainen">
                       {p.faktat.ottelut}
                     </td>
-                    <td className="px-3 py-2 text-right tabular text-white/70">
+                    <td className="px-3 py-2 text-right tabular text-toissijainen">
                       {p.faktat.aloitukset}
                     </td>
-                    <td className="px-3 py-2 text-right tabular text-white/70">
+                    <td className="px-3 py-2 text-right tabular text-toissijainen">
                       {typeof p.faktat.penkilla === 'number' ? p.faktat.penkilla : '–'}
                     </td>
                     <td className="px-4 py-2 text-right tabular text-white/90">

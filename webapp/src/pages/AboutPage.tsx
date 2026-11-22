@@ -63,7 +63,7 @@ function Section({
   return (
     <section className="space-y-3">
       <h2 className="text-lg font-medium text-white/90">{title}</h2>
-      <div className="text-sm text-white/60 leading-relaxed space-y-2">
+      <div className="text-sm text-toissijainen leading-relaxed space-y-2">
         {children}
       </div>
     </section>
@@ -101,7 +101,7 @@ function SourceItem({
         ) : (
           <span className="text-white/90 font-medium">{name}</span>
         )}
-        <p className="text-xs text-white/50 mt-1">{description}</p>
+        <p className="text-xs text-vaimea mt-1">{description}</p>
       </div>
     </div>
   );
@@ -168,7 +168,7 @@ export default function AboutPage() {
         <h1 className="text-3xl md:text-4xl font-light tracking-tight">
           pallo<span className="text-aurora">.</span>netti
         </h1>
-        <p className="text-base text-white/60 max-w-xl leading-relaxed">
+        <p className="text-base text-toissijainen max-w-xl leading-relaxed">
           Suomalaisen jalkapallon nuorten pelaajien peliajan visualisointi.
           Mallina ruotsalainen bolldata.se — pelkkä data selkeästi esitettynä.
         </p>
@@ -532,7 +532,7 @@ export default function AboutPage() {
         </ul>
       </Section>
 
-      <div className="border-t border-navy-700 pt-6 text-xs text-white/40">
+      <div className="border-t border-navy-700 pt-6 text-xs text-vaimea">
         <p>
           © {new Date().getFullYear()} pallonetti.fi ·{' '}
           <SisainenLinkki to="/" className="text-ice hover:text-white transition-colors">

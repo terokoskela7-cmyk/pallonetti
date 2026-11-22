@@ -68,7 +68,7 @@ type Tila =
 function Rivi({ label, arvo }: { label: string; arvo: string }) {
   return (
     <div className="flex items-baseline justify-between gap-4 py-1">
-      <span className="text-white/50">{label}</span>
+      <span className="text-vaimea">{label}</span>
       <span className="text-white/90 tabular">{arvo}</span>
     </div>
   );
@@ -155,7 +155,7 @@ export default function AdminPage() {
     <div className="px-6 py-10 md:py-14 max-w-3xl mx-auto space-y-6">
       <header className="space-y-2">
         <h1 className="text-2xl font-light">Kausituonti</h1>
-        <p className="text-sm text-white/50">
+        <p className="text-sm text-vaimea">
           Sarjan pelaajavienti (.xlsx). Sarja, kausi ja vaiheet luetaan
           tiedostosta. Esikatselu ei kirjoita mitään — tallennus vaatii
           erillisen vahvistuksen.
@@ -164,7 +164,7 @@ export default function AdminPage() {
 
       <section className="bg-navy-700/40 border border-navy-600 rounded-lg p-5 space-y-4">
         <label className="block">
-          <span className="text-xs uppercase tracking-wider text-white/40">
+          <span className="text-xs uppercase tracking-wider text-vaimea">
             Admin-avain
           </span>
           <input
@@ -177,17 +177,17 @@ export default function AdminPage() {
         </label>
 
         <label className="block">
-          <span className="text-xs uppercase tracking-wider text-white/40">
+          <span className="text-xs uppercase tracking-wider text-vaimea">
             Pelaajatiedosto (.xlsx)
           </span>
           <input
             type="file"
             accept=".xlsx"
             onChange={handleFile}
-            className="mt-1 block w-full text-sm text-white/70 file:mr-3 file:py-2 file:px-3 file:rounded-md file:border file:border-navy-600 file:bg-navy-800 file:text-white/80"
+            className="mt-1 block w-full text-sm text-toissijainen file:mr-3 file:py-2 file:px-3 file:rounded-md file:border file:border-navy-600 file:bg-navy-800 file:text-white/80"
           />
           {file && (
-            <span className="text-xs text-white/40 mt-1 block">
+            <span className="text-xs text-vaimea mt-1 block">
               {file.name} · {luku(Math.round(file.size / 1024))} kt
             </span>
           )}
@@ -222,7 +222,7 @@ export default function AdminPage() {
             />
             <Rivi label="Ohitettu" arvo={luku(tila.data.rivit.ohitetut.length)} />
             {ryhmitteleOhitetut(tila.data.rivit.ohitetut).map((r) => (
-              <div key={r.syy} className="text-xs text-white/40 pl-4">
+              <div key={r.syy} className="text-xs text-vaimea pl-4">
                 {r.syy}: {r.rivit.length} {r.rivit.length === 1 ? 'rivi' : 'riviä'} (rivit{' '}
                 {r.rivit.slice(0, 5).join(', ')}
                 {r.rivit.length > 5 ? ', …' : ''})
@@ -251,7 +251,7 @@ export default function AdminPage() {
                 arvo={pros(k.osuusAlle21 * 100)}
               />
               <Rivi label="Vaiheet" arvo={k.vaiheet.join(', ')} />
-              <div className="mt-2 text-xs text-white/50">
+              <div className="mt-2 text-xs text-vaimea">
                 Ottelut seuroittain:{' '}
                 {k.seurat.map((s) => `${s.joukkue} ${s.ottelut}`).join(' · ')}
               </div>
@@ -275,12 +275,12 @@ export default function AdminPage() {
               arvo={luku(tila.data.uusiaIlmanKansalaisuutta)}
             />
             {tila.data.muuttuneet.slice(0, 10).map((m) => (
-              <div key={m.slug} className="text-xs text-white/40 pl-4">
+              <div key={m.slug} className="text-xs text-vaimea pl-4">
                 {m.slug}: {luku(m.ennen)} → {luku(m.jalkeen)} min
               </div>
             ))}
             {tila.data.muuttuneet.length > 10 && (
-              <div className="text-xs text-white/40 pl-4">
+              <div className="text-xs text-vaimea pl-4">
                 … ja {luku(tila.data.muuttuneet.length - 10)} muuta
               </div>
             )}
@@ -322,7 +322,7 @@ export default function AdminPage() {
             <div className="bg-navy-700/40 border border-navy-600 rounded-lg p-5 text-sm">
               <h2 className="font-medium mb-3">Varoitukset</h2>
               {tila.data.varoitukset.map((v, i) => (
-                <div key={i} className="text-white/60 text-xs">
+                <div key={i} className="text-toissijainen text-xs">
                   {v}
                 </div>
               ))}
@@ -374,7 +374,7 @@ export default function AdminPage() {
               )}, ei tietoa ${luku(tila.data.kansalaisuus.eiTietoa)})`}
             />
             {tila.data.kansalaisuus.ohitettuNollaMinuuttia > 0 && (
-              <div className="text-xs text-white/50 flex items-start gap-2 mt-1">
+              <div className="text-xs text-vaimea flex items-start gap-2 mt-1">
                 <Info className="w-3.5 h-3.5 shrink-0 mt-0.5" />
                 {luku(tila.data.kansalaisuus.ohitettuNollaMinuuttia)} pelaajaa
                 ohitettiin: 0 minuuttia, joten he eivät ole sarjan
@@ -382,7 +382,7 @@ export default function AdminPage() {
               </div>
             )}
             {tila.data.kansalaisuus.jaljella > 0 && (
-              <div className="text-xs text-white/50 flex items-start gap-2 mt-1">
+              <div className="text-xs text-vaimea flex items-start gap-2 mt-1">
                 <Info className="w-3.5 h-3.5 shrink-0 mt-0.5" />
                 {luku(tila.data.kansalaisuus.jaljella)} pelaajaa jäi hakematta
                 tämän ajon budjetista. Seuraava tuonti jatkaa heistä

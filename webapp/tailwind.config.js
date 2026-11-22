@@ -11,10 +11,18 @@ export default {
           600: '#1a2640',
           500: '#243350',
         },
+        // Pääväri CLAUDE.md:n mukaan (#00C8FF). Aiemmin Tailwind käytti
+        // #00D4FF ja kaaviot #00C8FF; nyt molemmat ovat samaa sävyä.
         ice: {
-          DEFAULT: '#00D4FF',
-          dim: 'rgba(0, 212, 255, 0.12)',
+          DEFAULT: '#00C8FF',
+          dim: 'rgba(0, 200, 255, 0.12)',
         },
+        // Tekstisävyt sivu-uudistuksen luonnoksesta. Kiinteät sävyt
+        // korvaavat läpinäkyvän valkoisen (white/40–70), jonka kontrasti
+        // jäi navy-pohjalla pienessä tekstissä liian matalaksi.
+        teksti: '#E6EDF5',
+        toissijainen: '#B8C4D2',
+        vaimea: '#8899AA',
         aurora: '#00FF88',
       },
       fontFamily: {

@@ -48,7 +48,7 @@ const TIIVIS_RIVEJA = 2;
 
 function LoadingSkeleton() {
   return (
-    <div className="px-6 py-14 max-w-4xl mx-auto space-y-6 animate-pulse">
+    <div className="px-6 py-14 space-y-6 animate-pulse">
       <div className="h-8 bg-navy-700/30 rounded w-32" />
       <div className="h-28 bg-navy-700/30 rounded-xl" />
       <div className="h-56 bg-navy-700/30 rounded-xl" />
@@ -61,10 +61,10 @@ function LoadingSkeleton() {
 function EiLoytynyt({ teamId }: { teamId: string }) {
   return (
     <div className="px-6 py-16 max-w-md mx-auto text-center space-y-4">
-      <Info className="w-10 h-10 text-white/40 mx-auto" />
+      <Info className="w-10 h-10 text-vaimea mx-auto" />
       <div className="text-white/90 font-medium">Seuraa ei löytynyt</div>
-      <div className="text-sm text-white/60">
-        Tunnisteella <span className="font-mono text-white/70">{teamId}</span> ei
+      <div className="text-sm text-toissijainen">
+        Tunnisteella <span className="font-mono text-toissijainen">{teamId}</span> ei
         ole seuraa kummassakaan sarjassa.
       </div>
       <SisainenLinkki to="/seurat" className="inline-block text-sm text-ice hover:text-white">
@@ -151,21 +151,21 @@ function Vihje({ active, payload }: TooltipProps<ValueType, NameType>) {
     <div className="bg-navy-800 border border-navy-600 rounded-md shadow-xl px-3 py-2 text-xs space-y-0.5">
       <div className="text-white/90 font-medium">{d.kausi}</div>
       {d.suhdeluku === null ? (
-        <div className="text-white/50">ei kummassakaan sarjassa</div>
+        <div className="text-vaimea">ei kummassakaan sarjassa</div>
       ) : (
         <>
           <div style={{ color: sarjanVari(d.sarja) }}>{d.sarja}</div>
           <div className="text-white/90 tabular">
             suhdeluku {desimaali(d.suhdeluku)}
           </div>
-          <div className="text-white/50 tabular">
+          <div className="text-vaimea tabular">
             osuus {desimaali(d.osuus)} % · sarjan taso{' '}
             {desimaali(d.sarjanTaso)} %
           </div>
         </>
       )}
       {d.liukuva !== null && (
-        <div className="text-white/50 tabular">
+        <div className="text-vaimea tabular">
           liukuva {desimaali(d.liukuva)}
         </div>
       )}
@@ -188,10 +188,10 @@ function Aikasarja({ data }: { data: SeuranSivu }) {
   return (
     <section className="bg-navy-700/40 border border-navy-600 rounded-xl p-5 space-y-2">
       <div className="flex items-baseline justify-between gap-3">
-        <h2 className="text-xs uppercase tracking-wider text-white/40">
+        <h2 className="text-xs uppercase tracking-wider text-vaimea">
           Suhde sarjan tasoon
         </h2>
-        <span className="text-[11px] text-white/40 tabular">
+        <span className="text-[11px] text-vaimea tabular">
           0–{desimaali(data.ylarajaSuhde)} · {data.aikasarja.kaudet[0]}–
           {data.aikasarja.kaudet[data.aikasarja.kaudet.length - 1]}
         </span>
@@ -199,7 +199,7 @@ function Aikasarja({ data }: { data: SeuranSivu }) {
 
       {/* Tämä on koko sivun tärkein lause: ilman sitä raaka osuus
           luetaan linjan muutoksena, vaikka vain sarja vaihtui. */}
-      <p className="text-[11px] text-white/60 leading-relaxed border-l-2 border-ice/40 pl-3">
+      <p className="text-[11px] text-toissijainen leading-relaxed border-l-2 border-ice/40 pl-3">
         Sarjojen taso eroaa toisistaan, joten raaka osuus nousee usein
         sarjasta pudotessa ilman että seuran linja on muuttunut. Suhdeluku
         kertoo seuran suhteen oman sarjansa tasoon: 1,0 on sarjan taso,
@@ -264,7 +264,7 @@ function Aikasarja({ data }: { data: SeuranSivu }) {
       </div>
 
       {/* Selite pisteiden muodolle ja värille. */}
-      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-white/50">
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-vaimea">
         <span className="inline-flex items-center gap-1.5">
           <span
             className="inline-block w-2.5 h-2.5 rounded-full"
@@ -305,7 +305,7 @@ function Aikasarja({ data }: { data: SeuranSivu }) {
                 kaavion piirtämä suure, joten se ei saa jäädä piiloon;
                 osuus ja sarjan taso ovat sen taustaluvut ja siirtyvät
                 vierityksen taakse. */}
-            <tr className="text-white/40 text-left">
+            <tr className="text-vaimea text-left">
               <th className="font-medium py-1 pr-2">Kausi</th>
               <th className="font-medium py-1 pr-2">Sarja</th>
               <th className="hidden sm:table-cell font-medium py-1 pr-2 text-right">
@@ -317,7 +317,7 @@ function Aikasarja({ data }: { data: SeuranSivu }) {
               <th className="font-medium py-1 text-right">Suhde</th>
             </tr>
           </thead>
-          <tbody className="text-white/60">
+          <tbody className="text-toissijainen">
             {pisteet.map((p) => (
               <tr key={p.kausi}>
                 <td className="py-0.5 pr-2">{p.kausi}</td>
@@ -339,7 +339,7 @@ function Aikasarja({ data }: { data: SeuranSivu }) {
         </table>
       </div>
 
-      <p className="text-[11px] text-white/40 leading-relaxed">
+      <p className="text-[11px] text-vaimea leading-relaxed">
         Pystyakseli on seuran oma (0–{desimaali(data.ylarajaSuhde)}), joten
         korkeuksia ei voi verrata silmämääräisesti seuravertailun kaavioihin.
         Liukuva keskiarvo lasketaan suhdeluvusta, ei raa'asta osuudesta, ja se
@@ -372,7 +372,7 @@ export default function SeuraPage() {
         <div className="text-white/90 font-medium mb-2">
           Datan lataus epäonnistui
         </div>
-        <div className="text-sm text-white/60">{error}</div>
+        <div className="text-sm text-toissijainen">{error}</div>
       </div>
     );
   }
@@ -386,7 +386,7 @@ export default function SeuraPage() {
   const suhde = kaudenPiste?.suhdeluku ?? null;
 
   return (
-    <div className="px-6 py-10 md:py-14 max-w-4xl mx-auto space-y-6">
+    <div className="px-6 py-10 md:py-14 space-y-6">
       <div className="flex items-center gap-4 text-sm">
         <SisainenLinkki
           to="/seurat"
@@ -406,14 +406,14 @@ export default function SeuraPage() {
         </h1>
         {data.akatemia && (
           <span
-            className="inline-block rounded-md border border-navy-500 bg-navy-700/60 px-2 py-0.5 text-[11px] text-white/60"
+            className="inline-block rounded-md border border-navy-500 bg-navy-700/60 px-2 py-0.5 text-[11px] text-toissijainen"
             title={AKATEMIA_SELITE}
           >
             akatemiajoukkue
           </span>
         )}
         {k === null && (
-          <p className="text-sm text-white/60">
+          <p className="text-sm text-toissijainen">
             {data.nimi} ei pelannut kaudella {data.kausi} kummassakaan
             sarjassa. Kausikehitys näyttää ne kaudet, joilta dataa on.
           </p>
@@ -422,7 +422,7 @@ export default function SeuraPage() {
 
       {k !== null && (
         <section className="bg-navy-700/40 border border-navy-600 rounded-xl">
-          <div className="text-xs uppercase tracking-wider text-white/40 px-5 pt-4">
+          <div className="text-xs uppercase tracking-wider text-vaimea px-5 pt-4">
             Kauden {data.kausi} luvut
           </div>
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-px bg-navy-600">
@@ -443,7 +443,7 @@ export default function SeuraPage() {
               ['Keski-ikä', k.keskiIka === null ? 'ei dataa' : desimaali(k.keskiIka), 'white'],
             ].map(([label, arvo, vari]) => (
               <div key={label} className="text-center py-4 px-2 bg-navy-800/90">
-                <div className="text-[10px] uppercase tracking-wider text-white/40 mb-1.5">
+                <div className="text-[10px] uppercase tracking-wider text-vaimea mb-1.5">
                   {label}
                 </div>
                 <div
@@ -457,7 +457,7 @@ export default function SeuraPage() {
               </div>
             ))}
           </div>
-          <p className="text-[11px] text-white/40 px-5 pb-4 pt-2">
+          <p className="text-[11px] text-vaimea px-5 pb-4 pt-2">
             Osuus = nuorten minuutit jaettuna joukkueen {k.ottelut} ottelun
             kokonaisminuuteilla. Aloituksista = nuorten osuus {k.ottelut * 11}{' '}
             aloituspaikasta. Penkillä = kerrat, jolloin nuori oli kokoonpanossa
@@ -470,16 +470,16 @@ export default function SeuraPage() {
 
       <section className="space-y-3">
         <div className="flex items-baseline justify-between gap-3">
-          <h2 className="text-xs uppercase tracking-wider text-white/40">
+          <h2 className="text-xs uppercase tracking-wider text-vaimea">
             17–21-vuotiaat kaudella {data.kausi}
           </h2>
-          <span className="text-[11px] text-white/40 tabular">
+          <span className="text-[11px] text-vaimea tabular">
             {data.pelaajat.length}
           </span>
         </div>
 
         {data.pelaajat.length === 0 ? (
-          <p className="text-sm text-white/60">
+          <p className="text-sm text-toissijainen">
             Kaudelta {data.kausi} ei ole pelaajia tälle seuralle.
           </p>
         ) : (
@@ -496,9 +496,9 @@ export default function SeuraPage() {
                       <span className="text-white/95">
                         {naytaKokoNimi(p.etunimi, p.sukunimi)}
                       </span>
-                      <span className="text-xs text-white/40">{p.ika} v</span>
+                      <span className="text-xs text-vaimea">{p.ika} v</span>
                     </div>
-                    <div className="mt-1 text-xs text-white/50 tabular">
+                    <div className="mt-1 text-xs text-vaimea tabular">
                       {p.faktat.ottelut} ottelua · aloitti {p.faktat.aloitukset}
                       {typeof p.faktat.penkilla === 'number' ? ` · penkillä ${p.faktat.penkilla}` : ''}
                       {p.faktat.ottelut > 0
@@ -516,11 +516,11 @@ export default function SeuraPage() {
                   </div>
                   <div className="text-right shrink-0 tabular">
                     <div className="text-ice font-mono">{p.faktat.minuutit}</div>
-                    <div className="text-[10px] uppercase tracking-wider text-white/40">
+                    <div className="text-[10px] uppercase tracking-wider text-vaimea">
                       min
                     </div>
                     {p.faktat.osuusMinuuteista !== null && (
-                      <div className="text-[11px] text-white/50 mt-1">
+                      <div className="text-[11px] text-vaimea mt-1">
                         {p.faktat.osuusMinuuteista} %
                       </div>
                     )}
@@ -536,7 +536,7 @@ export default function SeuraPage() {
           sarjassa. Jos kautta ei ole, sarjaa ei tiedetä — silloin
           lahdeRivi antaa muodon "sarjan", joka on oikein muttei nimeä
           sarjaa. */}
-      <p className="text-xs text-white/40">
+      <p className="text-xs text-vaimea">
         {lahdeRivi(data.sarja ?? '')}. Kontekstirivit lasketaan samalla
         moottorilla kuin pelaajasivulla, ja vertailujoukko on koko sarjan
         ikäryhmä.

@@ -25,7 +25,7 @@ export function ResearchCard({ icon: Icon, stat, title, source, to }: ResearchCa
         {stat}
       </div>
       <div className="text-sm text-white/90 leading-snug mb-2">{title}</div>
-      <div className="text-xs text-white/45 mt-auto">
+      <div className="text-xs text-vaimea mt-auto">
         {to ? (
           <SisainenLinkki to={to} className="hover:text-ice transition-colors">
             {source}

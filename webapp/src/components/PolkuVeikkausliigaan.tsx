@@ -37,12 +37,12 @@ function Rivi({
     <div
       className={
         'flex items-baseline gap-3 py-1.5 ' +
-        (sisennetty ? 'pl-6 text-white/60' : 'text-white/80')
+        (sisennetty ? 'pl-6 text-toissijainen' : 'text-white/80')
       }
     >
       <span className="flex-1">{teksti}</span>
       <span className="tabular text-right w-10">{luku(arvo)}</span>
-      <span className="text-[11px] text-white/40 w-40 truncate">
+      <span className="text-[11px] text-vaimea w-40 truncate">
         {lisa ?? ''}
       </span>
     </div>
@@ -64,7 +64,7 @@ export function PolkuVeikkausliigaan({ polku }: { polku: PolkuTulos }) {
 
   return (
     <section className="bg-navy-700/40 border border-navy-600 rounded-lg p-5 space-y-5">
-      <h2 className="text-sm uppercase tracking-wider text-white/60">
+      <h2 className="text-sm uppercase tracking-wider text-toissijainen">
         Polku Veikkausliigaan
       </h2>
 
@@ -95,13 +95,13 @@ export function PolkuVeikkausliigaan({ polku }: { polku: PolkuTulos }) {
         />
       </div>
 
-      <p className="text-[11px] text-white/40 leading-relaxed max-w-3xl">
+      <p className="text-[11px] text-vaimea leading-relaxed max-w-3xl">
         Mukana vain pelaajat, joilla on peliminuutteja molemmissa sarjoissa.
         Lisäksi {luku(polku.vainKokoonpanossa)} pelaajaa oli molempien kausien
         kokoonpanoissa ilman peliaikaa ainakin toisessa sarjassa.
       </p>
 
-      <p className="text-sm text-white/70">
+      <p className="text-sm text-toissijainen">
         Toiseen suuntaan:{' '}
         <span className="tabular text-white/90">
           {luku(polku.toiseenSuuntaan)}
@@ -118,7 +118,7 @@ export function PolkuVeikkausliigaan({ polku }: { polku: PolkuTulos }) {
               kaudella {kausiN1} Veikkausliigassa
             </caption>
             <thead>
-              <tr className="text-[11px] uppercase tracking-wider text-white/40">
+              <tr className="text-[11px] uppercase tracking-wider text-vaimea">
                 <th className="text-left font-normal py-2 pr-3">Pelaaja</th>
                 <th className="text-left font-normal py-2 px-3">
                   {sarjanLyhytNimi(alempi)} {kausiN}
@@ -147,17 +147,17 @@ export function PolkuVeikkausliigaan({ polku }: { polku: PolkuTulos }) {
                       </span>
                     )}
                   </td>
-                  <td className="py-2 px-3 text-white/60">
+                  <td className="py-2 px-3 text-toissijainen">
                     {p.ylSeura}
                     {p.akatemiasta !== null && (
-                      <span className="text-white/40"> {AKATEMIA_MERKKI}</span>
+                      <span className="text-vaimea"> {AKATEMIA_MERKKI}</span>
                     )}
                   </td>
-                  <td className="py-2 px-3 text-right tabular text-white/60">
+                  <td className="py-2 px-3 text-right tabular text-toissijainen">
                     {luku(p.ylMinuutit)}
                   </td>
-                  <td className="py-2 px-3 text-white/60">{p.vlSeura}</td>
-                  <td className="py-2 pl-3 text-right tabular text-white/60">
+                  <td className="py-2 px-3 text-toissijainen">{p.vlSeura}</td>
+                  <td className="py-2 pl-3 text-right tabular text-toissijainen">
                     {luku(p.vlMinuutit)}
                   </td>
                 </tr>
@@ -165,7 +165,7 @@ export function PolkuVeikkausliigaan({ polku }: { polku: PolkuTulos }) {
             </tbody>
           </table>
           {piilotettu > 0 && (
-            <p className="text-[11px] text-white/40 mt-2">
+            <p className="text-[11px] text-vaimea mt-2">
               {luku(piilotettu)} alle 17-vuotiasta jätetty listalta pois.
             </p>
           )}
@@ -173,10 +173,10 @@ export function PolkuVeikkausliigaan({ polku }: { polku: PolkuTulos }) {
       )}
 
       <div className="border-t border-navy-600 pt-3">
-        <p className="text-[11px] uppercase tracking-wider text-white/40 mb-2">
+        <p className="text-[11px] uppercase tracking-wider text-vaimea mb-2">
           Rajoitukset
         </p>
-        <ul className="text-[11px] text-white/40 leading-relaxed space-y-1 list-disc list-inside max-w-3xl">
+        <ul className="text-[11px] text-vaimea leading-relaxed space-y-1 list-disc list-inside max-w-3xl">
           <li>
             Data kattaa vain 17–21-vuotiaat. 22-vuotiaana noussut ei näy, eikä
             pelaaja näy enää täytettyään 22.

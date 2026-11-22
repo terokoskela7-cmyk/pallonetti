@@ -132,12 +132,12 @@ export function InsightBar({ teams, sarja, kausi, trendit }: InsightBarProps) {
             key={ins.label}
             className="bg-navy-700 border border-navy-600 border-l-2 border-l-ice rounded-r-md p-4"
           >
-            <div className="flex items-center gap-2 text-xs uppercase tracking-wider text-white/50 mb-2">
+            <div className="flex items-center gap-2 text-xs uppercase tracking-wider text-vaimea mb-2">
               <Icon className="w-3.5 h-3.5 text-ice" />
               {ins.label}
             </div>
             <div className="font-medium text-white/90 mb-2">{ins.title}</div>
-            <div className="text-sm text-white/60 leading-relaxed">
+            <div className="text-sm text-toissijainen leading-relaxed">
               {ins.body}
             </div>
           </div>

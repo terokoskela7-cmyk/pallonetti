@@ -42,7 +42,7 @@ export function InfoTooltip({
         onClick={() => setOpen((v) => !v)}
         aria-label={label}
         aria-expanded={open}
-        className="text-white/30 hover:text-white/70 transition-colors p-0.5 -m-0.5 rounded focus:outline-none focus:ring-1 focus:ring-ice/50"
+        className="text-white/30 hover:text-toissijainen transition-colors p-0.5 -m-0.5 rounded focus:outline-none focus:ring-1 focus:ring-ice/50"
       >
         <Info className="w-3 h-3" />
       </button>

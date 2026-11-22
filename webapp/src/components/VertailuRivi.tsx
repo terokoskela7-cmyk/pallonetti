@@ -20,7 +20,7 @@ export function VertailuRivi({ osuusAlle21, jako }: Props) {
       <p className="text-sm text-white/80 tabular">
         {vertailurivinTeksti(osuusAlle21, jako)}
       </p>
-      <p className="text-[11px] text-white/40 leading-relaxed max-w-3xl">
+      <p className="text-[11px] text-vaimea leading-relaxed max-w-3xl">
         {VERTAILURIVIN_SELITE}
       </p>
     </div>

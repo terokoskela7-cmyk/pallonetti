@@ -66,7 +66,7 @@ function Rivi({
         </SisainenLinkki>
         {s.akatemia && (
           <span
-            className="ml-2 inline-block rounded border border-navy-500 bg-navy-700/60 px-1.5 text-[10px] text-white/50 align-middle"
+            className="ml-2 inline-block rounded border border-navy-500 bg-navy-700/60 px-1.5 text-[10px] text-vaimea align-middle"
             title={AKATEMIA_SELITE}
           >
             akatemiajoukkue
@@ -75,7 +75,7 @@ function Rivi({
       </td>
       <td className="px-3 py-2.5 min-w-[14rem]">
         {s.osuus === null ? (
-          <span className="text-white/40 text-xs">ei dataa</span>
+          <span className="text-vaimea text-xs">ei dataa</span>
         ) : (
           <span className="flex items-center gap-3">
             <span className="relative h-3 rounded-sm bg-navy-900/60 flex-1" aria-hidden="true">
@@ -99,7 +99,7 @@ function Rivi({
       <td
         className={
           'px-3 py-2.5 text-right font-mono tabular ' +
-          (suhde !== null && suhde >= 1 ? 'text-aurora' : 'text-white/70')
+          (suhde !== null && suhde >= 1 ? 'text-aurora' : 'text-toissijainen')
         }
       >
         {suhde === null ? '–' : desimaali(suhde) + '×'}
@@ -112,16 +112,16 @@ function Rivi({
       <td className="px-3 py-2.5 text-right font-mono tabular text-white/80">
         {s.penkkikerrat === null || s.penkkikerrat === undefined ? '–' : luku(s.penkkikerrat)}
       </td>
-      <td className="hidden sm:table-cell px-3 py-2.5 text-right font-mono tabular text-white/70">
+      <td className="hidden sm:table-cell px-3 py-2.5 text-right font-mono tabular text-toissijainen">
         {s.ottelut}
       </td>
-      <td className="hidden md:table-cell px-3 py-2.5 text-right font-mono tabular text-white/70">
+      <td className="hidden md:table-cell px-3 py-2.5 text-right font-mono tabular text-toissijainen">
         {luku(s.nuortenMinuutit)}
       </td>
-      <td className="hidden md:table-cell px-3 py-2.5 text-right font-mono tabular text-white/70">
+      <td className="hidden md:table-cell px-3 py-2.5 text-right font-mono tabular text-toissijainen">
         {s.pelaajia}
       </td>
-      <td className="hidden lg:table-cell px-4 py-2.5 text-right font-mono tabular text-white/70">
+      <td className="hidden lg:table-cell px-4 py-2.5 text-right font-mono tabular text-toissijainen">
         {s.keskiIka === null ? 'ei dataa' : desimaali(s.keskiIka)}
       </td>
     </tr>
@@ -202,20 +202,20 @@ export default function SeuratPage() {
         <div className="text-white/90 font-medium mb-2">
           Datan lataus epäonnistui
         </div>
-        <div className="text-sm text-white/60">{error ?? 'Tuntematon virhe'}</div>
+        <div className="text-sm text-toissijainen">{error ?? 'Tuntematon virhe'}</div>
       </div>
     );
   }
 
   return (
-    <div className="px-6 py-10 md:py-16 space-y-10 max-w-6xl mx-auto">
+    <div className="px-6 py-10 md:py-16 space-y-10">
       <section className="flex flex-wrap items-end justify-between gap-6">
         <div className="space-y-2 max-w-2xl">
-          <p className="text-xs uppercase tracking-[0.12em] text-white/50 font-mono">
+          <p className="text-xs uppercase tracking-[0.12em] text-vaimea font-mono">
             {sarja} · kausi {kausi}
           </p>
           <h1 className="text-3xl md:text-4xl font-medium tracking-tight text-white">Seurat</h1>
-          <p className="text-base text-white/70 leading-relaxed">
+          <p className="text-base text-toissijainen leading-relaxed">
             Kuinka suuren osan seuran otteluminuuteista {NUORET_LABEL_PITKA} pelasivat.
             Suhde kertoo, montako kertaa sarjan tason seura on.
           </p>
@@ -223,19 +223,19 @@ export default function SeuratPage() {
         {viiva && (
           <dl className="flex flex-wrap gap-8">
             <div>
-              <dt className="text-sm text-white/60">Sarjan taso</dt>
+              <dt className="text-sm text-toissijainen">Sarjan taso</dt>
               <dd className="text-3xl font-mono tabular text-white">{desimaali(viiva.kaikki)} %</dd>
             </div>
             {viiva.ilmanAkatemioita !== null && (
               <div>
-                <dt className="text-sm text-white/60">Ilman akatemiajoukkueita</dt>
+                <dt className="text-sm text-toissijainen">Ilman akatemiajoukkueita</dt>
                 <dd className="text-3xl font-mono tabular text-white">
                   {desimaali(viiva.ilmanAkatemioita)} %
                 </dd>
               </div>
             )}
             <div>
-              <dt className="text-sm text-white/60">Yli sarjan tason</dt>
+              <dt className="text-sm text-toissijainen">Yli sarjan tason</dt>
               <dd className="text-3xl font-mono tabular text-white">
                 {yliTason} / {seurat.length}
               </dd>
@@ -246,11 +246,11 @@ export default function SeuratPage() {
 
       {/* Kauden taulukko */}
       <section className="space-y-3">
-        <h2 className="text-xs uppercase tracking-wider text-white/40">
+        <h2 className="text-xs uppercase tracking-wider text-vaimea">
           Kausi {kausi}
         </h2>
         {seurat.length === 0 ? (
-          <p className="text-sm text-white/60">
+          <p className="text-sm text-toissijainen">
             Kaudelta {kausi} ei ole seuradataa tässä sarjassa.
           </p>
         ) : (
@@ -260,7 +260,7 @@ export default function SeuratPage() {
                 {sarja} {kausi}: seurat nuorten osuuden mukaan
               </caption>
               <thead>
-                <tr className="text-[11px] uppercase tracking-wider text-white/50 border-b border-navy-600">
+                <tr className="text-[11px] uppercase tracking-wider text-vaimea border-b border-navy-600">
                   <th scope="col" className="text-left font-medium px-4 py-2.5">Seura</th>
                   <th scope="col" className="text-left font-medium px-3 py-2.5">
                     Osuus · viiva = sarjan taso
@@ -293,18 +293,18 @@ export default function SeuratPage() {
       {/* Kausikehitys pieninä kaavioina */}
       <section className="space-y-3">
         <div className="flex items-baseline justify-between gap-3">
-          <h2 className="text-xs uppercase tracking-wider text-white/40">
+          <h2 className="text-xs uppercase tracking-wider text-vaimea">
             Kausikehitys
           </h2>
           {trendit && (
-            <span className="text-[11px] text-white/40 tabular">
+            <span className="text-[11px] text-vaimea tabular">
               {kaudenTrendit.length} seuraa · {trendit.kaudet[0]}–
               {trendit.kaudet[trendit.kaudet.length - 1]}
             </span>
           )}
         </div>
         {trendit === null || trendit === undefined ? (
-          <p className="text-sm text-white/60">Kausikehitystä ei saatu haettua.</p>
+          <p className="text-sm text-toissijainen">Kausikehitystä ei saatu haettua.</p>
         ) : (
           <>
             <SeuraKaaviot
@@ -315,7 +315,7 @@ export default function SeuratPage() {
               ylaraja={trendit.ylaraja}
             />
             {aiempiaSeuroja > 0 && (
-              <p className="text-[11px] text-white/40 leading-relaxed">
+              <p className="text-[11px] text-vaimea leading-relaxed">
                 Kaaviot ovat kauden {kausi} seuroista. {aiempiaSeuroja}{' '}
                 {aiempiaSeuroja === 1 ? 'seura on' : 'seuraa on'} pelannut
                 sarjassa aiemmin mutta ei tällä kaudella; niiden historia on
@@ -326,7 +326,7 @@ export default function SeuratPage() {
         )}
       </section>
 
-      <p className="text-xs text-white/40">
+      <p className="text-xs text-vaimea">
         {lahdeRivi(sarja)}. Osuus = nuorten minuutit jaettuna joukkueen
         otteluiden kokonaisminuuteilla. Aloituksista = nuorten osuus seuran
         aloituspaikoista (ottelut × 11). *Penkillä = kerrat, jolloin

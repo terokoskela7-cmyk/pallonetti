@@ -49,7 +49,7 @@ export function Tilannerivi({
 }) {
   const pvm = tuotuPvm === null ? null : suomalainenPvm(tuotuPvm);
   return (
-    <p className="text-xs text-white/40">
+    <p className="text-xs text-vaimea">
       {lahdeRivi(sarja)}
       {pvm === null ? '' : ' · tilanne ' + pvm}
     </p>
@@ -65,7 +65,7 @@ export function Tilannerivi({
 function AkatemiaMerkki() {
   return (
     <span
-      className="inline-block rounded-md border border-navy-500 bg-navy-700/60 px-2 py-0.5 text-[11px] text-white/60"
+      className="inline-block rounded-md border border-navy-500 bg-navy-700/60 px-2 py-0.5 text-[11px] text-toissijainen"
       title={AKATEMIA_SELITE}
     >
       akatemiajoukkue
@@ -126,7 +126,7 @@ export function EtusivunLause({
         >
           {tunniste(nosto)}
         </SisainenLinkki>
-        <span className="text-white/60"> — </span>
+        <span className="text-toissijainen"> — </span>
         <span className="tabular">{nosto.rivi.teksti}</span>
       </p>
       {(nosto.akatemia || nosto.siirto) && (
@@ -135,7 +135,7 @@ export function EtusivunLause({
           {nosto.siirto && <SiirtoMerkki siirto={nosto.siirto} linkki />}
         </div>
       )}
-      <p className="text-[11px] text-white/40 leading-relaxed max-w-2xl">
+      <p className="text-[11px] text-vaimea leading-relaxed max-w-2xl">
         Valinta: suurin poikkeama oman ikäryhmän mediaanista ylöspäin,
         mitattuna osuutena joukkueen minuuteista tai maalisijoituksena.
         Vertailujoukko: {nosto.rivi.vertailujoukko ?? 'oma ikäryhmä'}.
@@ -156,7 +156,7 @@ export function ValokeilaKortit({ nostot }: { nostot: Nosto[] }) {
           to={`/pelaaja/${n.slug}`}
           className="bg-navy-700/40 border border-navy-600 rounded-xl p-5 space-y-2 hover:border-ice/40 transition-colors"
         >
-          <div className="text-[10px] uppercase tracking-wider text-white/40">
+          <div className="text-[10px] uppercase tracking-wider text-vaimea">
             {n.ika} v · {n.joukkue}
           </div>
           <div className="text-lg font-light text-white/95 leading-tight">
@@ -166,7 +166,7 @@ export function ValokeilaKortit({ nostot }: { nostot: Nosto[] }) {
             {n.rivi.teksti}
           </p>
           {n.rivi.mediaani !== null && (
-            <p className="text-[11px] text-white/40">
+            <p className="text-[11px] text-vaimea">
               ikäryhmän mediaani {n.rivi.mediaani} {n.rivi.yksikko}
             </p>
           )}

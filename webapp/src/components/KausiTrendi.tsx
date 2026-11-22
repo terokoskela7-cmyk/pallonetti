@@ -163,7 +163,7 @@ function Vihje({ active, payload, label }: TooltipProps<ValueType, NameType>) {
             className="inline-block w-2 h-2 rounded-full"
             style={{ background: p.color }}
           />
-          <span className="text-white/60">{p.name}</span>
+          <span className="text-toissijainen">{p.name}</span>
           <span className="text-white/90 tabular ml-auto">
             {pros(typeof p.value === 'number' ? p.value : null)}
           </span>
@@ -202,7 +202,7 @@ export function KausiTrendi({ trendit, laaja = false, sarja }: Props) {
 
   if (data.length === 0) {
     return (
-      <div className="text-sm text-white/60">
+      <div className="text-sm text-toissijainen">
         Kausitrendiä ei voitu ladata.
       </div>
     );
@@ -211,7 +211,7 @@ export function KausiTrendi({ trendit, laaja = false, sarja }: Props) {
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap items-baseline justify-between gap-3">
-        <h2 className="text-sm uppercase tracking-wider text-white/60">
+        <h2 className="text-sm uppercase tracking-wider text-toissijainen">
           Nuorten peliaika kausittain
           {molemmat ? '' : ' — ' + valittu}
         </h2>
@@ -220,12 +220,12 @@ export function KausiTrendi({ trendit, laaja = false, sarja }: Props) {
             <button
               type="button"
               onClick={() => setMolemmat((v) => !v)}
-              className="text-[11px] px-2 py-1 rounded border border-navy-600 text-white/60 hover:text-white hover:border-navy-500 transition-colors"
+              className="text-[11px] px-2 py-1 rounded border border-navy-600 text-toissijainen hover:text-white hover:border-navy-500 transition-colors"
             >
               {molemmat ? 'Näytä vain ' + valittu : 'Vertaa sarjoja'}
             </button>
           )}
-          <span className="text-[11px] text-white/40">
+          <span className="text-[11px] text-vaimea">
             {data[0].kausi}–{data[data.length - 1].kausi}
           </span>
         </div>
@@ -420,7 +420,7 @@ function TrendiTaulukko({ trendit }: { trendit: TrendiKausi[] }) {
           Nuorten peliaika kausittain, osuus liigan minuuttikapasiteetista
         </caption>
         <thead>
-          <tr className="text-[11px] uppercase tracking-wider text-white/40">
+          <tr className="text-[11px] uppercase tracking-wider text-vaimea">
             {montaSarjaa && (
               <th className="text-left font-normal py-2 pr-3">Sarja</th>
             )}
@@ -451,12 +451,12 @@ function TrendiTaulukko({ trendit }: { trendit: TrendiKausi[] }) {
           {trendit.map((t) => (
             <tr key={t.sarja + t.kausi} className="border-t border-navy-700">
               {montaSarjaa && (
-                <td className="py-2 pr-3 text-white/60">{t.sarja}</td>
+                <td className="py-2 pr-3 text-toissijainen">{t.sarja}</td>
               )}
               <td className="py-2 pr-3 text-white/80">
                 {t.kausi}
                 {t.kesken && (
-                  <span className="text-white/40">
+                  <span className="text-vaimea">
                     {' '}
                     kesken
                     {t.otteluitaPelattu !== null
@@ -469,7 +469,7 @@ function TrendiTaulukko({ trendit }: { trendit: TrendiKausi[] }) {
                 {pros(t.osuus1721)}
               </td>
               {onAkatemioita && (
-                <td className="py-2 px-3 text-right tabular text-white/60">
+                <td className="py-2 px-3 text-right tabular text-toissijainen">
                   {t.osuus1721IlmanAkatemioita === null
                     ? '—'
                     : pros(t.osuus1721IlmanAkatemioita)}
@@ -480,13 +480,13 @@ function TrendiTaulukko({ trendit }: { trendit: TrendiKausi[] }) {
               </td>
               {onKolmijako && (
                 <>
-                  <td className="py-2 px-3 text-right tabular text-white/60">
+                  <td className="py-2 px-3 text-right tabular text-toissijainen">
                     {pros(t.alle21Jako ? t.alle21Jako.fin : null)}
                   </td>
-                  <td className="py-2 px-3 text-right tabular text-white/60">
+                  <td className="py-2 px-3 text-right tabular text-toissijainen">
                     {pros(t.alle21Jako ? t.alle21Jako.muu : null)}
                   </td>
-                  <td className="py-2 pl-3 text-right tabular text-white/60">
+                  <td className="py-2 pl-3 text-right tabular text-toissijainen">
                     {pros(t.alle21Jako ? t.alle21Jako.eiTietoa : null)}
                   </td>
                 </>

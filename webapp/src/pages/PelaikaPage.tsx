@@ -125,7 +125,7 @@ function KpiCard({ label, value, hint, info, accent = 'white' }: KpiCardProps) {
         : 'text-white/90';
   return (
     <div className="bg-navy-700 border border-navy-600 rounded-lg p-4">
-      <div className="text-[10px] uppercase tracking-wider text-white/40 mb-2 flex items-center gap-1.5">
+      <div className="text-[10px] uppercase tracking-wider text-vaimea mb-2 flex items-center gap-1.5">
         <span>{label}</span>
         {info && <InfoTooltip content={info} label={`Lisätietoja: ${label}`} />}
       </div>
@@ -133,7 +133,7 @@ function KpiCard({ label, value, hint, info, accent = 'white' }: KpiCardProps) {
         {value}
       </div>
       {hint && (
-        <div className="text-xs text-white/50 mt-2 leading-tight truncate">{hint}</div>
+        <div className="text-xs text-vaimea mt-2 leading-tight truncate">{hint}</div>
       )}
     </div>
   );
@@ -190,7 +190,7 @@ function TeamBarChart({ teams }: { teams: YouthStats[] }) {
           />
           <Tooltip
             content={<BarChartTooltip />}
-            cursor={{ fill: 'rgba(0, 212, 255, 0.05)' }}
+            cursor={{ fill: 'rgba(0, 200, 255, 0.05)' }}
           />
           <Bar dataKey="pct" radius={[0, 4, 4, 0]}>
             {data.map((entry) => (
@@ -228,7 +228,7 @@ function ErrorState({
     <div className="px-6 py-20 max-w-md mx-auto text-center space-y-4">
       <Info className="w-10 h-10 text-red-400/80 mx-auto" />
       <div className="text-white/90 font-medium">Datan lataus epäonnistui</div>
-      <div className="text-sm text-white/60">{message}</div>
+      <div className="text-sm text-toissijainen">{message}</div>
       <button
         onClick={onRetry}
         className="inline-flex items-center gap-2 px-4 py-2 bg-navy-700 hover:bg-navy-600 border border-navy-500 rounded-md text-sm transition-colors"
@@ -252,7 +252,7 @@ function SectionHeader({ title, icon: Icon, hint }: SectionHeaderProps) {
         {Icon && <Icon className="w-4 h-4 text-ice" />}
         {title}
       </h2>
-      {hint && <span className="text-xs text-white/40">{hint}</span>}
+      {hint && <span className="text-xs text-vaimea">{hint}</span>}
     </div>
   );
 }
@@ -291,14 +291,14 @@ function PlayerProgressionPanel({
 
   return (
     <div className="lg:col-span-2 rounded-xl border border-dashed border-navy-600 bg-navy-700/30 p-6 flex flex-col">
-      <div className="text-[10px] uppercase tracking-wider text-white/40 mb-2">
+      <div className="text-[10px] uppercase tracking-wider text-vaimea mb-2">
         Kehityskäyrä
       </div>
       <div className="text-base font-medium text-white/90 mb-1">
         {player ? fullName(player) : 'Valitse pelaaja taulukosta'}
       </div>
       {player && (
-        <div className="text-xs text-white/50 mb-4">
+        <div className="text-xs text-vaimea mb-4">
           {player.joukkue} · {player.ika} v · {player.minTotal} min ·{' '}
           {player.maaliTotal} M
         </div>
@@ -307,14 +307,14 @@ function PlayerProgressionPanel({
       {!player ? (
         <div className="flex-1 flex flex-col items-center justify-center text-center space-y-2 py-10">
           <TrendingUp className="w-7 h-7 text-white/30" />
-          <div className="text-sm text-white/50">
+          <div className="text-sm text-vaimea">
             Klikkaa rivi taulukosta nähdäksesi käyrä.
           </div>
         </div>
       ) : loading ? (
         <div className="flex-1 flex flex-col items-center justify-center text-center space-y-2 py-10">
           <Loader2 className="w-6 h-6 text-ice animate-spin" />
-          <div className="text-sm text-white/50">Ladataan kierrosdataa…</div>
+          <div className="text-sm text-vaimea">Ladataan kierrosdataa…</div>
         </div>
       ) : chartData.length > 0 ? (
         <>
@@ -355,14 +355,14 @@ function PlayerProgressionPanel({
               </LineChart>
             </ResponsiveContainer>
           </div>
-          <p className="text-[11px] text-white/40 mt-3 text-center">
+          <p className="text-[11px] text-vaimea mt-3 text-center">
             Kumulatiiviset minuutit · {chartData.length} kierrosta
           </p>
         </>
       ) : (
         <div className="flex-1 flex flex-col items-center justify-center text-center space-y-2 py-10">
           <Info className="w-6 h-6 text-white/30" />
-          <div className="text-sm text-white/50">
+          <div className="text-sm text-vaimea">
             Kierrosdataa ei vielä saatavilla.
           </div>
         </div>
@@ -478,7 +478,7 @@ export default function PelaikaPage() {
             Peliaika —{' '}
             <span className="text-aurora font-medium">nuoret pelaajat</span>
           </h1>
-          <p className="mt-3 text-sm md:text-base text-white/60 max-w-2xl">
+          <p className="mt-3 text-sm md:text-base text-toissijainen max-w-2xl">
             Miten paljon nuoret pelaavat ja missä joukkueissa?
           </p>
         </div>
@@ -539,7 +539,7 @@ export default function PelaikaPage() {
       {/* Kausitrendi laajana: kolmijako ja lukutaulukko */}
       <section className="bg-navy-700/40 border border-navy-600 rounded-lg p-5">
         {trendit === null ? (
-          <div className="text-sm text-white/60">
+          <div className="text-sm text-toissijainen">
             Kausitrendiä ei voitu ladata juuri nyt.
           </div>
         ) : (
@@ -560,11 +560,11 @@ export default function PelaikaPage() {
           />
           <TeamBarChart teams={veikkausliiga} />
           {veikkausliiga.some((t) => onAkatemia(t.teamName)) && (
-            <p className="text-[11px] text-white/40 mt-3 max-w-3xl leading-relaxed">
+            <p className="text-[11px] text-vaimea mt-3 max-w-3xl leading-relaxed">
               * {AKATEMIA_SELITE}
             </p>
           )}
-          <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-4 text-xs text-white/40">
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-4 text-xs text-vaimea">
             <span className="flex items-center gap-1.5">
               <span className="w-2 h-2 rounded bg-[#22c55e]" /> ≥ 40 %
             </span>
@@ -599,7 +599,7 @@ export default function PelaikaPage() {
                   className={`px-3 py-1.5 text-xs rounded-md border transition-colors ${
                     active
                       ? 'bg-ice/15 border-ice text-ice font-medium'
-                      : 'bg-navy-700/50 border-navy-600 text-white/70 hover:text-white hover:border-navy-500'
+                      : 'bg-navy-700/50 border-navy-600 text-toissijainen hover:text-white hover:border-navy-500'
                   }`}
                 >
                   {f.label}
@@ -609,14 +609,14 @@ export default function PelaikaPage() {
           </div>
 
           {filteredPlayers.length === 0 ? (
-            <div className="text-sm text-white/40 italic py-6 text-center">
+            <div className="text-sm text-vaimea italic py-6 text-center">
               Suodattimella ei löytynyt pelaajia.
             </div>
           ) : (
             <div className="overflow-x-auto -mx-5 px-5">
               <table className="min-w-full text-sm">
                 <thead>
-                  <tr className="text-left text-[11px] uppercase tracking-wider text-white/40 border-b border-navy-600">
+                  <tr className="text-left text-[11px] uppercase tracking-wider text-vaimea border-b border-navy-600">
                     <th className="py-2 pr-3 w-8 text-right">#</th>
                     <th className="py-2 pr-3">Pelaaja</th>
                     <th className="py-2 pr-3">Joukkue</th>
@@ -638,7 +638,7 @@ export default function PelaikaPage() {
                           isSelected ? 'bg-ice/10' : 'hover:bg-navy-700/60'
                         }`}
                       >
-                        <td className="py-2 pr-3 text-right text-white/40 font-mono tabular">
+                        <td className="py-2 pr-3 text-right text-vaimea font-mono tabular">
                           {i + 1}
                         </td>
                         <td className="py-2 pr-3 font-medium text-white/95">
@@ -647,7 +647,7 @@ export default function PelaikaPage() {
                             {p.ika} v
                           </span>
                         </td>
-                        <td className="py-2 pr-3 text-white/60">{p.joukkue}</td>
+                        <td className="py-2 pr-3 text-toissijainen">{p.joukkue}</td>
                         <td className="py-2 pr-3 text-right text-ice font-mono tabular">
                           {p.minTotal}
                         </td>
@@ -674,7 +674,7 @@ export default function PelaikaPage() {
                   })}
                 </tbody>
               </table>
-              <p className="text-xs text-white/40 mt-3">
+              <p className="text-xs text-vaimea mt-3">
                 Klikkaa riviä → kehityskäyrä päivittyy. Tuplaklikkaus tai ↗
                 → pelaajan oma sivu.
               </p>
@@ -701,7 +701,7 @@ export default function PelaikaPage() {
         </section>
       )}
 
-      <footer className="border-t border-navy-700 pt-5 text-xs text-white/40 flex flex-wrap items-center gap-x-4 gap-y-1">
+      <footer className="border-t border-navy-700 pt-5 text-xs text-vaimea flex flex-wrap items-center gap-x-4 gap-y-1">
         <span>
           {sarja} {kausi}
         </span>
@@ -711,7 +711,7 @@ export default function PelaikaPage() {
             'ei dataa'
           ) : (
             <>
-              <span className="text-white/70 tabular">{players.length}</span>{' '}
+              <span className="text-toissijainen tabular">{players.length}</span>{' '}
               pelaajaa
             </>
           )}
@@ -719,7 +719,7 @@ export default function PelaikaPage() {
         <span className="w-px h-3 bg-white/20" />
         <span>
           Lähde:{' '}
-          <span className="text-white/60">{lahdeMaininta(sarja)}</span>{' '}
+          <span className="text-toissijainen">{lahdeMaininta(sarja)}</span>{' '}
           (kausivienti)
         </span>
       </footer>

@@ -80,14 +80,14 @@ function MiniTrendi({ pisteet }: { pisteet: TrendiKausi[] }) {
         <line x1={reuna} y1={K} x2={L - reuna} y2={K} stroke="currentColor" className="text-navy-600" />
         <polyline points={viiva} fill="none" stroke="currentColor" strokeWidth={2.5} className="text-ice" />
         <circle cx={x(arvot.length - 1)} cy={y(viim.osuus1721)} r={5} fill="currentColor" className="text-ice" />
-        <text x={reuna} y={K + 16} fontSize={12} fill="currentColor" className="text-white/50 font-mono">
+        <text x={reuna} y={K + 16} fontSize={12} fill="currentColor" className="text-vaimea font-mono">
           {arvot[0].kausi}
         </text>
-        <text x={L - reuna} y={K + 16} fontSize={12} textAnchor="end" fill="currentColor" className="text-white/50 font-mono">
+        <text x={L - reuna} y={K + 16} fontSize={12} textAnchor="end" fill="currentColor" className="text-vaimea font-mono">
           {viim.kausi}
         </text>
       </svg>
-      <figcaption className="text-xs text-white/50">
+      <figcaption className="text-xs text-vaimea">
         Osuus sarjan minuuttikapasiteetista, %{viim.kesken ? ' · viimeisin kausi kesken' : ''}
       </figcaption>
     </figure>
@@ -100,9 +100,9 @@ function MiniTrendi({ pisteet }: { pisteet: TrendiKausi[] }) {
 function Kpi({ otsikko, arvo, lisa }: { otsikko: string; arvo: string; lisa?: string | null }) {
   return (
     <div className="bg-navy-700/60 border border-navy-600 rounded-xl px-5 py-4 flex flex-col gap-1">
-      <span className="text-sm text-white/60">{otsikko}</span>
+      <span className="text-sm text-toissijainen">{otsikko}</span>
       <span className="text-3xl font-mono tabular text-white leading-tight">{arvo}</span>
-      {lisa && <span className="text-xs text-white/50">{lisa}</span>}
+      {lisa && <span className="text-xs text-vaimea">{lisa}</span>}
     </div>
   );
 }
@@ -128,7 +128,7 @@ function SeuraPalkit({ seurat, taso }: { seurat: YouthStats[]; taso: number | nu
               title={s.teamName}
             >
               {s.teamName}
-              {onAkatemia(s.teamName) && <span className="text-white/40"> *</span>}
+              {onAkatemia(s.teamName) && <span className="text-vaimea"> *</span>}
             </SisainenLinkki>
             <div className="relative h-3 bg-navy-900/60 rounded-sm" aria-hidden="true">
               <div
@@ -198,7 +198,7 @@ export default function HomePage() {
   if (loading) {
     return (
       <div className="px-6 py-20">
-        <div className="text-white/40 text-sm">Ladataan kauden tilastoja…</div>
+        <div className="text-vaimea text-sm">Ladataan kauden tilastoja…</div>
       </div>
     );
   }
@@ -240,7 +240,7 @@ export default function HomePage() {
       {/* ---------- 1. Otsikkolause ---------- */}
       <section aria-labelledby="paaotsikko" className="flex flex-wrap items-end justify-between gap-8">
         <div className="flex-1 min-w-[18rem] max-w-3xl space-y-3">
-          <p className="text-xs uppercase tracking-[0.12em] text-white/50 font-mono">
+          <p className="text-xs uppercase tracking-[0.12em] text-vaimea font-mono">
             {sarja} · kausi {kausi}
             {tilanne ? ` · tilanne ${tilanne}` : ''}
           </p>
@@ -248,7 +248,7 @@ export default function HomePage() {
             Nuoret saivat <span className="font-mono text-ice">{pros(paaluku)}</span> peliajasta
             {otsikko?.jatko ? <> — {otsikko.jatko}</> : null}.
           </h1>
-          <p className="text-base md:text-lg text-white/70 leading-relaxed">
+          <p className="text-base md:text-lg text-toissijainen leading-relaxed">
             17–21-vuotiaiden osuus {sarjaGenetiivi(sarja)} minuuteista.
             {otsikko?.edellinen ? ` Kausi ${otsikko.edellinen.kausi} oli ${pros(otsikko.edellinen.osuus)}.` : ''}
             {otsikko?.kesken ? ' Kausi on kesken.' : ''}
@@ -302,14 +302,14 @@ export default function HomePage() {
               Kaikki seuraluvut →
             </SisainenLinkki>
           </div>
-          <p className="text-xs text-white/50">
+          <p className="text-xs text-vaimea">
             Osuus seuran otteluiden minuuteista · valkoinen viiva = sarjan taso {pros(taso)}
             {akatemioita ? ' · * akatemiajoukkue' : ''}
           </p>
           {seurat.length > 0 ? (
             <SeuraPalkit seurat={seurat} taso={taso} />
           ) : (
-            <p className="text-sm text-white/60">Seurakohtaista dataa ei ole tältä kaudelta.</p>
+            <p className="text-sm text-toissijainen">Seurakohtaista dataa ei ole tältä kaudelta.</p>
           )}
         </section>
 
@@ -322,7 +322,7 @@ export default function HomePage() {
               <ol className="space-y-3">
                 {pelaajat.map((p, i) => (
                   <li key={p.playerId} className="flex items-center gap-3">
-                    <span className="w-5 font-mono text-white/40">{i + 1}</span>
+                    <span className="w-5 font-mono text-vaimea">{i + 1}</span>
                     <div className="flex-1 min-w-0">
                       <SisainenLinkki
                         to={`/pelaaja/${p.playerId}`}
@@ -330,7 +330,7 @@ export default function HomePage() {
                       >
                         {naytaNimi(p.playerName)}
                       </SisainenLinkki>
-                      <span className="text-xs text-white/50">
+                      <span className="text-xs text-vaimea">
                         {p.teamName} · {p.age} v
                       </span>
                     </div>
@@ -339,7 +339,7 @@ export default function HomePage() {
                 ))}
               </ol>
             ) : (
-              <p className="text-sm text-white/60">Ei pelaajia tältä kaudelta.</p>
+              <p className="text-sm text-toissijainen">Ei pelaajia tältä kaudelta.</p>
             )}
             <SisainenLinkki to="/nuoret" className="inline-block mt-4 text-sm text-ice hover:text-white">
               Kaikki nuoret →
@@ -359,7 +359,7 @@ export default function HomePage() {
             <h2 id="valokeila" className="text-lg font-medium text-white">
               Valokeilassa
             </h2>
-            <span className="text-xs text-white/50">Suurin ero oman ikäryhmän mediaaniin</span>
+            <span className="text-xs text-vaimea">Suurin ero oman ikäryhmän mediaaniin</span>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
             {valokeila.map((n) => (
@@ -368,7 +368,7 @@ export default function HomePage() {
                 to={`/pelaaja/${n.slug}`}
                 className="block bg-navy-700/40 border border-navy-600 rounded-xl p-5 space-y-2 hover:border-ice/50 transition-colors"
               >
-                <p className="text-xs uppercase tracking-[0.08em] text-white/50 font-mono">
+                <p className="text-xs uppercase tracking-[0.08em] text-vaimea font-mono">
                   {n.ika} v · {n.joukkue}
                 </p>
                 <p className="text-lg text-white font-medium">{naytaNimi(n.etunimi + ' ' + n.sukunimi)}</p>
@@ -385,7 +385,7 @@ export default function HomePage() {
           Kausittain
         </h2>
         {trendit === null ? (
-          <p className="text-sm text-white/60">Kausitrendiä ei voitu ladata juuri nyt. Kauden omat luvut näkyvät yllä.</p>
+          <p className="text-sm text-toissijainen">Kausitrendiä ei voitu ladata juuri nyt. Kauden omat luvut näkyvät yllä.</p>
         ) : (
           <>
             <KausiTrendi trendit={trendit} sarja={sarja} />
@@ -417,7 +417,7 @@ export default function HomePage() {
           </span>
           <ChevronDown
             aria-hidden="true"
-            className={`w-4 h-4 text-white/40 shrink-0 transition-transform ${infoOpen ? 'rotate-180' : ''}`}
+            className={`w-4 h-4 text-vaimea shrink-0 transition-transform ${infoOpen ? 'rotate-180' : ''}`}
           />
         </button>
         {infoOpen && (
@@ -441,9 +441,9 @@ export default function HomePage() {
         )}
       </section>
 
-      <footer className="border-t border-navy-700 pt-5 text-sm text-white/50 flex flex-wrap items-center gap-x-4 gap-y-1">
+      <footer className="border-t border-navy-700 pt-5 text-sm text-vaimea flex flex-wrap items-center gap-x-4 gap-y-1">
         <span>
-          Lähde: <span className="text-white/70">{lahdeMaininta(sarja)}</span>
+          Lähde: <span className="text-toissijainen">{lahdeMaininta(sarja)}</span>
         </span>
         {tilanne && <span>tilanne {tilanne}</span>}
         <SisainenLinkki to="/about" className="text-ice hover:text-white">

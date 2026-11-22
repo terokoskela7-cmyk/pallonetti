@@ -64,7 +64,7 @@ export function Hero({
           {title}
         </h1>
         {subtitle && (
-          <p className="mt-3 text-base md:text-lg text-white/70 max-w-2xl">
+          <p className="mt-3 text-base md:text-lg text-toissijainen max-w-2xl">
             {subtitle}
           </p>
         )}

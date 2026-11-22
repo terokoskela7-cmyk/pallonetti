@@ -558,6 +558,8 @@ export interface SeuranSivu {
   /** Sarja, jossa seura pelasi valittuna kautena. null = ei kummassakaan. */
   sarja: string | null;
   seurakausi: Seurakausi | null;
+  /** Suomen kansalaisten osuus koko sarjasta valittuna kautena; puuttuu/null = ei tietoa. */
+  suomiTaso?: number | null;
   pelaajat: Array<Omit<Konteksti, 'ohitetut'> & { siirto: Siirto | null }>;
   aikasarja: {
     kaudet: number[];
@@ -640,7 +642,10 @@ export interface KaudenKonteksti {
   kausi: number;
   sarja: string;
   /** Listanäkymissä ei ole `ohitetut`-kenttää — se on katselmointitietoa. */
-  kontekstit: Array<Omit<Konteksti, 'ohitetut'>>;
+  /** kansalaisuus: null = sarjalta ei ole tietoa; puuttuu vanhasta vastauksesta. */
+  kontekstit: Array<Omit<Konteksti, 'ohitetut'> & { kansalaisuus?: 'suomi' | 'muu' | 'ei tietoa' | null }>;
+  /** true = kontekstien kansalaisuus on käytettävissä (Veikkausliiga). */
+  kansalaisuusSaatavilla?: boolean;
   valokeilassa: Nosto[];
   /**
    * Kauden tuontipäivä ISO-muodossa. Tilanne kerrotaan päivänä eikä

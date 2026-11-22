@@ -54,6 +54,7 @@ import {
   laskeTrendit,
   laskeKolmijako,
   luokitteleKansalaisuudet,
+  haeKansalaisuusLuokat,
 } from './services/trendit';
 import { ALLE_21_MAX, NUORET_MAX } from './services/ikarajat';
 import { parseExcelBuffer, writeRoundData } from './services/excelImport';
@@ -1078,16 +1079,8 @@ app.get('/api/seurat/:season', async (req, res) => {
     const { suoritukset, nimittajat } = await lueKausi(db, season, sarja);
     // Suomen kansalaiset pelaajarekisteristä (sama luokittelu kuin
     // trendeissä). Tieto on toistaiseksi vain Veikkausliigasta.
-    let suomalaiset: Set<string> | null = null;
-    if (sarja === OLETUSSARJA) {
-      const kansSnap = await db
-        .collection('seasons')
-        .doc(String(season))
-        .collection('kansalaisuudet')
-        .get();
-      const luokat = luokitteleKansalaisuudet(kansSnap.docs);
-      if (luokat.saatavilla) suomalaiset = luokat.fin;
-    }
+    const luokat = await haeKansalaisuusLuokat(db, season, sarja);
+    const suomalaiset = luokat ? luokat.fin : null;
     const seurat = laskeSeurakausi(season, sarja, suoritukset, nimittajat, suomalaiset);
     const kausittain = new Map<number, Seurakausi[]>([[season, seurat]]);
     const kapYht = seurat.reduce((a, s) => a + s.kapasiteettiMin, 0);
@@ -1210,6 +1203,18 @@ app.get('/api/konteksti/:season', async (req, res) => {
       pelipaikat,
     });
 
+    // Kansalaisuus listanäkymien suodatukseen (Suomen kansalaiset).
+    // null = sarjalta ei ole kansalaisuustietoa.
+    const kansLuokat = await haeKansalaisuusLuokat(db, season, sarja);
+    const kansalaisuus = (slug: string): 'suomi' | 'muu' | 'ei tietoa' | null =>
+      kansLuokat === null
+        ? null
+        : kansLuokat.fin.has(slug)
+          ? 'suomi'
+          : kansLuokat.muu.has(slug)
+            ? 'muu'
+            : 'ei tietoa';
+
     // Siirtomerkinta taydennetaan valinnan jalkeen: valitseNostot on
     // puhdas funktio eika tunne siirtodataa. Siirtynyt pelaaja voi olla
     // valokeilassa, koska minuutit ovat taman kauden dataa.
@@ -1229,8 +1234,9 @@ app.get('/api/konteksti/:season', async (req, res) => {
         sarja,
         kontekstit: kaikki.map((k) => {
           const { ohitetut: _ohitetut, ...rest } = k;
-          return rest;
+          return { ...rest, kansalaisuus: kansalaisuus(k.slug) };
         }),
+        kansalaisuusSaatavilla: kansLuokat !== null,
         valokeilassa,
         tuotuPvm: await kaudenTuontiPvm(db, season, sarja),
       },

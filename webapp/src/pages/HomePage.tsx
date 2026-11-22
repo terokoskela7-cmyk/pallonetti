@@ -4,6 +4,7 @@ import { ArrowRight, TrendingUp, Target, Info, ChevronDown } from 'lucide-react'
 import { useApi } from '@/hooks/useApi';
 import { naytaNimi } from '@/utils/nimet';
 import {
+  getSeuratKausi,
   getYouthStatsAll,
   getYouthAggregation,
   getTrendit,
@@ -112,36 +113,54 @@ function Kpi({ otsikko, arvo, lisa }: { otsikko: string; arvo: string; lisa?: st
 // ------------------------------------------------------------
 // Seurat palkkeina, pystyviiva = sarjan taso
 // ------------------------------------------------------------
-function SeuraPalkit({ seurat, taso }: { seurat: YouthStats[]; taso: number | null }) {
-  const jarjestetty = [...seurat].sort((a, b) => b.osuusNuoret - a.osuusNuoret);
+interface PalkkiRivi {
+  id: string;
+  nimi: string;
+  /** Päämittari: Suomen kansalaisten osuus tai kaikki 17–21. */
+  osuus: number;
+  /** Kaikki 17–21, kun päämittari on suomalaiset; muuten null. */
+  kaikki: number | null;
+}
+
+function SeuraPalkit({ rivit, taso }: { rivit: PalkkiRivi[]; taso: number | null }) {
+  const jarjestetty = [...rivit].sort((a, b) => b.osuus - a.osuus);
   // Asteikon yläraja: suurin osuus pyöristettynä ylös kymmeneen, vähintään
   // 40 %, jotta Veikkausliigan palkit eivät veny koko leveyteen.
-  const yla = Math.max(40, Math.ceil(Math.max(...jarjestetty.map((s) => s.osuusNuoret), 0) / 10) * 10);
+  const yla = Math.max(
+    40,
+    Math.ceil(Math.max(...jarjestetty.map((s) => Math.max(s.osuus, s.kaikki ?? 0)), 0) / 10) * 10,
+  );
   const tasoKohta = taso === null ? null : (taso / yla) * 100;
   return (
     <div className="grid grid-cols-[minmax(0,9rem)_minmax(0,1fr)_3.5rem] gap-x-4 gap-y-2.5 items-center text-sm">
       {jarjestetty.map((s) => {
-        const yli = taso !== null && s.osuusNuoret >= taso;
+        const yli = taso !== null && s.osuus >= taso;
         return (
-          <div key={s.teamId} className="contents">
+          <div key={s.id} className="contents">
             <SisainenLinkki
-              to={`/seurat/${s.teamId}`}
+              to={`/seurat/${s.id}`}
               className="truncate text-white/85 hover:text-ice"
-              title={s.teamName}
+              title={s.nimi}
             >
-              {s.teamName}
-              {onAkatemia(s.teamName) && <span className="text-vaimea"> *</span>}
+              {s.nimi}
+              {onAkatemia(s.nimi) && <span className="text-vaimea"> *</span>}
             </SisainenLinkki>
             <div className="relative h-3 bg-navy-900/60 rounded-sm" aria-hidden="true">
+              {s.kaikki !== null && (
+                <div
+                  className="absolute inset-y-0 left-0 rounded-sm bg-ice/25"
+                  style={{ width: `${Math.min(100, (s.kaikki / yla) * 100)}%` }}
+                />
+              )}
               <div
-                className={`h-3 rounded-sm ${yli ? 'bg-ice' : 'bg-ice/40'}`}
-                style={{ width: `${Math.min(100, (s.osuusNuoret / yla) * 100)}%` }}
+                className={`relative h-3 rounded-sm ${yli ? 'bg-ice' : 'bg-ice/60'}`}
+                style={{ width: `${Math.min(100, (s.osuus / yla) * 100)}%` }}
               />
               {tasoKohta !== null && (
                 <div className="absolute -top-1 -bottom-1 border-l-2 border-white" style={{ left: `${tasoKohta}%` }} />
               )}
             </div>
-            <span className="text-right font-mono tabular text-white">{pros(s.osuusNuoret)}</span>
+            <span className="text-right font-mono tabular text-white">{pros(s.osuus)}</span>
           </div>
         );
       })}
@@ -157,6 +176,17 @@ export default function HomePage() {
   const { data, loading, error } = useApi(async () => {
     const [stats, agg] = await Promise.all([getYouthStatsAll(kausi), getYouthAggregation(kausi, sarja)]);
     return { stats, agg };
+  }, [kausi, sarja]);
+
+  // Seurojen Suomen kansalaisten osuudet (Seurat-sivun laskenta).
+  // Epäonnistuminen ei kaada sivua: palkit näyttävät silloin kaikki 17–21.
+  const { data: seuraKausi } = useApi(async () => {
+    try {
+      return await getSeuratKausi(kausi, sarja);
+    } catch (e) {
+      console.error('[etusivu] seurahaku epäonnistui:', e);
+      return null;
+    }
   }, [kausi, sarja]);
 
   // Valokeila. Epäonnistuminen ei kaada sivua: osio jää pois.
@@ -232,12 +262,8 @@ export default function HomePage() {
   const valittuTrendi = valittuPiste;
   const jako = valittuTrendi?.jako1721 ?? null;
 
-  // Kärkiseurat lauseeseen ilman akatemiajoukkueita: niiden koko tehtävä
-  // on peluuttaa nuoria, joten "kärjessä HJK Klubi 04" ei kertoisi mitään.
-  const karki = [...seurat]
-    .filter((s) => !onAkatemia(s.teamName))
-    .sort((a, b) => b.osuusNuoret - a.osuusNuoret)
-    .slice(0, 2);
+  // Akatemiajoukkueet jätetään kärkiseuroista pois (alla): niiden koko
+  // tehtävä on peluuttaa nuoria, joten "kärjessä HJK Klubi 04" ei kertoisi mitään.
   const akatemioita = seurat.some((s) => onAkatemia(s.teamName));
 
   const pelaajat = (agg.topYouthPlayers ?? [])
@@ -246,6 +272,22 @@ export default function HomePage() {
     .slice(0, 5);
   const valokeila = (konteksti?.valokeilassa ?? []).slice(0, 3);
   const tilanne = paiva(konteksti?.tuotuPvm ?? agg.updatedAt);
+
+  // Seurapalkit: Suomen kansalaiset, kun Seurat-rajapinta antaa tiedon.
+  const seuraSuomiTaso = seuraKausi?.suomiTaso ?? null;
+  const palkkiRivit: PalkkiRivi[] =
+    seuraSuomiTaso !== null && seuraKausi
+      ? seuraKausi.seurat
+          .filter((s) => s.suomiOsuus !== null && s.suomiOsuus !== undefined)
+          .map((s) => ({ id: s.tunniste, nimi: s.nimi, osuus: s.suomiOsuus as number, kaikki: s.osuus }))
+      : seurat.map((s) => ({ id: s.teamId, nimi: s.teamName, osuus: s.osuusNuoret, kaikki: null }));
+  const palkkiTaso = seuraSuomiTaso ?? taso;
+  // Kärkiseurat lauseeseen samalla mittarilla kuin palkit, ilman
+  // akatemiajoukkueita.
+  const karkiRivit = [...palkkiRivit]
+    .filter((s) => !onAkatemia(s.nimi))
+    .sort((a, b) => b.osuus - a.osuus)
+    .slice(0, 2);
 
   const peliajalla = agg.pelaajatPeliajalla ?? null;
   const kaikkiaan = agg.pelaajatNuoret ?? null;
@@ -280,8 +322,10 @@ export default function HomePage() {
             )}
             {otsikko?.edellinen ? ` Kausi ${otsikko.edellinen.kausi} oli ${pros(otsikko.edellinen.osuus)}.` : ''}
             {otsikko?.kesken ? ' Kausi on kesken.' : ''}
-            {karki.length === 2
-              ? ` Seuroista kärjessä ${karki[0].teamName} (${pros(karki[0].osuusNuoret)}) ja ${karki[1].teamName} (${pros(karki[1].osuusNuoret)})${mittari === 'suomi' ? ', kaikki kansalaisuudet' : ''}.`
+            {karkiRivit.length === 2
+              ? ` Seuroista kärjessä ${karkiRivit[0].nimi} (${pros(karkiRivit[0].osuus)}) ja ${karkiRivit[1].nimi} (${pros(karkiRivit[1].osuus)})${
+                  seuraSuomiTaso === null && mittari === 'suomi' ? ', kaikki kansalaisuudet' : ''
+                }.`
               : ''}
           </p>
         </div>
@@ -324,18 +368,21 @@ export default function HomePage() {
         >
           <div className="flex flex-wrap items-baseline justify-between gap-2">
             <h2 id="seurat-otsikko" className="text-lg font-medium text-white">
-              Seurat nuorten osuuden mukaan
+              {seuraSuomiTaso !== null ? 'Seurat suomalaisten nuorten osuuden mukaan' : 'Seurat nuorten osuuden mukaan'}
             </h2>
             <SisainenLinkki to="/seurat" className="text-sm text-ice hover:text-white">
               Kaikki seuraluvut →
             </SisainenLinkki>
           </div>
           <p className="text-xs text-vaimea">
-            Osuus seuran otteluiden minuuteista · valkoinen viiva = sarjan taso {pros(taso)}
+            {seuraSuomiTaso !== null
+              ? 'Suomen kansalaisten osuus seuran otteluiden minuuteista · vaalea = kaikki 17–21 · '
+              : 'Osuus seuran otteluiden minuuteista · '}
+            valkoinen viiva = sarjan taso {pros(palkkiTaso)}
             {akatemioita ? ' · * akatemiajoukkue' : ''}
           </p>
-          {seurat.length > 0 ? (
-            <SeuraPalkit seurat={seurat} taso={taso} />
+          {palkkiRivit.length > 0 ? (
+            <SeuraPalkit rivit={palkkiRivit} taso={palkkiTaso} />
           ) : (
             <p className="text-sm text-toissijainen">Seurakohtaista dataa ei ole tältä kaudelta.</p>
           )}

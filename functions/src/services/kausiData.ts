@@ -30,6 +30,8 @@ export interface SuoritusDoc {
   joukkue: string;
   pelaajaAvain: string;
   slug: string;
+  /** Palloliiton pelaajatunniste. Puuttuu ennen 22.11.2026 tuotuja rivejä. */
+  palloid?: string | null;
   etunimi: string;
   sukunimi: string;
   ika: number;

@@ -756,6 +756,10 @@ export interface PolkuPelaaja {
 export interface PolkuTulos {
   kausiN: number;
   kausiN1: number;
+  /** Toisen tason sarja kaudella N (Ykkönen 2021–2023, Ykkösliiga 2024 →). */
+  alempiSarja?: string;
+  /** Toisen tason sarja kaudella N+1. */
+  alempiSarjaN1?: string;
   /** false = siirtymää ei ole (ei Ykkösliigan dataa edelliseltä kaudelta). */
   saatavilla: boolean;
   nousseet: number;
@@ -770,6 +774,54 @@ export interface PolkuTulos {
   mediaaniYlMinuutit: number | null;
   pelaajat: PolkuPelaaja[];
 }
+
+// ============================================
+// LÄPIMURROT — debyytit, 450 min (ECA) ja debyytin jälkeen
+// ============================================
+export type JalkeenLuokka =
+  | 'kasvoi'
+  | 'pysyi'
+  | 'laski'
+  | 'ei peliaikaa'
+  | 'alempi sarja'
+  | 'täytti 22'
+  | 'ei datassa'
+  | 'ei vielä';
+
+export interface DebytoijanPolku {
+  slug: string;
+  nimi: string;
+  debyyttiKausi: number;
+  debyyttiTiedossa: boolean;
+  debyyttiIka: number;
+  debyyttiSeura: string;
+  debyyttiMin: number;
+  ennen: { sarja: string; taso: number; seura: string; min: number } | null;
+  jalkeen: { luokka: JalkeenLuokka; sarja: string | null; min: number | null };
+  lapimurtoKausi: number | null;
+  vakiintunutKausi: number | null;
+  vlMinYhteensa: number;
+  kaudet: { kausi: number; sarja: string; seura: string; min: number }[];
+}
+
+export interface DebyyttikausiYhteenveto {
+  kausi: number;
+  debytoineet: number;
+  lapimurto: number;
+  vakiintunut: number;
+  alemmaltaTasolta: number;
+  jalkeen: Record<JalkeenLuokka, number>;
+}
+
+export interface LapimurtoTulos {
+  maaritelmat: { lapimurtoMin: number; vakiintunutOsuus: number };
+  vlKaudet: number[];
+  yhteenveto: DebyyttikausiYhteenveto[];
+  pelaajat: DebytoijanPolku[];
+}
+
+/** Laskenta palvelimella (functions/src/services/lapimurrot.ts). */
+export const getLapimurrot = (): Promise<LapimurtoTulos> => fetchApi('/lapimurrot');
 
 /** Siirtymä kaudesta season-1 kauteen season. Laskenta tehdään palvelimella. */
 export const getPolku = (season: number): Promise<PolkuTulos> =>

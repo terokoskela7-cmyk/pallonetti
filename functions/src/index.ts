@@ -39,6 +39,7 @@ import {
   valitseNostot,
 } from './services/konteksti';
 import { laskePolku } from './services/polku';
+import { haeLapimurrot } from './services/lapimurrot';
 import { valitsePolku, type PolkuKausi } from './services/pelaajanPolku';
 import {
   laskeSeurakausi,
@@ -647,6 +648,29 @@ app.get('/api/polku/:season', async (req, res) => {
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Tuntematon virhe';
     console.error('[polku] failed:', message);
+    res.status(500).json({ success: false, error: message });
+  }
+});
+
+/**
+ * GET /api/lapimurrot — Veikkausliigan debyytit, läpimurrot (450
+ * kumulatiivista minuuttia, ECA) ja mitä debyyttikauden jälkeen tapahtui.
+ * Kaikki tuodut kaudet ja sarjat; pelkkä luku. Määritelmät:
+ * services/lapimurrot.ts.
+ */
+app.get('/api/lapimurrot', async (_req, res) => {
+  try {
+    const tulos = await haeLapimurrot(admin.firestore());
+    res.set('Cache-Control', 'public, max-age=3600');
+    res.json({
+      success: true,
+      data: tulos,
+      source: 'kausituonti',
+      timestamp: new Date().toISOString(),
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Tuntematon virhe';
+    console.error('[lapimurrot] failed:', message);
     res.status(500).json({ success: false, error: message });
   }
 });

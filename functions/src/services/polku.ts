@@ -1,5 +1,8 @@
 // ============================================
-// POLKU YKKOSLIIGASTA VEIKKAUSLIIGAAN
+// POLKU TOISELTA TASOLTA VEIKKAUSLIIGAAN
+//
+// Toinen taso on Ykkösliiga kaudesta 2024 ja Ykkönen kausina 2021–2023
+// (sarjatasot.ts). Alla "Ykkosliiga" tarkoittaa kauden toista tasoa.
 //
 // Kysymys: kuinka moni nuori nousee Ykkosliigasta Veikkausliigaan, ja
 // mita kautta. Pelkka "nousi Veikkausliigaan" -luku olisi harhaanjohtava,
@@ -25,15 +28,16 @@
 import { firestore } from 'firebase-admin';
 import { lueKausi, type SuoritusDoc } from './kausiData';
 import { onAkatemia } from './akatemiat';
+import { tasonSarja } from './sarjatasot';
 
 /** Akatemiajoukkueen emoseura. Pari on nimetty, ei paateltava. */
 export const AKATEMIA_EMOSEURA: Record<string, string> = {
   'hjk klubi 04': 'HJK',
   'sjk akatemia': 'SJK',
+  'kups akatemia i': 'KuPS',
 };
 
 const VEIKKAUSLIIGA = 'Veikkausliiga';
-const YKKOSLIIGA = 'Ykkösliiga';
 
 /** Ensimmainen kausi, jolta dataa on. */
 const ENSIMMAINEN_KAUSI = 2020;
@@ -62,6 +66,13 @@ export interface PolkuTulos {
   kausiN: number;
   /** Kausi, jolle noustiin. */
   kausiN1: number;
+  /**
+   * Toisen tason sarja kaudella N: Ykkönen 2021–2023, Ykkösliiga 2024 →.
+   * Sarjajärjestelmä muuttui kaudeksi 2024 (ks. sarjatasot.ts).
+   */
+  alempiSarja: string;
+  /** Toisen tason sarja kaudella N+1 ("toiseen suuntaan" -luku). */
+  alempiSarjaN1: string;
   saatavilla: boolean;
   nousseet: number;
   debytoi: number;
@@ -133,6 +144,8 @@ export async function laskePolku(
   const tyhja: PolkuTulos = {
     kausiN,
     kausiN1,
+    alempiSarja: tasonSarja(2, kausiN) ?? '',
+    alempiSarjaN1: tasonSarja(2, kausiN1) ?? '',
     saatavilla: false,
     nousseet: 0,
     debytoi: 0,
@@ -149,10 +162,10 @@ export async function laskePolku(
   if (kausiN < ENSIMMAINEN_KAUSI) return tyhja;
 
   const [ylN, vlN1, vlN, ylN1] = await Promise.all([
-    lueKausi(db, kausiN, YKKOSLIIGA),
+    lueKausi(db, kausiN, tyhja.alempiSarja),
     lueKausi(db, kausiN1, VEIKKAUSLIIGA),
     lueKausi(db, kausiN, VEIKKAUSLIIGA),
-    lueKausi(db, kausiN1, YKKOSLIIGA),
+    lueKausi(db, kausiN1, tyhja.alempiSarjaN1),
   ]);
 
   // Ilman Ykkosliigan dataa siirtymaa ei ole — ei naytetä tyhjana.
@@ -223,6 +236,8 @@ export async function laskePolku(
   return {
     kausiN,
     kausiN1,
+    alempiSarja: tyhja.alempiSarja,
+    alempiSarjaN1: tyhja.alempiSarjaN1,
     saatavilla: true,
     nousseet: nousseet.length,
     debytoi: debytoineet.length,

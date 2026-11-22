@@ -65,6 +65,13 @@ export interface Seurakausi {
   aloitusosuus: number | null;
   /** Kerrat, jolloin nuori oli kokoonpanossa mutta ei pelannut. null = ei tiedetä. */
   penkkikerrat: number | null;
+  /**
+   * Suomen kansalaisten (pelaajarekisterin FIN) 17–21-vuotiaiden minuutit
+   * ja osuus seuran kapasiteetista. null = sarjalta ei ole kansalaisuus-
+   * tietoa. Alaraja: rekisteristä puuttuva pelaaja ei ole tässä.
+   */
+  suomiMinuutit: number | null;
+  suomiOsuus: number | null;
 }
 
 function pyorista(x: number, desimaaleja: number): number {
@@ -82,6 +89,8 @@ export function laskeSeurakausi(
   sarja: string,
   suoritukset: SuoritusDoc[],
   nimittajat: NimittajaDoc[],
+  /** Suomen kansalaisten slugit; null = kansalaisuustietoa ei ole. */
+  suomalaiset: Set<string> | null = null,
 ): Seurakausi[] {
   const kapasiteetti = new Map<string, number>();
   const ottelut = new Map<string, number>();
@@ -122,6 +131,16 @@ export function laskeSeurakausi(
         nuortenAloitukset: aloitukset,
         aloitusosuus: aloitusosuus(aloitukset, seuranOttelut),
         penkkikerrat: penkkikerrat(rivit),
+        ...(() => {
+          if (suomalaiset === null) return { suomiMinuutit: null, suomiOsuus: null };
+          const fin = rivit
+            .filter((s) => suomalaiset.has(s.slug))
+            .reduce((a, s) => a + s.minuutit, 0);
+          return {
+            suomiMinuutit: fin,
+            suomiOsuus: kap > 0 ? pyorista((fin / kap) * 100, 1) : null,
+          };
+        })(),
       };
     });
 }

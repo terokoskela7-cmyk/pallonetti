@@ -75,6 +75,17 @@ export function normalisoiVaihe(vaihe: string, sarja: string): string {
   return sarjanNimet.includes(v) ? 'Runkosarja' : vaihe;
 }
 
+/**
+ * Kuuluuko vaihe runkosarjaan. Ykkösliigan kaudella 2024 runkosarja on
+ * lähteessä kahtena vaiheena, "1.-2. kierros" (18 ottelua) ja "3. kierros"
+ * (9 ottelua), jotka kaikki seurat pelaavat. Niitä ei yhdistetä yhdeksi
+ * vaiheeksi, koska vaihe on osa suoritusavainta ja saman seuran rivit
+ * osuisivat päällekkäin; sen sijaan laskenta tunnistaa ne runkosarjaksi.
+ */
+export function onRunkosarjaVaihe(vaihe: string): boolean {
+  return vaihe === 'Runkosarja' || /^\d+\.(\s*-\s*\d+\.)?\s*kierros$/i.test(vaihe.trim());
+}
+
 /** Oletussarja: vanhat osoitteet ja vanha data tarkoittavat Veikkausliigaa. */
 export const OLETUSSARJA = 'Veikkausliiga';
 
@@ -730,10 +741,10 @@ export function parsiKausiExcel(buffer: Buffer): TuontiTulos {
   // osallistujajoukko on aito osajoukko, joten vain runkosarjaa voi vaatia.
   for (const [kausi, joukkueet] of kaudenJoukkueet) {
     const vaiheet = kaudenVaiheet.get(kausi)!;
-    if (!vaiheet.has('Runkosarja')) continue;
+    if (![...vaiheet].some(onRunkosarjaVaihe)) continue;
     const runkosarjassa = new Set(
       nimittajat
-        .filter((n) => n.kausi === kausi && n.vaihe === 'Runkosarja')
+        .filter((n) => n.kausi === kausi && onRunkosarjaVaihe(n.vaihe))
         .map((n) => n.joukkue),
     );
     for (const j of joukkueet) {
@@ -829,8 +840,8 @@ export function laskeKaudet(
     const min = kaudenRivit.reduce((a, s) => a + s.minuutit, 0);
     const kap = kaudenNim.reduce((a, n) => a + n.kapasiteetti_min, 0);
 
-    const rsRivit = kaudenRivit.filter((s) => s.vaihe === 'Runkosarja');
-    const rsNim = kaudenNim.filter((n) => n.vaihe === 'Runkosarja');
+    const rsRivit = kaudenRivit.filter((s) => onRunkosarjaVaihe(s.vaihe));
+    const rsNim = kaudenNim.filter((n) => onRunkosarjaVaihe(n.vaihe));
     const rsMin = rsRivit.reduce((a, s) => a + s.minuutit, 0);
     const rsKap = rsNim.reduce((a, n) => a + n.kapasiteetti_min, 0);
 

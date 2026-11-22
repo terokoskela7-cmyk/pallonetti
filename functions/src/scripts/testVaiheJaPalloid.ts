@@ -10,7 +10,7 @@
 // Ajo:  node lib/scripts/testVaiheJaPalloid.js
 // ============================================
 import * as XLSX from 'xlsx';
-import { parsiKausiExcel, normalisoiVaihe } from '../services/kausiImport';
+import { parsiKausiExcel, normalisoiVaihe, onRunkosarjaVaihe } from '../services/kausiImport';
 
 let virheita = 0;
 
@@ -45,6 +45,13 @@ const OTSIKOT = [
   'Sarjan vaihe', 'Joukkue', 'Pelatut minuutit (min)', 'Ottelut aloituksessa',
   'Pelatut ottelut', 'Ottelut kokoonpanossa', 'Maalit', 'Joukkueen ottelut sarjassa',
 ];
+
+console.log('RUNKOSARJAN VAIHEET');
+vertaa('Runkosarja', onRunkosarjaVaihe('Runkosarja'), true);
+vertaa('1.-2. kierros', onRunkosarjaVaihe('1.-2. kierros'), true);
+vertaa('3. kierros', onRunkosarjaVaihe('3. kierros'), true);
+vertaa('Mestaruussarja ei', onRunkosarjaVaihe('Mestaruussarja'), false);
+vertaa('Ylempi jatkosarja ei', onRunkosarjaVaihe('Ylempi jatkosarja'), false);
 
 console.log('TUONTI');
 {

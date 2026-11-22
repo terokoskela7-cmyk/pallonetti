@@ -22,15 +22,19 @@ import { luku } from '@/utils/luvut';
 
 const ECA_URL = 'https://footballbenchmark.com/w/managing-talent-revolutionizing-talent-identification';
 
-/** Luokat järjestyksessä parhaasta heikoimpaan; värit pysyvät samoina kaikkialla. */
+/**
+ * Luokat järjestyksessä parhaasta heikoimpaan; värit pysyvät samoina kaikkialla.
+ * Värit Nousijat-luonnoksesta: sininen–oranssi-akseli ja vaalea–tumma, ei
+ * punainen/vihreä-paria, jotta luokat erottuvat myös värisokealle.
+ */
 const LUOKAT: { luokka: JalkeenLuokka; nimi: string; vari: string }[] = [
-  { luokka: 'kasvoi', nimi: 'Minuutit kasvoivat', vari: 'bg-green-500' },
-  { luokka: 'pysyi', nimi: 'Pysyivät samoina', vari: 'bg-ice' },
-  { luokka: 'laski', nimi: 'Laskivat', vari: 'bg-amber-400' },
-  { luokka: 'ei peliaikaa', nimi: 'Kokoonpanossa ilman peliaikaa', vari: 'bg-orange-500' },
-  { luokka: 'alempi sarja', nimi: 'Alempi sarja', vari: 'bg-red-500' },
-  { luokka: 'täytti 22', nimi: 'Täytti 22 (ei datassa)', vari: 'bg-white/30' },
-  { luokka: 'ei datassa', nimi: 'Ei datassa', vari: 'bg-white/15' },
+  { luokka: 'kasvoi', nimi: 'Minuutit kasvoivat', vari: 'bg-[#00C8FF]' },
+  { luokka: 'pysyi', nimi: 'Pysyivät samoina', vari: 'bg-[#7FDFFF]' },
+  { luokka: 'laski', nimi: 'Laskivat', vari: 'bg-[#F5A524]' },
+  { luokka: 'ei peliaikaa', nimi: 'Kokoonpanossa ilman peliaikaa', vari: 'bg-[#F97316]' },
+  { luokka: 'alempi sarja', nimi: 'Alempi sarja', vari: 'bg-[#C2410C]' },
+  { luokka: 'täytti 22', nimi: 'Täytti 22 (ei datassa)', vari: 'bg-[#5B6B80]' },
+  { luokka: 'ei datassa', nimi: 'Ei datassa', vari: 'bg-[#334155]' },
 ];
 
 const LUOKAN_NIMI: Record<JalkeenLuokka, string> = {

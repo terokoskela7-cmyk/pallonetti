@@ -3,6 +3,7 @@ import type { ReactNode } from 'react';
 import { SisainenLinkki, SisainenNavLinkki } from '@/components/SisainenLinkki';
 import { Menu, X } from 'lucide-react';
 import { useKausi } from '@/hooks/useKausi';
+import { sarjanLyhytNimi } from '@/constants/sarjat';
 
 interface LayoutProps {
   children: ReactNode;
@@ -31,7 +32,7 @@ function KausiValitsin({ mobiili = false }: { mobiili?: boolean }) {
       <select
         value={kausi ?? ''}
         onChange={(e) => setKausi(Number.parseInt(e.target.value, 10))}
-        className="bg-transparent text-sm text-amber-400 px-3 py-1.5 border border-amber-400/40 rounded-md hover:border-amber-400/70 focus:border-amber-400 focus:outline-none transition-colors tabular cursor-pointer"
+        className="bg-transparent text-sm text-white px-3 py-1.5 border border-navy-600 rounded-md hover:border-white/40 focus:border-ice focus:outline-none transition-colors tabular cursor-pointer"
       >
         {kaudet.map((k) => (
           <option key={k.kausi} value={k.kausi} className="bg-navy-800">
@@ -44,10 +45,15 @@ function KausiValitsin({ mobiili = false }: { mobiili?: boolean }) {
 }
 
 /**
- * Sarjavalitsin kausivalitsimen vieressä. Lista tulee kausidatasta, joten
- * uusi sarja ilmestyy tähän tuonnin jälkeen ilman koodimuutosta. Yhden
- * sarjan tilanteessa valitsinta ei näytetä lainkaan: valinta, jossa on
- * yksi vaihtoehto, on pelkkää kohinaa.
+ * Sarjavalitsin napeilla. Kolmella sarjalla pudotusvalikko piilotti
+ * valinnan: napit näyttävät kaikki vaihtoehdot ja valitun yhdellä
+ * silmäyksellä. Lista tulee kausidatasta, joten uusi sarja ilmestyy tähän
+ * tuonnin jälkeen ilman koodimuutosta. Yhden sarjan tilanteessa
+ * valitsinta ei näytetä lainkaan.
+ *
+ * Semantiikka: painikeryhmä, jossa valittu on aria-pressed. Radioryhmä
+ * vaatisi nuolinäppäinnavigoinnin; tavalliset painikkeet toimivat
+ * Tabilla ilman lisäkoodia.
  */
 function SarjaValitsin({ mobiili = false }: { mobiili?: boolean }) {
   const { sarja, sarjat, setSarja, loading } = useKausi();
@@ -55,37 +61,58 @@ function SarjaValitsin({ mobiili = false }: { mobiili?: boolean }) {
   if (loading || sarjat.length < 2) return null;
 
   return (
-    <label className={mobiili ? 'block' : 'hidden md:inline-flex items-center'}>
-      <span className="sr-only">Valitse sarja</span>
-      <select
-        value={sarja}
-        onChange={(e) => setSarja(e.target.value)}
-        className="bg-transparent text-sm text-ice px-3 py-1.5 border border-ice/40 rounded-md hover:border-ice/70 focus:border-ice focus:outline-none transition-colors cursor-pointer"
-      >
-        {sarjat.map((x) => (
-          <option key={x} value={x} className="bg-navy-800">
-            {x}
-          </option>
-        ))}
-      </select>
-    </label>
+    <div
+      role="group"
+      aria-label="Sarja"
+      className={
+        mobiili
+          ? 'flex flex-wrap gap-2 mb-3'
+          : 'hidden md:inline-flex rounded-md border border-navy-600 overflow-hidden'
+      }
+    >
+      {sarjat.map((x) => {
+        const valittu = x === sarja;
+        return (
+          <button
+            key={x}
+            type="button"
+            aria-pressed={valittu}
+            title={x}
+            onClick={() => setSarja(x)}
+            className={
+              (mobiili
+                ? 'px-3 py-2 rounded-full border text-sm '
+                : 'px-3 py-1.5 text-sm ') +
+              (valittu
+                ? 'bg-ice text-navy-900 border-ice font-medium'
+                : 'text-white/70 border-navy-600 hover:text-white hover:bg-navy-700/50')
+            }
+          >
+            {mobiili ? x : sarjanLyhytNimi(x)}
+          </button>
+        );
+      })}
+    </div>
   );
 }
 
+// "Analyysi" (/peliaika) poistuu valikosta, kun sen sisältö on siirretty
+// etusivulle ja Seurat-sivulle (sivu-uudistus, vaihe 3–4). Siihen asti se
+// pysyy, jotta joukkuekaavio ja kausitrendi eivät katoa.
 const navLinks: Array<{ to: string; label: string; end?: boolean }> = [
-  { to: '/', label: 'etusivu', end: true },
-  { to: '/peliaika', label: 'analyysi' },
-  { to: '/nuoret', label: 'nuoret' },
-  { to: '/seurat', label: 'seurat' },
-  { to: '/pelaajat', label: 'kaikki pelaajat' },
-  { to: '/about', label: 'tietoa' },
+  { to: '/', label: 'Etusivu', end: true },
+  { to: '/peliaika', label: 'Analyysi' },
+  { to: '/nuoret', label: 'Nuoret' },
+  { to: '/seurat', label: 'Seurat' },
+  { to: '/pelaajat', label: 'Pelaajat' },
+  { to: '/about', label: 'Tietoa' },
 ];
 
 const desktopLinkClass = ({ isActive }: { isActive: boolean }): string =>
-  `px-3 py-2 rounded-t-md transition-colors ${
+  `px-3 py-2 rounded-md transition-colors ${
     isActive
-      ? 'bg-ice/10 text-ice border-b-2 border-ice'
-      : 'text-white/70 hover:text-white hover:bg-navy-700/40 border-b-2 border-transparent'
+      ? 'bg-navy-700 text-white'
+      : 'text-white/70 hover:text-white hover:bg-navy-700/40'
   }`;
 
 const mobileLinkClass = ({ isActive }: { isActive: boolean }): string =>

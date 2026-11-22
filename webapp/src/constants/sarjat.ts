@@ -51,3 +51,12 @@ export function sarjanRivit<T>(
   if (sarja === 'Miesten Ykkönen') return kaikki.ykkonen ?? [];
   return kaikki.veikkausliiga ?? [];
 }
+
+/**
+ * Lyhyt nimi sarjanapeille, joissa tila on vähissä. "Miesten Ykkönen" on
+ * sarjan virallinen nimi, mutta napissa "Ykkönen" riittää: muuta Ykköstä
+ * sivustolla ei ole. Tuntematon sarja näytetään sellaisenaan.
+ */
+export function sarjanLyhytNimi(sarja: string): string {
+  return sarja === 'Miesten Ykkönen' ? 'Ykkönen' : sarja;
+}
